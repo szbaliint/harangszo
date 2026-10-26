@@ -17,7 +17,8 @@ import { overpass } from "./import-osm.mjs";
 const url = (process.env.SUPABASE_URL || "").replace(/\/$/, ""), key = process.env.SUPABASE_SECRET_KEY || "";
 const DRY = process.env.DRY_RUN === "1", FORCE = process.env.FORCE === "1";
 const H = () => ({ apikey: key, ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}), "Content-Type": "application/json" });
-const BBOX = { s: 46.6, n: 47.95, w: 17.6, e: 19.4 };   // generous box around the diocese
+// Box around the diocese, as wide as the 90 km radius used to look up settlements.
+const BBOX = { s: 46.4, n: 48.1, w: 17.4, e: 19.8 };
 const IMPORTANCE = { parish: 45, directorate: 40, filia: 25, place: 15 };
 
 async function api(path, opts = {}) {
@@ -33,8 +34,18 @@ async function loadChurches() {
     const page = await api(`churches?select=${sel}&lat=gte.${BBOX.s}&lat=lte.${BBOX.n}&lon=gte.${BBOX.w}&lon=lte.${BBOX.e}&order=id`,
       { headers: { Range: `${from}-${from + 999}`, "Range-Unit": "items" } });
     for (const c of page) { for (const k of ["services", "events", "suggestions", "opening_hours"]) c[k] = c[k]?.[0]?.count ?? 0; out.push(c); }
-    if (page.length < 1000) return out;
+    if (page.length < 1000) break;
   }
+  // Churches an earlier run imported or created, wherever they are, so they are recognised and not created twice.
+  const seen = new Set(out.map(c => c.id));
+  for (const filter of [`schedule_source=eq.${SOURCE}`, `created_by=eq.${SOURCE}`, "source_ref=not.is.null"]) {
+    for (let from = 0; ; from += 1000) {
+      const page = await api(`churches?select=${sel}&${filter}&order=id`, { headers: { Range: `${from}-${from + 999}`, "Range-Unit": "items" } });
+      for (const c of page) { if (seen.has(c.id)) continue; seen.add(c.id); for (const k of ["services", "events", "suggestions", "opening_hours"]) c[k] = c[k]?.[0]?.count ?? 0; out.push(c); }
+      if (page.length < 1000) break;
+    }
+  }
+  return out;
 }
 // Other names OpenStreetMap knows for the churches (alt_name, old_name, official_name…), to help matching.
 const CHURCH_NAMES_QUERY = `[out:json][timeout:180];
@@ -68,7 +79,7 @@ async function main() {
   console.log(`${churches.length} churches in the database around the diocese.`);
 
   // Previous imports: which church holds which entry.
-  const holderOf = new Map(churches.filter(c => c.schedule_source === SOURCE && c.source_ref).map(c => [c.source_ref, c]));
+  const holderOf = new Map(churches.filter(c => c.source_ref && (c.schedule_source === SOURCE || c.created_by === SOURCE)).map(c => [c.source_ref, c]));
   const importMade = c => c.created_by === SOURCE && c.osm_id == null;
   // Churches eligible for automatic matching: everything except churches this import created itself.
   const pool = churches.filter(c => !importMade(c));
@@ -86,7 +97,8 @@ async function main() {
   // 3. No match: keep using the church a previous run created for this entry.
   for (const r of report) if (!r.m && r.holder && !taken.has(r.holder.id)) { r.m = { church: r.holder, how: "earlier-import", score: 0, dist: 0 }; taken.add(r.holder.id); }
   // Earlier, now superseded, holders get released (their imported times removed; churches the import made are deleted).
-  for (const r of report) if (r.holder && r.m && r.m.church.id !== r.holder.id) r.fix = r.holder;
+  // Also when the holder now belongs to another entry: its old reference must be freed before anything gets it.
+  for (const r of report) if (r.holder && (!r.m || r.m.church.id !== r.holder.id)) r.fix = r.holder;
 
   // Two OpenStreetMap objects for the same building next to a matched church (node + outline): merge them.
   const dupes = [];
@@ -101,37 +113,59 @@ async function main() {
 
   let created = 0, updated = 0, skipped = 0, released = 0, merged = 0;
   if (!DRY) {
-    for (const r of report) if (r.fix) { r.fixResult = await api("rpc/release_imported_church", { method: "POST", body: JSON.stringify({ cid: r.fix.id, src: SOURCE }) }); released++; }
-    for (const d of dupes) { await api("rpc/merge_churches", { method: "POST", body: JSON.stringify({ keep_id: d.keep.id, drop_id: d.drop.id, schedule_from: "keep", name_from: "keep" }) }); merged++; }
+    for (const r of report) if (r.fix) {
+      try { r.fixResult = await api("rpc/release_imported_church", { method: "POST", body: JSON.stringify({ cid: r.fix.id, src: SOURCE }) }); released++; }
+      catch (err) { r.fixResult = "hiba"; console.error(`Release ${r.fix.name}: ${err.message}`); }
+    }
+    for (const d of dupes) {
+      try { await api("rpc/merge_churches", { method: "POST", body: JSON.stringify({ keep_id: d.keep.id, drop_id: d.drop.id, schedule_from: "keep", name_from: "keep" }) }); merged++; d.ok = true; }
+      catch (err) { console.error(`Merge ${d.drop.name} → ${d.keep.name}: ${err.message}`); }
+    }
   }
+  let failed = 0;
   for (const r of report) {
     const { e, anchor } = r;
     if (!r.m && !anchor) { r.result = "no-location"; continue; }
     if (!e.services.length && !e.note) { r.result = "no-data"; continue; }
     if (DRY) { r.result = r.m ? "would-update" : "would-create"; continue; }
-    let id = r.m?.church.id;
-    if (!id) {
-      const [row] = await api("churches", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({
-        name: churchNameFor(e), city: e.settlement, address: e.district || "", rite: /görög/i.test(e.title) ? "gk" : "rk",
-        lat: +anchor.lat.toFixed(6), lon: +anchor.lon.toFixed(6), location_approx: true, importance_auto: IMPORTANCE[e.type] ?? 30,
-        schedule_source: SOURCE, source_ref: r.ref, created_by: SOURCE,
-        notes: `Importálva: ${SOURCE_NAME} miserendje (${e.title}). A hely a(z) ${anchor.name} ${anchor.level === "district" ? "városrész" : "település"} közepe — pontosítsd a térképen, vagy vond össze a valódi templommal.` }) });
-      id = row.id; created++;
+    // One bad entry must not stop the others.
+    try {
+      let id = r.m?.church.id;
+      if (!id) {
+        const body = JSON.stringify({
+          name: churchNameFor(e), city: e.settlement, address: e.district || "", rite: /görög/i.test(e.title) ? "gk" : "rk",
+          lat: +anchor.lat.toFixed(6), lon: +anchor.lon.toFixed(6), location_approx: true, importance_auto: IMPORTANCE[e.type] ?? 30,
+          schedule_source: SOURCE, source_ref: r.ref, created_by: SOURCE,
+          notes: `Importálva: ${SOURCE_NAME} miserendje (${e.title}). A hely a(z) ${anchor.name} ${anchor.level === "district" ? "városrész" : "település"} közepe — pontosítsd a térképen, vagy vond össze a valódi templommal.` });
+        try {
+          const [row] = await api("churches", { method: "POST", headers: { Prefer: "return=representation" }, body });
+          id = row.id; created++;
+        } catch (err) {
+          // Already created by an earlier run (but not found above): use that church.
+          if (!/23505|409/.test(err.message)) throw err;
+          const [row] = await api(`churches?select=id&schedule_source=eq.${SOURCE}&source_ref=eq.${encodeURIComponent(r.ref)}`);
+          if (!row) throw err;
+          id = row.id;
+        }
+      }
+      const res = await api("rpc/import_church_schedule", { method: "POST", body: JSON.stringify({ p: {
+        church_id: id, source: SOURCE, source_url: SOURCE_URL, source_ref: r.ref, updated: e.updated, note: e.note, force: FORCE,
+        city: e.settlement, address: e.district || "",
+        services: e.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: s.end || "", note: s.note || "", period: s.period,
+          feast: s.feast, valid: s.valid || "", weeks: s.weeks || [] })) } }) });
+      r.result = res; if (res === "updated") updated++; else skipped++;
+    } catch (err) {
+      r.result = "error"; r.error = err.message.slice(0, 200); failed++;
+      console.error(`${e.title}: ${r.error}`);
     }
-    const res = await api("rpc/import_church_schedule", { method: "POST", body: JSON.stringify({ p: {
-      church_id: id, source: SOURCE, source_url: SOURCE_URL, source_ref: r.ref, updated: e.updated, note: e.note, force: FORCE,
-      city: e.settlement, address: e.district || "",
-      services: e.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: s.end || "", note: s.note || "", period: s.period,
-        feast: s.feast, valid: s.valid || "", weeks: s.weeks || [] })) } }) });
-    r.result = res; if (res === "updated") updated++; else skipped++;
   }
 
   // Report
   const label = { "earlier-import": "korábbi import", confirmed: "szerkesztő által megerősítve", name: "név alapján", hint: "városrész / plébánia címe alapján", "only-church": "egyetlen templom a közelben" };
   const lines = [`# ${SOURCE_NAME} – miserend import${DRY ? " (próbafuttatás)" : ""}`, "",
-    `Feldolgozva: **${entries.length}** misézőhely. ${DRY ? `Párosítva lenne: ${report.filter(r => r.result === "would-update").length}, új templom lenne: ${report.filter(r => r.result === "would-create").length}, javított korábbi párosítás: ${report.filter(r => r.fix).length}, összevonandó OSM-duplikátum: ${dupes.length}.` : `Frissítve: **${updated}**, új templom: **${created}**, kihagyva: **${skipped}**, javított korábbi párosítás: **${released}**, összevont duplikátum: **${merged}**.`}`, "",
+    `Feldolgozva: **${entries.length}** misézőhely. ${DRY ? `Párosítva lenne: ${report.filter(r => r.result === "would-update").length}, új templom lenne: ${report.filter(r => r.result === "would-create").length}, javított korábbi párosítás: ${report.filter(r => r.fix).length}, összevonandó OSM-duplikátum: ${dupes.length}.` : `Frissítve: **${updated}**, új templom: **${created}**, kihagyva: **${skipped}**, javított korábbi párosítás: **${released}**, összevont duplikátum: **${merged}**${failed ? `, **hiba: ${failed}** (lásd a táblázat végét)` : ""}.`}`, "",
     "| Forrás | Eredmény | Templom az adatbázisban | Párosítás | Időpontok | Javítás |", "|---|---|---|---|---|---|"];
-  const RES = { updated: "frissítve", manual: "kihagyva: kézzel felvitt időpontok", locked: "kihagyva: zárolva", missing: "hiba: nincs ilyen templom",
+  const RES = { error: "HIBA", updated: "frissítve", manual: "kihagyva: kézzel felvitt időpontok", locked: "kihagyva: zárolva", missing: "hiba: nincs ilyen templom",
     "no-location": "kihagyva: a település nem található", "no-data": "nincs időpont", "would-update": "frissülne", "would-create": "új templom lenne" };
   for (const r of report) {
     const t = r.m ? `${r.m.church.name} (${r.m.church.city || "–"})` : r.anchor ? `új: ${churchNameFor(r.e)} @ ${r.anchor.name}` : "–";
@@ -139,6 +173,8 @@ async function main() {
     const fixT = r.fix ? `korábban: ${r.fix.name} (${r.fixResult === "deleted" ? "törölve" : r.fixResult === "cleared" ? "időpontjai törölve" : DRY ? "javítandó" : r.fixResult})` : "";
     lines.push(`| ${r.e.title.replace(/\|/g, "/")} | ${RES[r.result] || r.result} | ${t.replace(/\|/g, "/")} | ${how} | ${r.e.services.length} | ${fixT.replace(/\|/g, "/")} |`);
   }
+  const errs = report.filter(r => r.result === "error");
+  if (errs.length) { lines.push("", "### Hibák", ""); for (const r of errs) lines.push(`- ${r.e.title}: ${r.error}`); }
   if (dupes.length) { lines.push("", "### Összevont OpenStreetMap-duplikátumok", "");
     for (const d of dupes) lines.push(`- ${d.drop.name} → ${d.keep.name} (${(Math.round(1000 * Math.hypot((d.keep.lat - d.drop.lat) * 111, (d.keep.lon - d.drop.lon) * 75)))} m)${DRY ? " — próbafuttatás, nem történt meg" : ""}`); }
   const md = lines.join("\n");
@@ -147,6 +183,7 @@ async function main() {
     anchor: r.anchor, services: r.e.services, note: r.e.note, updated: r.e.updated })), null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + "\n");
   console.log(md.split("\n").slice(0, 4).join("\n"));
+  if (failed) { console.error(`${failed} entries failed; see the report.`); process.exitCode = 1; }
 }
 
 main().catch(e => { console.error("Import failed:", e.message); process.exit(1); });
