@@ -23,18 +23,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Insert Google Maps key (if the secret is set)
+      - name: Build site with configuration from secrets
         env:
           GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           mkdir -p _site
-          cp index.html styles.css app.js data.js config.js _site/
-          if [ -n "$GOOGLE_MAPS_KEY" ]; then
-            sed -i "s|__GOOGLE_MAPS_KEY__|${GOOGLE_MAPS_KEY}|" _site/config.js
-            echo "Google Maps key inserted."
-          else
-            echo "No GOOGLE_MAPS_KEY secret; the site will use OpenStreetMap."
-          fi
+          cp index.html admin.html styles.css app.js admin.js data.js config.js _site/
+          fill() {  # fill <placeholder> <value> <label>
+            if [ -n "$2" ]; then
+              python3 -c 'import sys; p="_site/config.js"; s=open(p).read(); open(p,"w").write(s.replace(sys.argv[1], sys.argv[2]))' "$1" "$2"
+              echo "$3: set"
+            else
+              echo "$3: not set"
+            fi
+          }
+          fill __GOOGLE_MAPS_KEY__   "$GOOGLE_MAPS_KEY"   "Google Maps key (otherwise OpenStreetMap)"
+          fill __SUPABASE_URL__      "$SUPABASE_URL"      "Supabase URL (otherwise sample data)"
+          fill __SUPABASE_ANON_KEY__ "$SUPABASE_PUBLISHABLE_KEY" "Supabase publishable key"
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

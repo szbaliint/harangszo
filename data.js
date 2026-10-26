@@ -3,7 +3,7 @@
 /* ---------- Sample data (shape mirrors miserend.hu API: church + masses + categories) ---------- */
 const ALL=[0,1,2,3,4,5,6], WD=[1,2,3,4,5], MS=[1,2,3,4,5,6], SAT=[6], SUN=[0];
 const H=(o,c,days=ALL)=>({days,o,c});
-const CHURCHES=[
+const SAMPLE_CHURCHES=[
  {id:1,name:"Szent István-bazilika",city:"Budapest",addr:"Szent István tér 1.",rite:"rk",lat:47.5009,lon:19.0539,
   hours:[H("08:00","19:00")],
   mass:[{d:MS,t:"08:00"},{d:MS,t:"18:00"},{d:SUN,t:"08:30"},{d:SUN,t:"10:00",n:"Ünnepi nagymise"},{d:SUN,t:"12:00"},{d:SUN,t:"18:30"},{d:SAT,t:"10:00",n:"Angol nyelvű"}],

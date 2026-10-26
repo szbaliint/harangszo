@@ -1,0 +1,30 @@
+name: Import churches from OpenStreetMap
+
+# Run manually from the Actions tab. Adds churches that are not in the database yet;
+# existing churches (and your edits to them) are never changed.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only count what would be imported, write nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Import
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: node scripts/import-osm.mjs

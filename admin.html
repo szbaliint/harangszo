@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Harangszó szerkesztő</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+</style>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Admin layout: a scrolling page (not the one-screen map app). Left: church list; right: editor. Stacks on phones. */
+body{overflow:auto}
+.admin{min-height:100%;display:grid;grid-template-rows:auto 1fr}
+.wrap{max-width:1180px;margin:0 auto;width:100%;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.card-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.login{max-width:380px;margin:48px auto;display:grid;gap:12px}
+.login h2,.wrap h2{font-family:var(--f-display);font-size:1.5rem;margin:0}
+.field{display:grid;gap:4px;font-size:.84rem;color:var(--ink-2);min-width:0}
+.field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0;color:var(--ink)}
+.field textarea{min-height:70px;resize:vertical}
+.check{display:flex;gap:8px;align-items:center;font-size:.9rem}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{border:0;background:none;padding:8px 14px;border-radius:999px;cursor:pointer;color:var(--ink-2);font-weight:500}
+.tabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+.who{font-size:.84rem;color:var(--ink-3);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.split{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:960px){.split{grid-template-columns:340px minmax(0,1fr);align-items:start}.split .side{position:sticky;top:12px}}
+.side{display:grid;gap:10px}
+.clist{list-style:none;margin:0;padding:0;display:grid;gap:4px;max-height:70vh;overflow-y:auto}
+.clist button{width:100%;text-align:left;border:1px solid transparent;background:none;border-radius:8px;padding:8px 10px;cursor:pointer;display:grid;gap:2px}
+.clist button:hover{background:var(--surface);border-color:var(--line)}
+.clist button[aria-current="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.clist .nm{font-weight:600;font-size:.92rem}
+.clist .sub{font-size:.78rem;color:var(--ink-3);display:flex;gap:8px;flex-wrap:wrap}
+.editor{display:grid;gap:18px}
+.grid2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.block{display:grid;gap:10px}
+.block h3{font-size:.74rem;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);margin:0;font-weight:600}
+.rows{display:grid;gap:8px}
+.srow{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+.srow .field{flex:1 1 110px}
+.srow .field.note{flex:3 1 200px}
+.days{display:flex;gap:3px;flex-wrap:wrap}
+.days button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 7px;font-size:.78rem;cursor:pointer;min-width:2.3rem;color:var(--ink-2)}
+.days button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.icon-btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;cursor:pointer;color:var(--closed)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:sticky;bottom:0;background:var(--bg);padding-block:10px;border-top:1px solid var(--line)}
+.btn.danger{color:var(--closed)}
+.msg{font-size:.88rem}
+.msg.ok{color:var(--open)} .msg.err{color:var(--closed)}
+.suglist{display:grid;gap:10px}
+.tabs .count{font-family:var(--f-mono);font-size:.75rem;color:var(--penance);margin-left:4px}
+code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--sunken);padding:10px;border-radius:8px;font-family:var(--f-mono);font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="admin">
+  <header class="top">
+    <div class="brand"><h1>Harangszó</h1><span>szerkesztőfelület</span></div>
+    <nav class="tabs" id="tabs" hidden>
+      <button id="t-churches" aria-pressed="true">Templomok</button>
+      <button id="t-sugg" aria-pressed="false">Javaslatok <span class="count" id="sugg-count"></span></button>
+    </nav>
+    <div class="who" id="who"></div>
+  </header>
+  <main class="wrap" id="main"><p class="muted">Betöltés…</p></main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
