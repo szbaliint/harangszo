@@ -10,6 +10,7 @@ const main = $("#main");
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const DAY_SHORT = { 0: "V", 1: "H", 2: "K", 3: "Sze", 4: "Cs", 5: "P", 6: "Szo" };
 const KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás", rorate: "Rorate (advent)" };
+const SOURCE_NAMES = { szfvar: "Székesfehérvári Egyházmegye miserendje" };
 const TYPES = { conf: "Gyóntatási időpont", mass: "Mise időpont", hours: "Nyitvatartás", event: "Esemény", place: "Hely vagy egyéb" };
 const hm = t => t ? String(t).slice(0, 5) : "";
 
@@ -76,10 +77,10 @@ const FILTERS = {
   rite: { label: "Rítus", opts: { "": "Mind", rk: "Római katolikus", gk: "Görögkatolikus" } },
   times: { label: "Miserend", opts: { "": "Mind", yes: "Van feltöltött időpont", no: "Nincs időpont" } },
   conf: { label: "Gyóntatás", opts: { "": "Mind", yes: "Van gyóntatás", no: "Nincs gyóntatás" } },
-  extra: { label: "Egyéb", opts: { "": "Mind", pending: "Javaslat vár rá", rorate: "Van Rorate", feast: "Van ünnepi miserend", seasonal: "Van nyári/téli eltérés", events: "Van közelgő esemény", nohours: "Nincs nyitvatartás", nocity: "Nincs település megadva" } },
+  extra: { label: "Egyéb", opts: { "": "Mind", pending: "Javaslat vár rá", rorate: "Van Rorate", feast: "Van ünnepi miserend", seasonal: "Van nyári/téli eltérés", events: "Van közelgő esemény", nohours: "Nincs nyitvatartás", nocity: "Nincs település megadva", approx: "Hely pontosítandó", locked: "Kézzel ellenőrzött (zárolt)" } },
   vis: { label: "Láthatóság", opts: { "": "Mind", shown: "Látható", hidden: "Rejtett" } },
   imp: { label: "Kiemelés", opts: { "": "Mind", high: "Fontos (70 felett)", low: "Háttérben (20 alatt)", manual: "Kézzel beállított" } },
-  src: { label: "Forrás", opts: { "": "Mind", osm: "OpenStreetMap-import", manual: "Kézzel felvett" } },
+  src: { label: "Forrás", opts: { "": "Mind", osm: "OpenStreetMap-import", manual: "Kézzel felvett", szfvar: "Egyházmegyei miserend (Székesfehérvár)" } },
 };
 const SORTS = { name: "Név szerint", imp: "Fontosság szerint", updated: "Legutóbb módosított", pending: "Legtöbb javaslat" };
 const fold = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -90,7 +91,7 @@ const activeFilterCount = () => Object.keys(FILTERS).filter(k => A.f[k]).length;
 const saveFilters = () => { try { localStorage.setItem("harangszo-admin-filters", JSON.stringify(A.f)); } catch (e) { } };
 
 function buildQuery(from) {
-  let q = sb.from("admin_church_list").select("id,name,city,published,n_services,has_confession,has_rorate,has_feast,n_pending,importance,importance_manual,from_osm", { count: "exact" });
+  let q = sb.from("admin_church_list").select("id,name,city,published,n_services,has_confession,has_rorate,has_feast,n_pending,importance,importance_manual,from_osm,location_approx,schedule_source,schedule_locked", { count: "exact" });
   const term = fold(A.q.trim()).replace(/[%,()*]/g, " ").trim();
   if (term) for (const w of term.split(/\s+/)) q = q.like("search", `%${w}%`);
   const f = A.f;
@@ -99,10 +100,10 @@ function buildQuery(from) {
   if (f.conf) q = q.eq("has_confession", f.conf === "yes");
   ({ pending: () => q = q.gt("n_pending", 0), rorate: () => q = q.eq("has_rorate", true), feast: () => q = q.eq("has_feast", true),
      seasonal: () => q = q.eq("has_seasonal", true), events: () => q = q.gt("n_events", 0), nohours: () => q = q.eq("has_hours", false),
-     nocity: () => q = q.eq("city", "") })[f.extra]?.();
+     nocity: () => q = q.eq("city", ""), approx: () => q = q.eq("location_approx", true), locked: () => q = q.eq("schedule_locked", true) })[f.extra]?.();
   if (f.vis) q = q.eq("published", f.vis === "shown");
   if (f.imp === "high") q = q.gte("importance", 70); else if (f.imp === "low") q = q.lte("importance", 20); else if (f.imp === "manual") q = q.not("importance_manual", "is", null);
-  if (f.src) q = q.eq("from_osm", f.src === "osm");
+  if (f.src === "szfvar") q = q.eq("schedule_source", "szfvar"); else if (f.src) q = q.eq("from_osm", f.src === "osm");
   if (A.myChurches) q = q.in("id", A.myChurches.length ? A.myChurches : [-1]);
   const order = { name: ["name", true], imp: ["importance", false], updated: ["updated_at", false], pending: ["n_pending", false] }[f.sort] || ["name", true];
   q = q.order(order[0], { ascending: order[1] });
@@ -116,6 +117,8 @@ function itemHTML(c) {
     c.has_rorate ? `<span class="tag gold">rorate</span>` : "",
     c.has_feast ? `<span class="tag gold">ünnepi rend</span>` : "",
     c.n_pending ? `<span class="tag conf">${c.n_pending} javaslat</span>` : "",
+    c.location_approx ? `<span class="warn">hely pontosítandó</span>` : "",
+    c.schedule_source ? `<span title="Az időpontok importból származnak">${c.schedule_locked ? "import, zárolt" : "import"}</span>` : "",
     c.published ? "" : `<span>rejtett</span>`,
     A.f.sort === "imp" || A.f.imp ? `<span title="Fontosság">★ ${c.importance}${c.importance_manual != null ? " (kézi)" : ""}</span>` : "",
   ].join("");
@@ -182,7 +185,7 @@ function bindFilters() {
   });
   $("#clear-filters").addEventListener("click", () => { A.f = defaultFilters(); A.q = ""; $("#cq").value = ""; saveFilters(); loadList(); refreshFilterUI(); });
 }
-const blankChurch = () => ({ id: null, importance_manual: "", importance_auto: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, events: [] });
+const blankChurch = () => ({ id: null, schedule_note: "", schedule_locked: false, location_approx: false, schedule_source: null, importance_manual: "", importance_auto: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, events: [] });
 async function openChurch(id) {
   if (A.dirty && !confirmDiscard()) return;
   A.sel = id;
@@ -205,7 +208,7 @@ async function openChurch(id) {
       .map(s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", period: s.period || "all" })),
     feasts,
     events: data.events.sort((a, b) => String(a.date).localeCompare(String(b.date))).map(e => ({ date: e.date, start: hm(e.start_time), title: e.title, note: e.note || "" })) };
-  A.dirty = false;
+  A.dirty = false; A.svcSnapshot = JSON.stringify([A.draft.services, A.draft.feasts]); A.lockTouched = false;
   renderEditor();
 }
 // The viewer's confirm() works on this normal web page (it is not inside a Claude artifact).
@@ -297,6 +300,13 @@ function renderEditor() {
         <label class="check" for="f-pub"><input type="checkbox" id="f-pub" data-k="published" ${c.published ? "checked" : ""}>Látszik a nyilvános térképen</label>
         ${osm ? `<a class="btn" href="${osm}" target="_blank" rel="noopener">Hely ellenőrzése a térképen</a>` : ""}
       </div>
+      <label class="check" for="f-approx"><input type="checkbox" id="f-approx" data-k="location_approx" ${c.location_approx ? "checked" : ""}>A hely pontosítandó (a nyilvános oldalon figyelmeztetés látszik)</label>
+    </div>
+
+    <div class="block"><h3>Megjegyzés a miserendhez</h3>
+      <label class="field" for="f-snote">Nyilvános megjegyzés (pl. „Adventben a hétköznapi misék reggel 6-kor”). Webcímek kattinthatók lesznek.<textarea id="f-snote" data-k="schedule_note" rows="4">${esc(c.schedule_note)}</textarea></label>
+      ${c.schedule_source ? `<p class="muted" style="margin:0">Az időpontok forrása: <b>${esc(SOURCE_NAMES[c.schedule_source] || c.schedule_source)}</b>${c.schedule_updated ? `, frissítve ${esc(c.schedule_updated)}` : ""}. Az import újrafuttatásakor frissülnek, hacsak nem zárolod.</p>` : ""}
+      <label class="check" for="f-lock"><input type="checkbox" id="f-lock" data-k="schedule_locked" ${c.schedule_locked ? "checked" : ""}>Kézzel ellenőrzött miserend – az import ne írja felül</label>
     </div>
 
     <div class="block"><h3>Nyitvatartás</h3>
@@ -342,7 +352,7 @@ function bindEditor() {
     else if (el.dataset.l) c[el.dataset.l][+el.dataset.i][el.dataset.f] = el.value;
     else if (el.dataset.feast) c.feasts[el.dataset.feast].rows[+el.dataset.i][el.dataset.f] = el.value;
   };
-  f.addEventListener("input", e => { A.dirty = true; setVal(e.target); e.target.classList.remove("bad"); });
+  f.addEventListener("input", e => { A.dirty = true; setVal(e.target); e.target.classList.remove("bad"); if (e.target.id === "f-lock") A.lockTouched = true; });
   // Tidy a time when leaving the field: "1730" → "17:30"; mark it if it still isn't a valid 24-hour time.
   f.addEventListener("focusout", e => {
     const el = e.target; if (!el.classList?.contains("hhmm")) return;
@@ -419,12 +429,17 @@ async function save() {
     website: c.website || "", phone: c.phone || "", notes: c.notes || "", open_only_services: !!c.open_only_services, published: !!c.published,
     feast_sunday: Object.entries(c.feasts).filter(([, f]) => f.mode === "sunday").map(([k]) => k),
     importance_manual: c.importance_manual == null || c.importance_manual === "" ? "" : Number(c.importance_manual),
+    schedule_note: (c.schedule_note || "").trim(), location_approx: !!c.location_approx, schedule_locked: !!c.schedule_locked,
     hours: c.hours, services: [...regular, ...feastRows], events: c.events };
+  // Times of an imported church changed by hand: lock them so the next import does not undo the edit.
+  let autoLocked = false;
+  if (c.schedule_source && !c.schedule_locked && !A.lockTouched && JSON.stringify([c.services, c.feasts]) !== A.svcSnapshot) { p.schedule_locked = true; c.schedule_locked = true; autoLocked = true; }
   const { data, error } = await sb.rpc("save_church", { p });
   $("#save").disabled = false;
   if (error) { m.textContent = "Nem sikerült menteni: " + error.message; m.className = "msg err"; return; }
   A.dirty = false;
-  m.textContent = "Mentve. A nyilvános oldalon frissítés után látszik."; m.className = "msg ok";
+  m.textContent = "Mentve. A nyilvános oldalon frissítés után látszik." + (autoLocked ? " Az időpontokat kézzel módosítottad, ezért zároltuk őket az import elől." : ""); m.className = "msg ok";
+  A.svcSnapshot = JSON.stringify([c.services, c.feasts]); if (autoLocked) { const cb = $("#f-lock"); if (cb) cb.checked = true; }
   if (!c.id) { c.id = data; A.sel = data; }
   loadList();
 }

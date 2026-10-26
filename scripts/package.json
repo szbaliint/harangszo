@@ -1,0 +1,9 @@
+{
+  "name": "harangszo-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Import jobs for Harangszó (run in GitHub Actions)",
+  "dependencies": {
+    "linkedom": "0.18.13"
+  }
+}

@@ -62,6 +62,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/002_seasons_feasts_rorate.sql` | summer/winter schedules, feast-day schedules, Rorate |
 | `supabase/migrations/003_importance.sql` | importance scores, so the map shows notable churches first |
 | `supabase/migrations/004_admin_list.sql` | church overview used by the admin panel's filters |
+| `supabase/migrations/005_schedule_sources.sql` | schedule notes, sources and locking, for diocesan imports |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
@@ -76,6 +77,18 @@ The map never draws every church. It shows the most important churches in the cu
 - **Rorate:** a row type that only appears during Advent (first Sunday of Advent to 24 December). The public map shows a "Rorate" filter in Advent.
 - Midnight Mass is entered as 00:00 and shown as 24:00 at the end of the day.
 - Times are always 24-hour (17:30); the editor accepts 1730, 17.30 or 17,30 too.
+
+## Importing the Székesfehérvár diocese schedule
+
+**Actions → Import Székesfehérvár diocese schedule → Run workflow.** Leave "Only show what would happen" ticked the first time: the run's summary page lists every church on [the diocese's schedule page](https://www.szfvar.katolikus.hu/adattar/miserend) with what would happen to it. Then run it again with the box unticked.
+
+- Each church is matched to the database by its settlement's location and its name (e.g. "Szentháromság" ↔ "Szentháromság-templom"). Churches not found are added at the settlement centre and marked "hely pontosítandó"; find them in the admin panel with Egyéb → "Hely pontosítandó".
+- Only regular times (and feast rows the page names, e.g. Pünkösdhétfő) are replaced. Opening hours, events and feast schedules set by hand stay.
+- Churches whose times were entered by hand are skipped (tick "Also overwrite hand-entered times" to include them). Churches marked "Kézzel ellenőrzött miserend" are never touched; editing an imported church's times in the admin panel ticks this automatically.
+- The page's notes appear on the public site as "Megjegyzés a miserendhez" with a link to the source and its update date. Lines with phone numbers and office contacts are left out.
+- Run it again whenever the diocese updates its page; imported churches are recognised by their source key and updated in place.
+
+The parser lives in `scripts/lib/szfvar.mjs`; `scripts/fixtures/szfvar-sample.html` is a real excerpt for testing it.
 
 ## Parish editors
 

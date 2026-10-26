@@ -34,6 +34,10 @@ const km = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b[0] 
 const massWord = c => c.rite === "gk" ? "Szent Liturgia" : "Szentmise";
 const riteName = c => c.rite === "gk" ? "görögkatolikus" : "római katolikus";
 const range = (a, b) => b ? a + "–" + b : a;
+const SOURCES = { szfvar: "Székesfehérvári Egyházmegye" };
+// Escape, then turn bare web addresses into links (notes come from parishes and the community).
+const linkify = t => esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,;:)])/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+const longDate = iso => { const d = new Date(iso + "T12:00"); return isNaN(d) ? iso : `${d.getFullYear()}. ${MON[d.getMonth()]} ${d.getDate()}.`; };
 const shortDate = d => `${MON[d.getMonth()]} ${d.getDate()}.`;
 // "H, K, Sze" or "H–Szo" for a run of consecutive days (Monday first).
 function daysText(days) {
@@ -65,6 +69,7 @@ function fromDb(c) {
     hours: (c.hours || []).map(h => ({ days: h.days, o: h.opens, c: h.closes })),
     svc: (c.services || []).map(s => ({ k: KIND[s.kind] || "mass", d: s.days || [], t: s.start, u: s.end || null, n: s.note, p: s.period || "all", feast: s.feast || null })),
     feastSunday: c.feast_sunday || [], imp: c.imp ?? 30,
+    note: c.schedule_note || "", source: c.schedule_source || null, sourceUrl: c.schedule_source_url || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
     ev: (c.events || []).map(e => ({ date: e.date, t: e.start || "", title: e.title, n: e.note })) };
 }
 function setChurches(list) {
@@ -271,6 +276,14 @@ function feastScheduleHTML(c) {
       <div class="muted">${DAYN[d.getDay()]}${di.feastMode === "sunday" ? " · vasárnapi rend szerint" : ""}</div><div class="feast-times">${times || "–"}</div></div></div>`;
   }).join("")}</div></div>`;
 }
+function noteHTML(c) {
+  const lines = (c.note || "").split("\n").filter(Boolean);
+  const src = c.source ? `<p class="muted source">Forrás: ${c.sourceUrl ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(SOURCES[c.source] || c.source)} miserendje</a>` : esc(SOURCES[c.source] || c.source)}${c.updated ? ` · frissítve ${longDate(c.updated)}` : ""}</p>` : "";
+  if (!lines.length && !src) return "";
+  // Lines ending in ":" are headings of the list that follows them.
+  const body = lines.map(l => /:$/.test(l) ? `<p class="note-h">${linkify(l)}</p>` : `<p>${linkify(l)}</p>`).join("");
+  return `<div class="sec"><h4>Megjegyzés a miserendhez</h4>${body ? `<div class="schednote">${body}</div>` : ""}${src}</div>`;
+}
 function renderDetail() {
   const c = BY_ID.get(S.sel); if (!c) { S.sel = null; return renderList(); }
   const ctx = dayContext(selDate()), di = dayInfoCached(c, ctx), m = now().getHours() * 60 + now().getMinutes();
@@ -295,10 +308,12 @@ function renderDetail() {
       <h2>${esc(c.name)}</h2>
       <div class="where">${esc(where)} · ${Math.round(distOf(c))} km (${esc(S.origin)})</div>
       ${contact ? `<div class="where">${contact}</div>` : ""}
+      ${c.approx ? `<div class="approx">A templom helye a térképen hozzávetőleges (a település közepe). Útvonaltervezés előtt ellenőrizd a címet.</div>` : ""}
     </div>
     <div class="actions"><a class="btn primary" href="${dir}" target="_blank" rel="noopener noreferrer">Útvonal a Google Térképen</a><button class="btn" id="go-suggest">Javítás beküldése</button></div>
     <div class="sec"><h4>${dayLabel(S.dayOffset)}</h4>${feastBar}<div class="dayline">${slots}</div></div>
     ${hasSchedule(c) || c.hours.length ? `<div class="sec"><h4>Heti rend</h4><div class="week"><table><tbody>${weekTable(c, ctx)}</tbody></table></div>${seasonNote(c, ctx)}</div>` : ""}
+    ${noteHTML(c)}
     ${feastScheduleHTML(c)}
     ${rorateHTML(c)}
     <div class="sec"><h4>Közelgő események</h4><div class="ev-list">${evs}</div></div>
