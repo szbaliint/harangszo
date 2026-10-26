@@ -18,7 +18,7 @@ if (!real(CFG.supabaseUrl) || !real(CFG.supabaseAnonKey) || !window.supabase) {
   throw new Error("not configured");
 }
 const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
-const A = { user: null, staff: null, myChurches: null, tab: "churches", q: "", onlyEmpty: false, list: [], sel: null, draft: null, suggStatus: "pending" };
+const A = { user: null, staff: null, myChurches: null, tab: "churches", q: "", f: null, filtersOpen: false, list: [], total: 0, sel: null, draft: null, suggStatus: "pending" };
 
 /* ---------- Auth ---------- */
 function renderLogin(msg = "") {
@@ -70,37 +70,117 @@ $("#t-sugg").addEventListener("click", () => setTab("sugg"));
 function renderTab() { A.tab === "churches" ? renderChurches() : renderSuggestions(); }
 
 /* ---------- Churches ---------- */
-async function loadList() {
-  let q = sb.from("churches").select("id,name,city,published,services(count)").order("name").limit(80);
-  const term = A.q.trim().replace(/[%,()]/g, " ");
-  if (term) q = q.or(`name.ilike.%${term}%,city.ilike.%${term}%`);
+// Filters run in the database (view admin_church_list), so they cover every church, not just a loaded page.
+const PAGE = 50;
+const FILTERS = {
+  rite: { label: "Rítus", opts: { "": "Mind", rk: "Római katolikus", gk: "Görögkatolikus" } },
+  times: { label: "Miserend", opts: { "": "Mind", yes: "Van feltöltött időpont", no: "Nincs időpont" } },
+  conf: { label: "Gyóntatás", opts: { "": "Mind", yes: "Van gyóntatás", no: "Nincs gyóntatás" } },
+  extra: { label: "Egyéb", opts: { "": "Mind", pending: "Javaslat vár rá", rorate: "Van Rorate", feast: "Van ünnepi miserend", seasonal: "Van nyári/téli eltérés", events: "Van közelgő esemény", nohours: "Nincs nyitvatartás", nocity: "Nincs település megadva" } },
+  vis: { label: "Láthatóság", opts: { "": "Mind", shown: "Látható", hidden: "Rejtett" } },
+  imp: { label: "Kiemelés", opts: { "": "Mind", high: "Fontos (70 felett)", low: "Háttérben (20 alatt)", manual: "Kézzel beállított" } },
+  src: { label: "Forrás", opts: { "": "Mind", osm: "OpenStreetMap-import", manual: "Kézzel felvett" } },
+};
+const SORTS = { name: "Név szerint", imp: "Fontosság szerint", updated: "Legutóbb módosított", pending: "Legtöbb javaslat" };
+const fold = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const defaultFilters = () => ({ rite: "", times: "", conf: "", extra: "", vis: "", imp: "", src: "", sort: "name" });
+try { const f = JSON.parse(localStorage.getItem("harangszo-admin-filters") || "null"); if (f) A.f = { ...defaultFilters(), ...f }; } catch (e) { }
+A.f ||= defaultFilters();
+const activeFilterCount = () => Object.keys(FILTERS).filter(k => A.f[k]).length;
+const saveFilters = () => { try { localStorage.setItem("harangszo-admin-filters", JSON.stringify(A.f)); } catch (e) { } };
+
+function buildQuery(from) {
+  let q = sb.from("admin_church_list").select("id,name,city,published,n_services,has_confession,has_rorate,has_feast,n_pending,importance,importance_manual,from_osm", { count: "exact" });
+  const term = fold(A.q.trim()).replace(/[%,()*]/g, " ").trim();
+  if (term) for (const w of term.split(/\s+/)) q = q.like("search", `%${w}%`);
+  const f = A.f;
+  if (f.rite) q = q.eq("rite", f.rite);
+  if (f.times === "yes") q = q.gt("n_services", 0); else if (f.times === "no") q = q.eq("n_services", 0);
+  if (f.conf) q = q.eq("has_confession", f.conf === "yes");
+  ({ pending: () => q = q.gt("n_pending", 0), rorate: () => q = q.eq("has_rorate", true), feast: () => q = q.eq("has_feast", true),
+     seasonal: () => q = q.eq("has_seasonal", true), events: () => q = q.gt("n_events", 0), nohours: () => q = q.eq("has_hours", false),
+     nocity: () => q = q.eq("city", "") })[f.extra]?.();
+  if (f.vis) q = q.eq("published", f.vis === "shown");
+  if (f.imp === "high") q = q.gte("importance", 70); else if (f.imp === "low") q = q.lte("importance", 20); else if (f.imp === "manual") q = q.not("importance_manual", "is", null);
+  if (f.src) q = q.eq("from_osm", f.src === "osm");
   if (A.myChurches) q = q.in("id", A.myChurches.length ? A.myChurches : [-1]);
-  const { data, error } = await q;
-  if (error) { $("#clist").innerHTML = `<li class="msg err">Nem sikerült betölteni: ${esc(error.message)}</li>`; return; }
-  A.list = (data || []).map(c => ({ ...c, n: c.services?.[0]?.count ?? 0 })).filter(c => !A.onlyEmpty || c.n === 0);
-  $("#clist").innerHTML = A.list.map(c => `<li><button data-id="${c.id}" aria-current="${A.sel === c.id}"><span class="nm">${esc(c.name)}</span>
-    <span class="sub"><span>${esc(c.city || "–")}</span><span>${c.n ? c.n + " időpont" : "nincs időpont"}</span>${c.published ? "" : "<span>rejtett</span>"}</span></button></li>`).join("")
-    || `<li class="muted" style="padding:8px">Nincs találat.</li>`;
-  $("#clist").querySelectorAll("button").forEach(b => b.addEventListener("click", () => openChurch(+b.dataset.id)));
+  const order = { name: ["name", true], imp: ["importance", false], updated: ["updated_at", false], pending: ["n_pending", false] }[f.sort] || ["name", true];
+  q = q.order(order[0], { ascending: order[1] });
+  if (order[0] !== "name") q = q.order("name", { ascending: true });
+  return q.range(from, from + PAGE - 1);
+}
+function itemHTML(c) {
+  const tags = [
+    c.n_services ? `<span>${c.n_services} időpont</span>` : `<span class="warn">nincs időpont</span>`,
+    c.has_confession ? `<span class="tag conf">gyóntatás</span>` : "",
+    c.has_rorate ? `<span class="tag gold">rorate</span>` : "",
+    c.has_feast ? `<span class="tag gold">ünnepi rend</span>` : "",
+    c.n_pending ? `<span class="tag conf">${c.n_pending} javaslat</span>` : "",
+    c.published ? "" : `<span>rejtett</span>`,
+    A.f.sort === "imp" || A.f.imp ? `<span title="Fontosság">★ ${c.importance}${c.importance_manual != null ? " (kézi)" : ""}</span>` : "",
+  ].join("");
+  return `<li><button data-id="${c.id}" aria-current="${A.sel === c.id}"><span class="nm">${esc(c.name)}</span>
+    <span class="sub"><span>${esc(c.city || "– település nincs megadva –")}</span>${tags}</span></button></li>`;
+}
+let listToken = 0;
+async function loadList(append = false) {
+  const token = ++listToken, from = append ? A.list.length : 0;
+  if (!append) { $("#clist").setAttribute("aria-busy", "true"); }
+  const { data, error, count } = await buildQuery(from);
+  if (token !== listToken) return;                 // a newer search has started; drop this answer
+  $("#clist").removeAttribute("aria-busy");
+  if (error) {
+    const missing = /admin_church_list/.test(error.message || "") || error.code === "42P01" || error.code === "PGRST205";
+    $("#clist").innerHTML = `<li class="msg err" style="padding:8px">${missing ? "A szűréshez futtasd a <code>supabase/migrations/004_admin_list.sql</code> fájlt a Supabase SQL Editorban." : "Nem sikerült betölteni: " + esc(error.message)}</li>`;
+    $("#ccount").textContent = ""; $("#more").hidden = true; return;
+  }
+  A.list = append ? A.list.concat(data) : (data || []);
+  A.total = count ?? A.list.length;
+  $("#clist").innerHTML = A.list.map(itemHTML).join("") || `<li class="muted" style="padding:8px">Nincs a szűrőknek megfelelő templom.</li>`;
+  $("#ccount").textContent = `${A.total.toLocaleString("hu-HU")} templom`;
+  const left = A.total - A.list.length;
+  $("#more").hidden = left <= 0; $("#more").textContent = `Továbbiak betöltése (még ${left.toLocaleString("hu-HU")})`;
+}
+function filtersHTML() {
+  const n = activeFilterCount();
+  return `<details class="filters" ${A.filtersOpen ? "open" : ""} id="filters">
+      <summary>Szűrők${n ? ` <span class="badge">${n}</span>` : ""}</summary>
+      <div class="fgrid">
+        ${Object.entries(FILTERS).map(([k, f]) => `<label class="field" for="f-${k}">${f.label}<select id="f-${k}" data-filter="${k}">${Object.entries(f.opts).map(([v, t]) => `<option value="${v}" ${A.f[k] === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>`).join("")}
+        <label class="field" for="f-sort">Rendezés<select id="f-sort" data-filter="sort">${Object.entries(SORTS).map(([v, t]) => `<option value="${v}" ${A.f.sort === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      </div>
+      <div class="row"><button type="button" class="btn" id="clear-filters" ${n || A.q ? "" : "disabled"}>Szűrők törlése</button></div>
+    </details>`;
 }
 function renderChurches() {
   const isAdmin = A.staff.role === "admin";
   main.innerHTML = `<div class="split">
     <aside class="side">
       <label class="search" for="cq"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input id="cq" type="search" placeholder="Név vagy település" value="${esc(A.q)}" autocomplete="off"></label>
-      <div class="row"><label class="check" for="only-empty"><input type="checkbox" id="only-empty" ${A.onlyEmpty ? "checked" : ""}>Csak időpont nélküliek</label>
-        ${isAdmin ? `<button class="btn" id="new-church" style="margin-left:auto">Új templom</button>` : ""}</div>
+        <input id="cq" type="search" placeholder="Név, település vagy cím" value="${esc(A.q)}" autocomplete="off"></label>
+      <div id="filters-wrap">${filtersHTML()}</div>
+      <div class="row"><span class="muted" id="ccount" role="status"></span>${isAdmin ? `<button class="btn" id="new-church" style="margin-left:auto">Új templom</button>` : ""}</div>
       <ul class="clist" id="clist"><li class="muted" style="padding:8px">Betöltés…</li></ul>
-      <p class="muted" style="margin:0;font-size:.78rem">Legfeljebb 80 találat látszik; keress névre vagy településre.</p>
+      <button class="btn" id="more" hidden></button>
     </aside>
     <section id="editor"><div class="card-box"><p class="muted" style="margin:0">Válassz templomot a listából${isAdmin ? ", vagy vegyél fel újat" : ""}.</p></div></section>
   </div>`;
-  let t; $("#cq").addEventListener("input", e => { A.q = e.target.value; clearTimeout(t); t = setTimeout(loadList, 250); });
-  $("#only-empty").addEventListener("change", e => { A.onlyEmpty = e.target.checked; loadList(); });
+  let t; $("#cq").addEventListener("input", e => { A.q = e.target.value; clearTimeout(t); t = setTimeout(() => { loadList(); refreshFilterUI(); }, 250); });
+  bindFilters();
+  $("#more").addEventListener("click", () => loadList(true));
+  $("#clist").addEventListener("click", e => { const b = e.target.closest("button[data-id]"); if (b) openChurch(+b.dataset.id); });
   $("#new-church")?.addEventListener("click", () => { A.sel = null; A.draft = blankChurch(); renderEditor(); });
   loadList();
   if (A.draft) renderEditor();
+}
+function refreshFilterUI() { $("#filters-wrap").innerHTML = filtersHTML(); bindFilters(); }
+function bindFilters() {
+  $("#filters").addEventListener("toggle", e => { A.filtersOpen = e.target.open; });
+  $("#filters").addEventListener("change", e => {
+    const k = e.target.dataset.filter; if (!k) return;
+    A.f[k] = e.target.value; saveFilters(); loadList(); refreshFilterUI();
+  });
+  $("#clear-filters").addEventListener("click", () => { A.f = defaultFilters(); A.q = ""; $("#cq").value = ""; saveFilters(); loadList(); refreshFilterUI(); });
 }
 const blankChurch = () => ({ id: null, importance_manual: "", importance_auto: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, events: [] });
 async function openChurch(id) {

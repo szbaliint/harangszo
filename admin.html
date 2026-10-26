@@ -64,6 +64,17 @@ body{overflow:auto}
 .hint{font-size:.78rem;color:var(--gold);align-self:center}
 .feastcard{display:grid;gap:10px;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--surface)}
 .feastcard .row{gap:12px}
+.filters{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px}
+.filters summary{cursor:pointer;font-weight:600;font-size:.9rem;padding:2px 0;list-style-position:inside}
+.filters[open] summary{margin-bottom:10px}
+.filters .badge{display:inline-grid;place-items:center;min-width:1.4em;height:1.4em;border-radius:999px;background:var(--accent);color:var(--surface);font-size:.72rem;padding:0 5px;margin-left:4px}
+.fgrid{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:10px}
+.clist .sub .tag{border-radius:4px;padding:0 5px}
+.clist .sub .tag.conf{background:var(--penance-soft);color:var(--penance)}
+.clist .sub .tag.gold{background:var(--gold-soft);color:var(--gold)}
+.clist .sub .warn{color:var(--closed)}
+.clist[aria-busy="true"]{opacity:.55}
+#more{width:100%}
 code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--sunken);padding:10px;border-radius:8px;font-family:var(--f-mono);font-size:.8rem}
 </style>
 </head>

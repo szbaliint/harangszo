@@ -61,6 +61,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 |------|------|
 | `supabase/migrations/002_seasons_feasts_rorate.sql` | summer/winter schedules, feast-day schedules, Rorate |
 | `supabase/migrations/003_importance.sql` | importance scores, so the map shows notable churches first |
+| `supabase/migrations/004_admin_list.sql` | church overview used by the admin panel's filters |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
