@@ -17,6 +17,7 @@ A map of Catholic churches in Hungary with Mass and confession times, opening ho
 | `scripts/import-osm.mjs` | Imports Catholic churches in Hungary from OpenStreetMap. |
 | `.github/workflows/pages.yml` | Publishes the site and fills `config.js` from repository secrets. |
 | `.github/workflows/import-osm.yml` | Runs the OpenStreetMap import on demand. |
+| `calendar.js` | Liturgical calendar: Easter and feast dates, Advent, summer time. |
 | `data.js` | Sample data, used only when no database is configured. |
 
 Without a database the site shows the 21 sample churches. Without a Google Maps key it uses OpenStreetMap.
@@ -51,6 +52,18 @@ values ('<your user id>', 'admin', 'Bálint');
 
 ### 4. Import the churches
 **Actions → Import churches from OpenStreetMap → Run workflow.** Tick "Only count" first if you want a dry run. The import only adds churches that are missing, so it is safe to run again later to pick up new ones; it never changes or deletes churches already in the database.
+
+## Updating an existing database
+
+If you ran `supabase/schema.sql` before 26 October 2026, run `supabase/migrations/002_seasons_feasts_rorate.sql` once in the SQL Editor. It adds summer/winter schedules, feast-day schedules and Rorate Masses. It is safe to run twice. A fresh install only needs `schema.sql`.
+
+## Schedules: seasons, feasts, Rorate
+
+- **Summer/winter:** a regular time row can be marked "Csak nyáron" or "Csak télen". Summer means summer time (last Sunday of March to last Sunday of October). Rows that never change stay "Egész évben".
+- **Ünnepi miserend:** per church and feast, either "Vasárnapi miserend szerint" or custom times. Custom times replace that day's regular times. Easter-based dates are calculated for every year (`calendar.js`); Ascension and Corpus Christi fall on Sunday in Hungary.
+- **Rorate:** a row type that only appears during Advent (first Sunday of Advent to 24 December). The public map shows a "Rorate" filter in Advent.
+- Midnight Mass is entered as 00:00 and shown as 24:00 at the end of the day.
+- Times are always 24-hour (17:30); the editor accepts 1730, 17.30 or 17,30 too.
 
 ## Parish editors
 

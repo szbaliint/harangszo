@@ -9,7 +9,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const main = $("#main");
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const DAY_SHORT = { 0: "V", 1: "H", 2: "K", 3: "Sze", 4: "Cs", 5: "P", 6: "Szo" };
-const KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás" };
+const KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás", rorate: "Rorate (advent)" };
 const TYPES = { conf: "Gyóntatási időpont", mass: "Mise időpont", hours: "Nyitvatartás", event: "Esemény", place: "Hely vagy egyéb" };
 const hm = t => t ? String(t).slice(0, 5) : "";
 
@@ -102,7 +102,7 @@ function renderChurches() {
   loadList();
   if (A.draft) renderEditor();
 }
-const blankChurch = () => ({ id: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], events: [] });
+const blankChurch = () => ({ id: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, events: [] });
 async function openChurch(id) {
   if (A.dirty && !confirmDiscard()) return;
   A.sel = id;
@@ -110,10 +110,20 @@ async function openChurch(id) {
   $("#editor").innerHTML = `<div class="card-box"><p class="muted" style="margin:0">Betöltés…</p></div>`;
   const { data, error } = await sb.from("churches").select("*, opening_hours(*), services(*), events(*)").eq("id", id).single();
   if (error) { $("#editor").innerHTML = `<div class="card-box msg err">Nem sikerült megnyitni: ${esc(error.message)}</div>`; return; }
+  const byTime = (a, b) => String(a.start_time).localeCompare(String(b.start_time));
+  const KORDER = { mass: 0, rorate: 1, confession: 2, adoration: 3 };
+  // Feast schedules: Sunday-rule feasts from churches.feast_sunday, custom ones from services rows with a feast key.
+  const feasts = {};
+  for (const k of data.feast_sunday || []) feasts[k] = { mode: "sunday", rows: [] };
+  for (const s of data.services.filter(s => s.feast).sort(byTime)) {
+    (feasts[s.feast] ||= { mode: "custom", rows: [] }).mode = "custom";
+    feasts[s.feast].rows.push({ kind: s.kind, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "" });
+  }
   A.draft = { ...data,
     hours: data.opening_hours.map(h => ({ days: h.days, opens: hm(h.opens), closes: hm(h.closes) })),
-    services: data.services.sort((a, b) => a.kind.localeCompare(b.kind) || String(a.start_time).localeCompare(String(b.start_time)))
-      .map(s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "" })),
+    services: data.services.filter(s => !s.feast).sort((a, b) => KORDER[a.kind] - KORDER[b.kind] || (a.period || "").localeCompare(b.period || "") || byTime(a, b))
+      .map(s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", period: s.period || "all" })),
+    feasts,
     events: data.events.sort((a, b) => String(a.date).localeCompare(String(b.date))).map(e => ({ date: e.date, start: hm(e.start_time), title: e.title, note: e.note || "" })) };
   A.dirty = false;
   renderEditor();
@@ -121,12 +131,70 @@ async function openChurch(id) {
 // The viewer's confirm() works on this normal web page (it is not inside a Claude artifact).
 function confirmDiscard() { return window.confirm("Van mentetlen módosításod ennél a templomnál. Eldobod?"); }
 
+/* 24-hour time fields: plain text so every browser shows 17:30 (never AM/PM). Accepts 1730, 17.30, 17,30, 9:5, 17. */
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+function normTime(v) {
+  v = String(v || "").trim().replace(/[.,h ]/g, ":");
+  if (!v) return "";
+  let m = v.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!m && /^\d{3,4}$/.test(v)) m = [null, v.slice(0, v.length - 2), v.slice(-2)];
+  if (!m && /^\d{1,2}$/.test(v)) m = [null, v, "0"];
+  if (!m) return v;
+  const h = +m[1], mi = +m[2];
+  return h <= 23 && mi <= 59 ? String(h).padStart(2, "0") + ":" + String(mi).padStart(2, "0") : v;
+}
+const timeField = (id, label, attrs, value) =>
+  `<label class="field tf" for="${id}">${label}<input type="text" class="hhmm" id="${id}" ${attrs} value="${esc(value)}" inputmode="numeric" maxlength="5" placeholder="ÓÓ:PP" autocomplete="off" spellcheck="false"></label>`;
+
 function daysHTML(days, path) {
   return `<div class="days" role="group" aria-label="Napok">${DAY_ORDER.map(d => `<button type="button" data-days="${path}" data-d="${d}" aria-pressed="${days.includes(d)}">${DAY_SHORT[d]}</button>`).join("")}</div>`;
+}
+const PERIODS = { all: "Egész évben", summer: "Csak nyáron", winter: "Csak télen" };
+function serviceRow(s, i) {
+  const isRorate = s.kind === "rorate";
+  return `<div class="srow ${s.period !== "all" ? "seasonal" : ""}">
+    <label class="field" for="s-k-${i}">Fajta<select id="s-k-${i}" data-l="services" data-i="${i}" data-f="kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${s.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+    ${daysHTML(s.days, "services." + i)}
+    ${timeField(`s-s-${i}`, "Kezdés", `data-l="services" data-i="${i}" data-f="start"`, s.start)}
+    ${s.kind === "mass" || isRorate ? "" : timeField(`s-e-${i}`, "Vége", `data-l="services" data-i="${i}" data-f="end"`, s.end)}
+    ${isRorate ? `<span class="hint">Csak adventben látszik</span>` : `<label class="field" for="s-p-${i}" title="Nyár = nyári időszámítás (március utolsó vasárnapjától október utolsó vasárnapjáig)">Időszak<select id="s-p-${i}" data-l="services" data-i="${i}" data-f="period">${Object.entries(PERIODS).map(([k, v]) => `<option value="${k}" ${s.period === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>`}
+    <label class="field note" for="s-n-${i}">Megjegyzés<input id="s-n-${i}" data-l="services" data-i="${i}" data-f="note" value="${esc(s.note)}" placeholder="${isRorate ? "pl. gyertyafényes hajnali mise" : "pl. latin nyelvű, diákmise"}"></label>
+    <button type="button" class="icon-btn" data-del="services" data-i="${i}" aria-label="Sor törlése">Törlés</button></div>`;
+}
+const FEAST_KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás" };
+function feastsHTML(c) {
+  const keys = window.LitCal.FEASTS.map(f => f.key).filter(k => c.feasts[k]);
+  const avail = window.LitCal.FEASTS.filter(f => !c.feasts[f.key]);
+  const today = new Date();
+  const cards = keys.map(k => {
+    const f = c.feasts[k], fe = window.LitCal.FEAST_BY_KEY[k], next = window.LitCal.nextFeastDate(k, today);
+    return `<div class="feastcard">
+      <div class="row"><strong>${esc(fe.name)}</strong><span class="muted">${next.getFullYear()}. ${next.toLocaleDateString("hu-HU", { month: "long", day: "numeric", weekday: "long" })}</span>
+        <button type="button" class="icon-btn" data-delfeast="${k}" style="margin-left:auto">Ünnep eltávolítása</button></div>
+      <div class="row">
+        <label class="check" for="fm-s-${k}"><input type="radio" name="fm-${k}" id="fm-s-${k}" data-feastmode="${k}" value="sunday" ${f.mode === "sunday" ? "checked" : ""}>Vasárnapi miserend szerint</label>
+        <label class="check" for="fm-c-${k}"><input type="radio" name="fm-${k}" id="fm-c-${k}" data-feastmode="${k}" value="custom" ${f.mode === "custom" ? "checked" : ""}>Egyedi időpontok</label>
+      </div>
+      ${f.mode === "custom" ? `<div class="rows">${f.rows.map((r, i) => `<div class="srow">
+          <label class="field" for="fk-${k}-${i}">Fajta<select id="fk-${k}-${i}" data-feast="${k}" data-i="${i}" data-f="kind">${Object.entries(FEAST_KINDS).map(([kk, v]) => `<option value="${kk}" ${r.kind === kk ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+          ${timeField(`fs-${k}-${i}`, "Kezdés", `data-feast="${k}" data-i="${i}" data-f="start"`, r.start)}
+          ${r.kind === "mass" ? "" : timeField(`fe-${k}-${i}`, "Vége", `data-feast="${k}" data-i="${i}" data-f="end"`, r.end)}
+          <label class="field note" for="fn-${k}-${i}">Megjegyzés<input id="fn-${k}-${i}" data-feast="${k}" data-i="${i}" data-f="note" value="${esc(r.note)}" placeholder="pl. ünnepi nagymise"></label>
+          <button type="button" class="icon-btn" data-delfeastrow="${k}" data-i="${i}" aria-label="Sor törlése">Törlés</button></div>`).join("")}</div>
+        <div class="row"><button type="button" class="btn" data-addfeastrow="${k}">+ Időpont</button>${k === "dec24" ? `<span class="hint">Az éjféli misét 00:00-ként add meg; a térképen 24:00-ként, a nap végén látszik.</span>` : ""}</div>` : `<p class="muted" style="margin:0">Ezen a napon a vasárnapi rendszeres alkalmak érvényesek.</p>`}
+    </div>`;
+  }).join("");
+  return `<div class="block"><h3>Ünnepi miserend</h3>
+    <p class="muted" style="margin:0">Ünnepnapon az itt megadott rend lép a hétköznapi helyére. Ha egy ünnep nincs felvéve, aznap a szokásos miserend látszik.</p>
+    ${cards}
+    <div class="row"><label class="field" for="add-feast" style="flex:1 1 240px">Ünnep hozzáadása<select id="add-feast">${avail.map(f => `<option value="${f.key}">${esc(f.name)}</option>`).join("")}</select></label>
+      <button type="button" class="btn" id="add-feast-btn" ${avail.length ? "" : "disabled"}>Hozzáadás</button></div>
+  </div>`;
 }
 function renderEditor() {
   const c = A.draft, isAdmin = A.staff.role === "admin";
   const osm = c.lat && c.lon ? `https://www.openstreetmap.org/?mlat=${c.lat}&mlon=${c.lon}#map=18/${c.lat}/${c.lon}` : "";
+  const scroll = document.scrollingElement.scrollTop;
   $("#editor").innerHTML = `<form class="card-box editor" id="ed" novalidate>
     <div><h2>${c.id ? esc(c.name) : "Új templom"}</h2>${c.id ? `<span class="muted" style="font-size:.8rem">Azonosító: ${c.id}</span>` : ""}</div>
     <div class="block"><h3>Alapadatok</h3>
@@ -150,27 +218,24 @@ function renderEditor() {
     <div class="block"><h3>Nyitvatartás</h3>
       <label class="check" for="f-only"><input type="checkbox" id="f-only" data-k="open_only_services" ${c.open_only_services ? "checked" : ""}>Csak a szertartások idején van nyitva</label>
       <div class="rows">${c.hours.map((h, i) => `<div class="srow">${daysHTML(h.days, "hours." + i)}
-        <label class="field" for="h-o-${i}">Nyit<input type="time" id="h-o-${i}" data-l="hours" data-i="${i}" data-f="opens" value="${esc(h.opens)}"></label>
-        <label class="field" for="h-c-${i}">Zár<input type="time" id="h-c-${i}" data-l="hours" data-i="${i}" data-f="closes" value="${esc(h.closes)}"></label>
+        ${timeField(`h-o-${i}`, "Nyit", `data-l="hours" data-i="${i}" data-f="opens"`, h.opens)}
+        ${timeField(`h-c-${i}`, "Zár", `data-l="hours" data-i="${i}" data-f="closes"`, h.closes)}
         <button type="button" class="icon-btn" data-del="hours" data-i="${i}" aria-label="Sor törlése">Törlés</button></div>`).join("")}</div>
       <div><button type="button" class="btn" data-add="hours">+ Nyitvatartási sor</button></div>
     </div>
 
     <div class="block"><h3>Rendszeres alkalmak</h3>
-      <div class="rows">${c.services.map((s, i) => `<div class="srow">
-        <label class="field" for="s-k-${i}">Fajta<select id="s-k-${i}" data-l="services" data-i="${i}" data-f="kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${s.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-        ${daysHTML(s.days, "services." + i)}
-        <label class="field" for="s-s-${i}">Kezdés<input type="time" id="s-s-${i}" data-l="services" data-i="${i}" data-f="start" value="${esc(s.start)}"></label>
-        <label class="field" for="s-e-${i}">Vége${s.kind === "mass" ? " (nem kötelező)" : ""}<input type="time" id="s-e-${i}" data-l="services" data-i="${i}" data-f="end" value="${esc(s.end)}"></label>
-        <label class="field note" for="s-n-${i}">Megjegyzés<input id="s-n-${i}" data-l="services" data-i="${i}" data-f="note" value="${esc(s.note)}" placeholder="pl. latin nyelvű, diákmise"></label>
-        <button type="button" class="icon-btn" data-del="services" data-i="${i}" aria-label="Sor törlése">Törlés</button></div>`).join("")}</div>
-      <div class="row"><button type="button" class="btn" data-add="services" data-kind="mass">+ Mise</button><button type="button" class="btn" data-add="services" data-kind="confession">+ Gyóntatás</button><button type="button" class="btn" data-add="services" data-kind="adoration">+ Szentségimádás</button></div>
+      <p class="muted" style="margin:0">Ha nyáron és télen eltér egy időpont, vegyél fel két sort, és az „Időszak” mezőben jelöld, melyik mikor érvényes (nyár = nyári időszámítás). Ami egész évben ugyanaz, maradjon „Egész évben”.</p>
+      <div class="rows">${c.services.map(serviceRow).join("")}</div>
+      <div class="row"><button type="button" class="btn" data-add="services" data-kind="mass">+ Mise</button><button type="button" class="btn" data-add="services" data-kind="confession">+ Gyóntatás</button><button type="button" class="btn" data-add="services" data-kind="adoration">+ Szentségimádás</button><button type="button" class="btn" data-add="services" data-kind="rorate">+ Rorate (advent)</button></div>
     </div>
+
+    ${feastsHTML(c)}
 
     <div class="block"><h3>Események</h3>
       <div class="rows">${c.events.map((e, i) => `<div class="srow">
         <label class="field" for="e-d-${i}">Dátum<input type="date" id="e-d-${i}" data-l="events" data-i="${i}" data-f="date" value="${esc(e.date)}"></label>
-        <label class="field" for="e-s-${i}">Időpont<input type="time" id="e-s-${i}" data-l="events" data-i="${i}" data-f="start" value="${esc(e.start)}"></label>
+        ${timeField(`e-s-${i}`, "Időpont", `data-l="events" data-i="${i}" data-f="start"`, e.start)}
         <label class="field note" for="e-t-${i}">Cím<input id="e-t-${i}" data-l="events" data-i="${i}" data-f="title" value="${esc(e.title)}" placeholder="pl. Búcsúi szentmise"></label>
         <label class="field note" for="e-n-${i}">Megjegyzés<input id="e-n-${i}" data-l="events" data-i="${i}" data-f="note" value="${esc(e.note)}"></label>
         <button type="button" class="icon-btn" data-del="events" data-i="${i}" aria-label="Sor törlése">Törlés</button></div>`).join("")}</div>
@@ -183,27 +248,43 @@ function renderEditor() {
       <span class="msg" id="emsg" role="status"></span>
     </div>
   </form>`;
+  document.scrollingElement.scrollTop = scroll;
   bindEditor();
 }
 function bindEditor() {
   const c = A.draft, f = $("#ed");
-  f.addEventListener("input", e => {
-    const el = e.target; A.dirty = true;
+  const setVal = el => {
     if (el.dataset.k) c[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
     else if (el.dataset.l) c[el.dataset.l][+el.dataset.i][el.dataset.f] = el.value;
+    else if (el.dataset.feast) c.feasts[el.dataset.feast].rows[+el.dataset.i][el.dataset.f] = el.value;
+  };
+  f.addEventListener("input", e => { A.dirty = true; setVal(e.target); e.target.classList.remove("bad"); });
+  // Tidy a time when leaving the field: "1730" → "17:30"; mark it if it still isn't a valid 24-hour time.
+  f.addEventListener("focusout", e => {
+    const el = e.target; if (!el.classList?.contains("hhmm")) return;
+    el.value = normTime(el.value); setVal(el);
+    el.classList.toggle("bad", !!el.value && !TIME_RE.test(el.value));
   });
-  f.addEventListener("change", e => { if (e.target.dataset.l === "services" && e.target.dataset.f === "kind") renderEditor(); });
+  f.addEventListener("change", e => {
+    const el = e.target;
+    if (el.dataset.feastmode) { A.dirty = true; const fe = c.feasts[el.dataset.feastmode]; fe.mode = el.value; if (fe.mode === "custom" && !fe.rows.length) fe.rows.push({ kind: "mass", start: "", end: "", note: "" }); renderEditor(); }
+    else if (el.dataset.f === "kind") renderEditor();
+  });
   f.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
     if (b.dataset.days) { const [list, i] = b.dataset.days.split("."), d = +b.dataset.d, row = c[list][+i];
       row.days = row.days.includes(d) ? row.days.filter(x => x !== d) : [...row.days, d].sort((a, z) => a - z);
-      b.setAttribute("aria-pressed", row.days.includes(d)); A.dirty = true; }
-    else if (b.dataset.add) { A.dirty = true;
+      b.setAttribute("aria-pressed", row.days.includes(d)); A.dirty = true; return; }
+    if (b.dataset.add) { A.dirty = true;
       if (b.dataset.add === "hours") c.hours.push({ days: [1, 2, 3, 4, 5, 6, 0], opens: "08:00", closes: "18:00" });
-      if (b.dataset.add === "services") c.services.push({ kind: b.dataset.kind, days: [0], start: "", end: "", note: "" });
+      if (b.dataset.add === "services") c.services.push({ kind: b.dataset.kind, days: b.dataset.kind === "rorate" ? [1, 2, 3, 4, 5, 6] : [0], start: b.dataset.kind === "rorate" ? "06:00" : "", end: "", note: b.dataset.kind === "rorate" ? "Rorate" : "", period: "all" });
       if (b.dataset.add === "events") c.events.push({ date: "", start: "", title: "", note: "" });
-      renderEditor(); }
-    else if (b.dataset.del) { A.dirty = true; c[b.dataset.del].splice(+b.dataset.i, 1); renderEditor(); }
+      return renderEditor(); }
+    if (b.dataset.del) { A.dirty = true; c[b.dataset.del].splice(+b.dataset.i, 1); return renderEditor(); }
+    if (b.id === "add-feast-btn") { const k = $("#add-feast").value; if (k) { A.dirty = true; c.feasts[k] = { mode: "sunday", rows: [] }; renderEditor(); } return; }
+    if (b.dataset.delfeast) { A.dirty = true; delete c.feasts[b.dataset.delfeast]; return renderEditor(); }
+    if (b.dataset.addfeastrow) { A.dirty = true; c.feasts[b.dataset.addfeastrow].rows.push({ kind: "mass", start: "", end: "", note: "" }); return renderEditor(); }
+    if (b.dataset.delfeastrow) { A.dirty = true; c.feasts[b.dataset.delfeastrow].rows.splice(+b.dataset.i, 1); return renderEditor(); }
   });
   f.addEventListener("submit", e => { e.preventDefault(); save(); });
   $("#del")?.addEventListener("click", delChurch);
@@ -212,17 +293,33 @@ function validate(c) {
   if (!c.name.trim()) return "Add meg a templom nevét.";
   const lat = parseFloat(String(c.lat).replace(",", ".")), lon = parseFloat(String(c.lon).replace(",", "."));
   if (!(lat >= 45 && lat <= 49) || !(lon >= 16 && lon <= 23.5)) return "A koordináták nem Magyarország területére esnek. Ellenőrizd a szélességet és a hosszúságot.";
+  const okT = (t, where) => !t || TIME_RE.test(t) ? "" : `${where}: a(z) „${t}” nem érvényes időpont. Írd 24 órás formában, pl. 17:30.`;
   for (const [i, h] of c.hours.entries()) {
-    if (!h.days.length) return `Nyitvatartás, ${i + 1}. sor: jelölj ki legalább egy napot.`;
-    if (!h.opens || !h.closes || h.opens >= h.closes) return `Nyitvatartás, ${i + 1}. sor: a nyitás legyen a zárás előtt.`;
+    const w = `Nyitvatartás, ${i + 1}. sor`;
+    if (!h.days.length) return `${w}: jelölj ki legalább egy napot.`;
+    const e = okT(h.opens, w) || okT(h.closes, w); if (e) return e;
+    if (!h.opens || !h.closes || h.opens >= h.closes) return `${w}: a nyitás legyen a zárás előtt.`;
   }
   for (const [i, s] of c.services.entries()) {
-    if (!s.days.length) return `Alkalmak, ${i + 1}. sor: jelölj ki legalább egy napot.`;
-    if (!s.start) return `Alkalmak, ${i + 1}. sor: add meg a kezdés idejét.`;
-    if (s.end && s.end <= s.start) return `Alkalmak, ${i + 1}. sor: a vége legyen a kezdés után.`;
+    const w = `Rendszeres alkalmak, ${i + 1}. sor`;
+    if (!s.days.length) return `${w}: jelölj ki legalább egy napot.`;
+    if (!s.start) return `${w}: add meg a kezdés idejét.`;
+    const e = okT(s.start, w) || okT(s.end, w); if (e) return e;
+    if (s.end && s.end <= s.start) return `${w}: a vége legyen a kezdés után.`;
+  }
+  for (const [k, f] of Object.entries(c.feasts)) {
+    const w = window.LitCal.FEAST_BY_KEY[k].name;
+    if (f.mode !== "custom") continue;
+    if (!f.rows.length) return `${w}: adj meg legalább egy időpontot, vagy válaszd a vasárnapi miserendet.`;
+    for (const [i, r] of f.rows.entries()) {
+      if (!r.start) return `${w}, ${i + 1}. sor: add meg a kezdés idejét.`;
+      const e = okT(r.start, w) || okT(r.end, w); if (e) return e;
+      if (r.end && r.end <= r.start) return `${w}, ${i + 1}. sor: a vége legyen a kezdés után.`;
+    }
   }
   for (const [i, e] of c.events.entries()) {
     if (!e.date || !e.title.trim()) return `Események, ${i + 1}. sor: a dátum és a cím kötelező.`;
+    const er = okT(e.start, `Események, ${i + 1}. sor`); if (er) return er;
   }
   return "";
 }
@@ -230,10 +327,14 @@ async function save() {
   const c = A.draft, m = $("#emsg");
   const err = validate(c); if (err) { m.textContent = err; m.className = "msg err"; return; }
   $("#save").disabled = true; m.textContent = "Mentés…"; m.className = "msg";
+  const regular = c.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: s.kind === "mass" || s.kind === "rorate" ? "" : (s.end || ""), note: s.note, period: s.kind === "rorate" ? "all" : s.period }));
+  const feastRows = Object.entries(c.feasts).filter(([, f]) => f.mode === "custom")
+    .flatMap(([k, f]) => f.rows.map(r => ({ kind: r.kind, days: [], start: r.start, end: r.kind === "mass" ? "" : (r.end || ""), note: r.note, period: "all", feast: k })));
   const p = { id: c.id, name: c.name.trim(), city: c.city.trim(), address: (c.address || "").trim(), rite: c.rite,
     lat: parseFloat(String(c.lat).replace(",", ".")), lon: parseFloat(String(c.lon).replace(",", ".")),
     website: c.website || "", phone: c.phone || "", notes: c.notes || "", open_only_services: !!c.open_only_services, published: !!c.published,
-    hours: c.hours, services: c.services.map(s => ({ ...s, end: s.end || "" })), events: c.events };
+    feast_sunday: Object.entries(c.feasts).filter(([, f]) => f.mode === "sunday").map(([k]) => k),
+    hours: c.hours, services: [...regular, ...feastRows], events: c.events };
   const { data, error } = await sb.rpc("save_church", { p });
   $("#save").disabled = false;
   if (error) { m.textContent = "Nem sikerült menteni: " + error.message; m.className = "msg err"; return; }

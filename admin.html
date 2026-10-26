@@ -57,6 +57,13 @@ body{overflow:auto}
 .msg.ok{color:var(--open)} .msg.err{color:var(--closed)}
 .suglist{display:grid;gap:10px}
 .tabs .count{font-family:var(--f-mono);font-size:.75rem;color:var(--penance);margin-left:4px}
+.hhmm{font-family:var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.field.tf{flex:0 1 92px!important}
+.hhmm.bad{border-color:var(--closed)!important;background:color-mix(in srgb,var(--closed) 8%,var(--bg))!important}
+.srow.seasonal{border-left:3px solid var(--gold)}
+.hint{font-size:.78rem;color:var(--gold);align-self:center}
+.feastcard{display:grid;gap:10px;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--surface)}
+.feastcard .row{gap:12px}
 code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--sunken);padding:10px;border-radius:8px;font-family:var(--f-mono);font-size:.8rem}
 </style>
 </head>
@@ -74,6 +81,7 @@ code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:v
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="calendar.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>

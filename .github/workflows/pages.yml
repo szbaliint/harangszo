@@ -30,7 +30,7 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           mkdir -p _site
-          cp index.html admin.html styles.css app.js admin.js data.js config.js _site/
+          cp index.html admin.html styles.css app.js admin.js calendar.js data.js config.js _site/
           fill() {  # fill <placeholder> <value> <label>
             if [ -n "$2" ]; then
               python3 -c 'import sys; p="_site/config.js"; s=open(p).read(); open(p,"w").write(s.replace(sys.argv[1], sys.argv[2]))' "$1" "$2"

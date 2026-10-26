@@ -177,3 +177,9 @@ form.suggest textarea{min-height:84px;resize:vertical}
 .notice a{color:inherit}
 .detail .where a{color:var(--accent)}
 form.suggest input[type=text]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+.feastline{font-size:.82rem;color:var(--ink-2);background:var(--gold-soft);border-radius:8px;padding:6px 10px}
+.feastline b{color:var(--gold)}
+.feastbar{background:var(--gold-soft);color:var(--gold);font-weight:600;font-size:.85rem;border-radius:var(--r) var(--r) 0 0;padding:8px 12px;border:1px solid var(--line);border-bottom:0}
+.feastbar + .dayline{border-top-left-radius:0;border-top-right-radius:0}
+.feast-times{font-family:var(--f-mono);font-size:.82rem;font-variant-numeric:tabular-nums;margin-top:2px}
+.season{margin:6px 0 0}
