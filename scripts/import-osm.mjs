@@ -1,6 +1,6 @@
 // Imports Catholic churches in Hungary from OpenStreetMap into Supabase.
-// Adds churches that are not in the database yet; never changes or deletes existing rows,
-// so your own edits are safe. Runs in GitHub Actions (see .github/workflows/import-osm.yml).
+// Adds churches that are not in the database yet and refreshes their importance score. Never changes names,
+// times or anything editors set, and never deletes rows. Runs in GitHub Actions (see .github/workflows/import-osm.yml).
 //
 // Env: SUPABASE_URL, SUPABASE_SECRET_KEY (sb_secret_… or a legacy service_role key)   Optional: DRY_RUN=1 (only count, write nothing)
 // Data © OpenStreetMap contributors, ODbL. The site credits this in the map attribution.
@@ -42,6 +42,23 @@ function km(aLat, aLon, bLat, bLon) {
   return 12742 * Math.asin(Math.sqrt(h));
 }
 
+// Importance 0–100: how notable a church is, so the map can show the important ones first.
+// Signals: cathedral / basilica / pilgrimage church in the name or tags, a Wikipedia or Wikidata entry,
+// heritage listing, the size of the settlement; chapels rank lower.
+export function importanceOf(t, settlement) {
+  const name = (t.name || "").toLowerCase();
+  let s = 30;
+  if (/főszékesegyház|székesegyház|katedrális/.test(name) || t.building === "cathedral") s += 40;
+  else if (/bazilika/.test(name) || /basilica/i.test(t["basilica"] || "") || t.building === "basilica") s += 30;
+  if (/kegytemplom|kegyhely|zarándok|búcsújáró|kegyhely/.test(name) || t.pilgrimage === "yes") s += 20;
+  if (t.wikidata || t.wikipedia || t["wikipedia:hu"]) s += 20;
+  if (t.heritage || t["heritage:operator"] || t["ref:hu:mjsz"]) s += 8;
+  if (t.building === "chapel" || t.amenity_type === "chapel" || /kápolna|kálvária/.test(name)) s -= 18;
+  const place = settlement?.place, pop = settlement?.pop || 0;
+  if (place === "city") s += 12 + (pop > 100000 ? 6 : 0); else if (place === "town") s += 6; else if (place === "hamlet") s -= 6;
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+
 // Grid index of settlements so nearest-settlement lookups stay fast for thousands of churches.
 export function settlementIndex(places) {
   // Prefer the "real" settlement over a suburb/quarter (Budapest districts) when assigning the city name.
@@ -49,7 +66,7 @@ export function settlementIndex(places) {
   const grid = new Map(), key = (la, lo) => `${Math.floor(la * 10)}:${Math.floor(lo * 10)}`;
   for (const p of places) {
     if (!p.tags?.name || p.lat == null) continue;
-    const item = { name: p.tags.name, lat: p.lat, lon: p.lon, rank: RANK[p.tags.place] ?? 3, isIn: p.tags["is_in:city"] || null };
+    const item = { name: p.tags.name, place: p.tags.place, pop: Number(p.tags.population) || 0, lat: p.lat, lon: p.lon, rank: RANK[p.tags.place] ?? 3 };
     const k = key(item.lat, item.lon);
     if (!grid.has(k)) grid.set(k, []);
     grid.get(k).push(item);
@@ -65,7 +82,7 @@ export function settlementIndex(places) {
         if (d < 12 && score < bestScore) { best = s; bestScore = score; }
       }
     }
-    return best?.name || "";
+    return best ? { name: best.name, place: best.place, pop: best.pop } : { name: "", place: "", pop: 0 };
   };
 }
 
@@ -76,13 +93,15 @@ export function toChurch(el, nearestCity) {
   const lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
   if (lat == null || lon == null) return null;
   const street = [t["addr:street"] || t["addr:place"], t["addr:housenumber"]].filter(Boolean).join(" ");
-  const city = (t["addr:city"] || "").trim() || nearestCity(lat, lon);
+  const near = nearestCity(lat, lon);
+  const city = (t["addr:city"] || "").trim() || near.name;
   return {
     osm_type: el.type, osm_id: el.id, name: name.slice(0, 200), city, address: street,
     rite: t.denomination === "greek_catholic" ? "gk" : "rk",
     lat: +lat.toFixed(6), lon: +lon.toFixed(6),
     website: t.website || t["contact:website"] || null,
     phone: t.phone || t["contact:phone"] || null,
+    importance_auto: importanceOf(t, near),
   };
 }
 
@@ -101,6 +120,17 @@ async function insertNew(rows, { url, key }) {
     sent += batch.length;
     console.log(`  sent ${sent}/${rows.length}`);
   }
+}
+
+async function refreshImportance(rows, { url, key }) {
+  let changed = 0;
+  for (let i = 0; i < rows.length; i += 1000) {
+    const batch = rows.slice(i, i + 1000).map(r => ({ t: r.osm_type, id: r.osm_id, imp: r.importance_auto }));
+    const res = await fetch(`${url}/rest/v1/rpc/set_church_importance`, { method: "POST", headers: { ...authHeaders(key), "Content-Type": "application/json" }, body: JSON.stringify({ rows: batch }) });
+    if (!res.ok) throw new Error(`Importance update failed (HTTP ${res.status}): ${await res.text()}. Did you run supabase/migrations/003_importance.sql?`);
+    changed += await res.json();
+  }
+  return changed;
 }
 
 async function countChurches({ url, key }) {
@@ -128,12 +158,16 @@ async function main() {
   }
   const gk = rows.filter(r => r.rite === "gk").length, noCity = rows.filter(r => !r.city).length;
   console.log(`Prepared ${rows.length} named churches (${gk} görögkatolikus, ${noCity} without a settlement name).`);
-  if (dry) { console.log("DRY_RUN=1, nothing written. Sample:", rows.slice(0, 3)); return; }
+  const top = [...rows].sort((a, b) => b.importance_auto - a.importance_auto).slice(0, 15).map(r => `${r.importance_auto}  ${r.name} (${r.city})`);
+  console.log("Most important by score:\n  " + top.join("\n  "));
+  if (dry) { console.log("DRY_RUN=1, nothing written."); return; }
 
   const before = await countChurches({ url, key });
   await insertNew(rows, { url, key });
   const after = await countChurches({ url, key });
-  console.log(`Done. Churches in database: ${before} → ${after} (${after - before} new; existing rows untouched).`);
+  console.log("Updating importance scores of existing OpenStreetMap churches…");
+  const changed = await refreshImportance(rows, { url, key });
+  console.log(`Done. Churches in database: ${before} → ${after} (${after - before} new). Importance updated for ${changed}; names, times and your edits untouched.`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main().catch(e => { console.error("Import failed:", e.message); process.exit(1); });

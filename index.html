@@ -9,7 +9,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
 <style>
 *,*::before,*::after{box-sizing:border-box}
 :root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -31,13 +30,12 @@ body{margin:0}
     <section class="panel" id="panel" aria-live="polite"></section>
     <div class="mapwrap">
       <div id="map" role="application" aria-label="Magyarország térképe templomokkal"></div>
+      <div class="maphint" id="maphint" role="status" hidden></div>
       <div class="legend"><span><i style="background:var(--penance)"></i>Gyóntatás a kiválasztott napon</span><span><i style="background:var(--accent)"></i>Mise</span><span><i style="background:var(--ink-3)"></i>Nincs ismert alkalom aznap</span></div>
     </div>
   </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
-<script src="https://unpkg.com/@googlemaps/markerclusterer@2.5.3/dist/index.min.js" crossorigin=""></script>
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="calendar.js"></script>

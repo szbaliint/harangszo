@@ -102,7 +102,7 @@ function renderChurches() {
   loadList();
   if (A.draft) renderEditor();
 }
-const blankChurch = () => ({ id: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, events: [] });
+const blankChurch = () => ({ id: null, importance_manual: "", importance_auto: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, events: [] });
 async function openChurch(id) {
   if (A.dirty && !confirmDiscard()) return;
   A.sel = id;
@@ -203,6 +203,10 @@ function renderEditor() {
         <label class="field" for="f-city">Település<input id="f-city" data-k="city" value="${esc(c.city)}"></label>
         <label class="field" for="f-address">Cím<input id="f-address" data-k="address" value="${esc(c.address)}"></label>
         <label class="field" for="f-rite">Rítus<select id="f-rite" data-k="rite"><option value="rk" ${c.rite === "rk" ? "selected" : ""}>római katolikus</option><option value="gk" ${c.rite === "gk" ? "selected" : ""}>görögkatolikus</option></select></label>
+        <label class="field" for="f-imp" title="A térkép kicsinyítve csak a legfontosabb templomokat mutatja; ezzel előrébb vagy hátrébb sorolhatod ezt a templomot.">Kiemelés a térképen<select id="f-imp" data-k="importance_manual">
+          <option value="" ${c.importance_manual == null || c.importance_manual === "" ? "selected" : ""}>Automatikus${c.importance_auto != null ? " (" + c.importance_auto + ")" : ""}</option>
+          ${[[100, "Kiemelt – mindig látszik"], [75, "Fontos"], [50, "Átlagos"], [20, "Háttérben"]].map(([v, t]) => `<option value="${v}" ${String(c.importance_manual) === String(v) ? "selected" : ""}>${t}</option>`).join("")}
+        </select></label>
         <label class="field" for="f-lat">Szélesség (lat)<input id="f-lat" data-k="lat" inputmode="decimal" value="${esc(c.lat)}"></label>
         <label class="field" for="f-lon">Hosszúság (lon)<input id="f-lon" data-k="lon" inputmode="decimal" value="${esc(c.lon)}"></label>
         <label class="field" for="f-website">Weboldal<input id="f-website" data-k="website" value="${esc(c.website)}"></label>
@@ -334,6 +338,7 @@ async function save() {
     lat: parseFloat(String(c.lat).replace(",", ".")), lon: parseFloat(String(c.lon).replace(",", ".")),
     website: c.website || "", phone: c.phone || "", notes: c.notes || "", open_only_services: !!c.open_only_services, published: !!c.published,
     feast_sunday: Object.entries(c.feasts).filter(([, f]) => f.mode === "sunday").map(([k]) => k),
+    importance_manual: c.importance_manual == null || c.importance_manual === "" ? "" : Number(c.importance_manual),
     hours: c.hours, services: [...regular, ...feastRows], events: c.events };
   const { data, error } = await sb.rpc("save_church", { p });
   $("#save").disabled = false;

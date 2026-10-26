@@ -1,7 +1,7 @@
 name: Import churches from OpenStreetMap
 
-# Run manually from the Actions tab. Adds churches that are not in the database yet;
-# existing churches (and your edits to them) are never changed.
+# Run manually from the Actions tab. Adds churches that are not in the database yet and refreshes
+# importance scores; names, times and your other edits are never changed.
 on:
   workflow_dispatch:
     inputs:

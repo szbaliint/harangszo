@@ -55,7 +55,18 @@ values ('<your user id>', 'admin', 'Bálint');
 
 ## Updating an existing database
 
-If you ran `supabase/schema.sql` before 26 October 2026, run `supabase/migrations/002_seasons_feasts_rorate.sql` once in the SQL Editor. It adds summer/winter schedules, feast-day schedules and Rorate Masses. It is safe to run twice. A fresh install only needs `schema.sql`.
+Run the migrations you haven't run yet, in order, in the SQL Editor. Each is safe to run twice. A fresh install only needs `schema.sql`.
+
+| File | Adds |
+|------|------|
+| `supabase/migrations/002_seasons_feasts_rorate.sql` | summer/winter schedules, feast-day schedules, Rorate |
+| `supabase/migrations/003_importance.sql` | importance scores, so the map shows notable churches first |
+
+After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
+
+## How the map stays fast
+
+The map never draws every church. It shows the most important churches in the current view (about 40–180, depending on screen size); zooming in reveals smaller ones, and from street level everything shows. Importance comes from OpenStreetMap at import time (cathedral, basilica, pilgrimage church, Wikipedia entry, city size; chapels rank lower), plus a bonus for churches whose times are entered. Editors can override it per church with "Kiemelés a térképen".
 
 ## Schedules: seasons, feasts, Rorate
 

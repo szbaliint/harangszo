@@ -20,10 +20,13 @@ create table if not exists public.churches (
   notes           text,
   open_only_services boolean not null default false,  -- "csak szertartások idején nyitva"
   feast_sunday    text[] not null default '{}',     -- feasts on which the Sunday schedule applies
+  importance_auto   smallint not null default 30,   -- 0–100 from the OpenStreetMap import; the map shows important churches first
+  importance_manual smallint,                       -- optional override from the admin panel
   published       boolean not null default true,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
-  unique (osm_type, osm_id)
+  unique (osm_type, osm_id),
+  constraint churches_importance_check check (importance_auto between 0 and 100 and (importance_manual is null or importance_manual between 0 and 100))
 );
 create index if not exists churches_name_idx on public.churches (lower(name));
 create index if not exists churches_city_idx on public.churches (lower(city));
@@ -165,6 +168,19 @@ grant usage on all sequences in schema public to anon, authenticated;
 grant select, insert, update, delete on public.churches, public.opening_hours, public.services, public.events,
   public.suggestions, public.staff, public.staff_churches to authenticated;
 
+-- Used by the import job to refresh importance_auto of OpenStreetMap churches without touching anything else.
+create or replace function public.set_church_importance(rows jsonb) returns integer
+language sql security invoker set search_path = public as $$
+  with u as (
+    update churches c set importance_auto = least(100, greatest(0, (x->>'imp')::int))
+    from jsonb_array_elements(rows) x
+    where c.osm_type = x->>'t' and c.osm_id = (x->>'id')::bigint and c.importance_auto is distinct from least(100, greatest(0, (x->>'imp')::int))
+    returning 1)
+  select count(*)::int from u;
+$$;
+revoke execute on function public.set_church_importance(jsonb) from public, anon, authenticated;
+grant execute on function public.set_church_importance(jsonb) to service_role;
+
 -- ─── Public read: everything the map needs in one call ───────────────────
 
 create or replace function public.public_data() returns jsonb
@@ -173,6 +189,7 @@ language sql stable security invoker set search_path = public as $$
   select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
     'id', c.id, 'name', c.name, 'city', c.city, 'address', c.address, 'rite', c.rite,
     'lat', round(c.lat::numeric, 5), 'lon', round(c.lon::numeric, 5), 'website', c.website, 'phone', c.phone,
+    'imp', coalesce(c.importance_manual, c.importance_auto),
     'open_only_services', nullif(c.open_only_services, false), 'feast_sunday', nullif(c.feast_sunday, '{}'),
     'hours', (select jsonb_agg(jsonb_build_object('days', h.days, 'opens', to_char(h.opens,'HH24:MI'), 'closes', to_char(h.closes,'HH24:MI')))
               from opening_hours h where h.church_id = c.id),
@@ -193,12 +210,13 @@ create or replace function public.save_church(p jsonb) returns bigint
 language plpgsql security invoker set search_path = public as $$
 declare cid bigint := nullif(p->>'id','')::bigint;
         fs text[] := array(select jsonb_array_elements_text(coalesce(p->'feast_sunday','[]'::jsonb)));
+        imp smallint := nullif(p->>'importance_manual','')::smallint;
 begin
   if cid is null then
-    insert into churches (name, city, address, rite, lat, lon, website, phone, notes, open_only_services, published, feast_sunday)
+    insert into churches (name, city, address, rite, lat, lon, website, phone, notes, open_only_services, published, feast_sunday, importance_manual, importance_auto)
     values (p->>'name', coalesce(p->>'city',''), coalesce(p->>'address',''), coalesce(p->>'rite','rk'),
             (p->>'lat')::float8, (p->>'lon')::float8, nullif(p->>'website',''), nullif(p->>'phone',''), nullif(p->>'notes',''),
-            coalesce((p->>'open_only_services')::boolean, false), coalesce((p->>'published')::boolean, true), fs)
+            coalesce((p->>'open_only_services')::boolean, false), coalesce((p->>'published')::boolean, true), fs, imp, 50)
     returning id into cid;
   else
     update churches set
@@ -206,7 +224,7 @@ begin
       rite = coalesce(p->>'rite','rk'), lat = (p->>'lat')::float8, lon = (p->>'lon')::float8,
       website = nullif(p->>'website',''), phone = nullif(p->>'phone',''), notes = nullif(p->>'notes',''),
       open_only_services = coalesce((p->>'open_only_services')::boolean, false),
-      published = coalesce((p->>'published')::boolean, true), feast_sunday = fs
+      published = coalesce((p->>'published')::boolean, true), feast_sunday = fs, importance_manual = imp
     where id = cid;
     if not found then raise exception 'Nincs ilyen templom, vagy nincs jogod szerkeszteni (id %)', cid; end if;
   end if;
