@@ -190,3 +190,10 @@ form.suggest input[type=text]{background:var(--bg);border:1px solid var(--line);
 .schednote a,.source a{color:var(--accent)}
 .source{margin:6px 0 0;font-size:.8rem}
 .approx{font-size:.8rem;color:var(--gold);background:var(--gold-soft);border-radius:6px;padding:4px 8px;margin-top:6px;display:inline-block}
+.week thead th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600;background:var(--sunken);border-top:0}
+.week td .wt{display:block;padding:1px 0}
+.week td .wt+.wt{margin-top:4px}
+.week td .wt small{display:block;font-family:var(--f-body);font-size:.76rem;color:var(--ink-3);line-height:1.3}
+.week td.hrs{white-space:nowrap;color:var(--ink-2)}
+.season b{color:var(--ink-2)}
+.week thead th+th{width:auto}

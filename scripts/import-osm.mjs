@@ -35,6 +35,7 @@ export async function overpass(query, fetchImpl = fetch) {
   throw lastErr;
 }
 
+const fold = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const R = Math.PI / 180;
 function km(aLat, aLon, bLat, bLon) {
   const dLa = (bLat - aLat) * R, dLo = (bLon - aLon) * R;
@@ -156,6 +157,18 @@ async function main() {
     const k = c.osm_type + c.osm_id; if (seen.has(k)) continue; seen.add(k);
     rows.push(c);
   }
+  // One church is sometimes mapped twice (a point and the building outline). Keep the outline.
+  const order = { relation: 0, way: 1, node: 2 };
+  rows.sort((a, b) => order[a.osm_type] - order[b.osm_type]);
+  const words = n => fold(n).split(/[^a-z0-9]+/).filter(t => t.length > 3 && !/^(szent|templom|kapolna|plebania|katolikus|romai)$/.test(t));
+  const kept = [];
+  for (const r of rows) {
+    const twin = kept.find(k => Math.abs(k.lat - r.lat) < 0.0006 && Math.abs(k.lon - r.lon) < 0.0009 &&
+      (words(k.name).some(a => words(r.name).some(b => a.slice(0, 5) === b.slice(0, 5))) || !words(k.name).length || !words(r.name).length));
+    if (!twin) kept.push(r);
+  }
+  if (kept.length < rows.length) console.log(`Skipped ${rows.length - kept.length} duplicate map objects (same church mapped twice).`);
+  rows.length = 0; rows.push(...kept);
   const gk = rows.filter(r => r.rite === "gk").length, noCity = rows.filter(r => !r.city).length;
   console.log(`Prepared ${rows.length} named churches (${gk} görögkatolikus, ${noCity} without a settlement name).`);
   const top = [...rows].sort((a, b) => b.importance_auto - a.importance_auto).slice(0, 15).map(r => `${r.importance_auto}  ${r.name} (${r.city})`);

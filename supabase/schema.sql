@@ -29,6 +29,8 @@ create table if not exists public.churches (
   source_ref      text,                             -- the source's key for this church (stable across runs)
   location_approx boolean not null default false,   -- placed at the settlement centre; to check
   schedule_locked boolean not null default false,   -- checked by an editor: imports must not overwrite
+  created_by      text,                             -- e.g. 'szfvar' when an import added the church
+  match_confirmed boolean not null default false,   -- an editor confirmed the import's match (merge)
   published       boolean not null default true,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
@@ -37,6 +39,7 @@ create table if not exists public.churches (
 );
 create index if not exists churches_name_idx on public.churches (lower(name));
 create index if not exists churches_city_idx on public.churches (lower(city));
+create index if not exists churches_lat_idx on public.churches (lat);
 create unique index if not exists churches_source_ref_idx on public.churches (schedule_source, source_ref) where source_ref is not null;
 
 create table if not exists public.opening_hours (
@@ -56,7 +59,9 @@ create table if not exists public.services (
   start_time  time not null,
   end_time    time,
   note        text,
-  period      text not null default 'all' constraint services_period_check check (period in ('all','summer','winter')),  -- summer/winter time only
+  period      text not null default 'all' constraint services_period_check check (period in ('all','summer','winter','autumn','spring')),  -- season; summer/winter follow the clock change unless `valid` says otherwise
+  valid       text constraint services_valid_check check (valid is null or valid ~ '^\d\d-\d\d/\d\d-\d\d(,\d\d-\d\d/\d\d-\d\d)*$'),  -- "MM-DD/MM-DD[,…]"
+  weeks       smallint[] constraint services_weeks_check check (weeks is null or (weeks <@ array[-1,1,2,3,4,5]::smallint[] and cardinality(weeks) > 0)),  -- weeks of the month, -1 = last
   feast       text constraint services_feast_check check (feast is null or feast ~ '^[a-z0-9_]{1,30}$'),            -- feast-day schedule row; days ignored
   constraint services_days_check check (days <@ array[0,1,2,3,4,5,6]::smallint[] and (feast is not null or cardinality(days) > 0))
 );
@@ -205,16 +210,92 @@ begin
   if has_regular and cur_src is distinct from src and not coalesce((p->>'force')::boolean, false) then return 'manual'; end if;
 
   update churches set schedule_note = nullif(p->>'note',''), schedule_source = src, schedule_source_url = nullif(p->>'source_url',''),
-         schedule_updated = nullif(p->>'updated','')::date where id = cid;
+         schedule_updated = nullif(p->>'updated','')::date,
+         source_ref = coalesce(nullif(p->>'source_ref',''), source_ref),
+         city = case when coalesce(city,'') = '' then coalesce(p->>'city','') else city end,
+         address = case when coalesce(address,'') = '' then coalesce(p->>'address','') else address end
+   where id = cid;
   delete from services where church_id = cid and (feast is null or feast = any(feasts));
-  insert into services (church_id, kind, days, start_time, end_time, note, period, feast)
+  insert into services (church_id, kind, days, start_time, end_time, note, period, feast, valid, weeks)
     select cid, x->>'kind', array(select jsonb_array_elements_text(coalesce(x->'days','[]'::jsonb))::smallint),
-           (x->>'start')::time, nullif(x->>'end','')::time, nullif(x->>'note',''), coalesce(nullif(x->>'period',''),'all'), nullif(x->>'feast','')
+           (x->>'start')::time, nullif(x->>'end','')::time, nullif(x->>'note',''),
+           coalesce(nullif(x->>'period',''),'all'), nullif(x->>'feast',''), nullif(x->>'valid',''),
+           case when jsonb_typeof(x->'weeks') = 'array' and jsonb_array_length(x->'weeks') > 0
+                then array(select jsonb_array_elements_text(x->'weeks')::smallint) end
     from jsonb_array_elements(coalesce(p->'services','[]'::jsonb)) x;
   return 'updated';
 end $$;
 revoke execute on function public.import_church_schedule(jsonb) from public, anon, authenticated;
 grant execute on function public.import_church_schedule(jsonb) to service_role;
+
+-- Import jobs (secret key only): the import now points this source entry at another church. Remove what the import
+-- put on the old one. A church the import itself created, and that nobody touched, is deleted.
+create or replace function public.release_imported_church(cid bigint, src text) returns text
+language plpgsql security invoker set search_path = public as $$
+declare c churches%rowtype;
+begin
+  select * into c from churches where id = cid;
+  if not found then return 'missing'; end if;
+  if c.schedule_locked or c.match_confirmed then return 'kept'; end if;
+  if c.created_by = src and not exists (select 1 from events where church_id = cid)
+     and not exists (select 1 from suggestions where church_id = cid) and not exists (select 1 from opening_hours where church_id = cid)
+     and not exists (select 1 from staff_churches where church_id = cid) then
+    delete from churches where id = cid; return 'deleted';
+  end if;
+  if c.schedule_source = src then
+    delete from services where church_id = cid;
+    update churches set schedule_source = null, schedule_source_url = null, schedule_updated = null, schedule_note = null, source_ref = null where id = cid;
+    return 'cleared';
+  end if;
+  return 'kept';
+end $$;
+revoke execute on function public.release_imported_church(bigint, text) from public, anon, authenticated;
+grant execute on function public.release_imported_church(bigint, text) to service_role;
+
+-- Merge a duplicate (drop) into the church to keep. The kept church keeps its place; its times come from
+-- `schedule_from` ('keep' or 'drop'). Events, suggestions and parish editors move over; empty fields are filled in.
+-- Admins only (or import jobs with the secret key).
+create or replace function public.merge_churches(keep_id bigint, drop_id bigint, schedule_from text default 'auto', name_from text default 'keep') returns bigint
+language plpgsql security invoker set search_path = public as $$
+declare k churches%rowtype; d churches%rowtype; take_drop boolean;
+begin
+  if keep_id = drop_id then raise exception 'A két templom ugyanaz.'; end if;
+  if current_user <> 'service_role' and not public.is_admin() then raise exception 'Összevonni csak adminisztrátor tud.'; end if;
+  select * into k from churches where id = keep_id; if not found then raise exception 'Nincs ilyen templom: %', keep_id; end if;
+  select * into d from churches where id = drop_id; if not found then raise exception 'Nincs ilyen templom: %', drop_id; end if;
+  take_drop := case schedule_from when 'drop' then true when 'keep' then false
+                 else not exists (select 1 from services where church_id = keep_id) and exists (select 1 from services where church_id = drop_id) end;
+  if take_drop then
+    delete from services where church_id = keep_id;
+    update services set church_id = keep_id where church_id = drop_id;
+    if not exists (select 1 from opening_hours where church_id = keep_id) then update opening_hours set church_id = keep_id where church_id = drop_id; end if;
+    update churches set schedule_note = d.schedule_note, schedule_source = d.schedule_source, schedule_source_url = d.schedule_source_url,
+           schedule_updated = d.schedule_updated, feast_sunday = d.feast_sunday, open_only_services = d.open_only_services where id = keep_id;
+  else
+    if not exists (select 1 from opening_hours where church_id = keep_id) then update opening_hours set church_id = keep_id where church_id = drop_id; end if;
+  end if;
+  update events set church_id = keep_id where church_id = drop_id;
+  update suggestions set church_id = keep_id where church_id = drop_id;
+  insert into staff_churches (user_id, church_id) select user_id, keep_id from staff_churches where church_id = drop_id on conflict do nothing;
+  delete from churches where id = drop_id;   -- frees drop's source_ref before it is moved over
+  update churches set
+    name = case when name_from = 'drop' then d.name else k.name end,
+    city = case when coalesce(k.city,'') = '' then d.city else k.city end,
+    address = case when coalesce(k.address,'') = '' then d.address else k.address end,
+    website = coalesce(k.website, d.website), phone = coalesce(k.phone, d.phone),
+    notes = nullif(concat_ws(E'\n', k.notes, d.notes), ''),
+    source_ref = coalesce(case when take_drop then d.source_ref end, k.source_ref, d.source_ref),
+    schedule_source = case when take_drop then d.schedule_source else coalesce(k.schedule_source, case when d.source_ref is not null then d.schedule_source end) end,
+    importance_auto = greatest(k.importance_auto, d.importance_auto),
+    importance_manual = coalesce(k.importance_manual, d.importance_manual),
+    location_approx = k.location_approx and d.location_approx,
+    match_confirmed = (d.source_ref is not null or k.source_ref is not null),
+    schedule_locked = k.schedule_locked or d.schedule_locked
+  where id = keep_id;
+  return keep_id;
+end $$;
+revoke execute on function public.merge_churches(bigint, bigint, text, text) from public, anon;
+grant execute on function public.merge_churches(bigint, bigint, text, text) to authenticated, service_role;
 
 -- ─── Public read: everything the map needs in one call ───────────────────
 
@@ -231,7 +312,7 @@ language sql stable security invoker set search_path = public as $$
     'hours', (select jsonb_agg(jsonb_build_object('days', h.days, 'opens', to_char(h.opens,'HH24:MI'), 'closes', to_char(h.closes,'HH24:MI')))
               from opening_hours h where h.church_id = c.id),
     'services', (select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('kind', s.kind, 'days', s.days, 'start', to_char(s.start_time,'HH24:MI'),
-                   'end', to_char(s.end_time,'HH24:MI'), 'note', s.note, 'period', nullif(s.period,'all'), 'feast', s.feast)) order by s.start_time)
+                   'end', to_char(s.end_time,'HH24:MI'), 'note', s.note, 'period', nullif(s.period,'all'), 'feast', s.feast, 'valid', s.valid, 'weeks', s.weeks)) order by s.start_time)
               from services s where s.church_id = c.id),
     'events', (select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('date', e.date, 'start', to_char(e.start_time,'HH24:MI'), 'title', e.title, 'note', e.note)) order by e.date)
               from events e where e.church_id = c.id and e.date >= current_date - 1 and e.date <= current_date + 120)
@@ -276,10 +357,12 @@ begin
     from jsonb_array_elements(coalesce(p->'hours','[]'::jsonb)) x;
 
   delete from services where church_id = cid;
-  insert into services (church_id, kind, days, start_time, end_time, note, period, feast)
+  insert into services (church_id, kind, days, start_time, end_time, note, period, feast, valid, weeks)
     select cid, x->>'kind', array(select jsonb_array_elements_text(coalesce(x->'days','[]'::jsonb))::smallint),
            (x->>'start')::time, nullif(x->>'end','')::time, nullif(x->>'note',''),
-           coalesce(nullif(x->>'period',''),'all'), nullif(x->>'feast','')
+           coalesce(nullif(x->>'period',''),'all'), nullif(x->>'feast',''), nullif(x->>'valid',''),
+           case when jsonb_typeof(x->'weeks') = 'array' and jsonb_array_length(x->'weeks') > 0
+                then array(select jsonb_array_elements_text(x->'weeks')::smallint) end
     from jsonb_array_elements(coalesce(p->'services','[]'::jsonb)) x;
 
   delete from events where church_id = cid;
@@ -295,7 +378,7 @@ grant execute on function public.save_church(jsonb) to authenticated;
 -- security_invoker: runs with the viewer's rights, so the access rules above still apply.
 create or replace view public.admin_church_list with (security_invoker = true) as
 select
-  c.id, c.name, c.city, c.address, c.rite, c.published, c.updated_at,
+  c.id, c.name, c.city, c.address, c.rite, c.published, c.updated_at, c.lat, c.lon, c.created_by,
   (c.osm_id is not null) as from_osm,
   c.importance_auto, c.importance_manual, c.schedule_source, c.schedule_updated, c.location_approx, c.schedule_locked,
   coalesce(c.importance_manual, c.importance_auto) as importance,
@@ -309,7 +392,10 @@ select
   (cardinality(c.feast_sunday) > 0 or exists (select 1 from public.services s where s.church_id = c.id and s.feast is not null)) as has_feast,
   (c.open_only_services or exists (select 1 from public.opening_hours h where h.church_id = c.id)) as has_hours,
   (select count(*) from public.events e where e.church_id = c.id and e.date >= current_date)::int as n_events,
-  (select count(*) from public.suggestions g where g.church_id = c.id and g.status = 'pending')::int as n_pending
+  (select count(*) from public.suggestions g where g.church_id = c.id and g.status = 'pending')::int as n_pending,
+  -- another church within about 130 m: possibly the same building entered twice
+  exists (select 1 from public.churches o where o.id <> c.id and o.lat between c.lat - 0.0012 and c.lat + 0.0012
+                                          and o.lon between c.lon - 0.0018 and c.lon + 0.0018) as near_duplicate
 from public.churches c;
 
 revoke all on public.admin_church_list from anon;

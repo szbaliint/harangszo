@@ -77,7 +77,7 @@ const FILTERS = {
   rite: { label: "Rítus", opts: { "": "Mind", rk: "Római katolikus", gk: "Görögkatolikus" } },
   times: { label: "Miserend", opts: { "": "Mind", yes: "Van feltöltött időpont", no: "Nincs időpont" } },
   conf: { label: "Gyóntatás", opts: { "": "Mind", yes: "Van gyóntatás", no: "Nincs gyóntatás" } },
-  extra: { label: "Egyéb", opts: { "": "Mind", pending: "Javaslat vár rá", rorate: "Van Rorate", feast: "Van ünnepi miserend", seasonal: "Van nyári/téli eltérés", events: "Van közelgő esemény", nohours: "Nincs nyitvatartás", nocity: "Nincs település megadva", approx: "Hely pontosítandó", locked: "Kézzel ellenőrzött (zárolt)" } },
+  extra: { label: "Egyéb", opts: { "": "Mind", pending: "Javaslat vár rá", rorate: "Van Rorate", feast: "Van ünnepi miserend", seasonal: "Van nyári/téli eltérés", events: "Van közelgő esemény", nohours: "Nincs nyitvatartás", nocity: "Nincs település megadva", approx: "Hely pontosítandó", dup: "Lehetséges duplikátum (130 m-en belül)", created: "Az import hozta létre", locked: "Kézzel ellenőrzött (zárolt)" } },
   vis: { label: "Láthatóság", opts: { "": "Mind", shown: "Látható", hidden: "Rejtett" } },
   imp: { label: "Kiemelés", opts: { "": "Mind", high: "Fontos (70 felett)", low: "Háttérben (20 alatt)", manual: "Kézzel beállított" } },
   src: { label: "Forrás", opts: { "": "Mind", osm: "OpenStreetMap-import", manual: "Kézzel felvett", szfvar: "Egyházmegyei miserend (Székesfehérvár)" } },
@@ -91,7 +91,7 @@ const activeFilterCount = () => Object.keys(FILTERS).filter(k => A.f[k]).length;
 const saveFilters = () => { try { localStorage.setItem("harangszo-admin-filters", JSON.stringify(A.f)); } catch (e) { } };
 
 function buildQuery(from) {
-  let q = sb.from("admin_church_list").select("id,name,city,published,n_services,has_confession,has_rorate,has_feast,n_pending,importance,importance_manual,from_osm,location_approx,schedule_source,schedule_locked", { count: "exact" });
+  let q = sb.from("admin_church_list").select("id,name,city,published,n_services,has_confession,has_rorate,has_feast,n_pending,importance,importance_manual,from_osm,location_approx,schedule_source,schedule_locked,near_duplicate,created_by", { count: "exact" });
   const term = fold(A.q.trim()).replace(/[%,()*]/g, " ").trim();
   if (term) for (const w of term.split(/\s+/)) q = q.like("search", `%${w}%`);
   const f = A.f;
@@ -100,7 +100,7 @@ function buildQuery(from) {
   if (f.conf) q = q.eq("has_confession", f.conf === "yes");
   ({ pending: () => q = q.gt("n_pending", 0), rorate: () => q = q.eq("has_rorate", true), feast: () => q = q.eq("has_feast", true),
      seasonal: () => q = q.eq("has_seasonal", true), events: () => q = q.gt("n_events", 0), nohours: () => q = q.eq("has_hours", false),
-     nocity: () => q = q.eq("city", ""), approx: () => q = q.eq("location_approx", true), locked: () => q = q.eq("schedule_locked", true) })[f.extra]?.();
+     nocity: () => q = q.eq("city", ""), approx: () => q = q.eq("location_approx", true), dup: () => q = q.eq("near_duplicate", true), created: () => q = q.not("created_by", "is", null), locked: () => q = q.eq("schedule_locked", true) })[f.extra]?.();
   if (f.vis) q = q.eq("published", f.vis === "shown");
   if (f.imp === "high") q = q.gte("importance", 70); else if (f.imp === "low") q = q.lte("importance", 20); else if (f.imp === "manual") q = q.not("importance_manual", "is", null);
   if (f.src === "szfvar") q = q.eq("schedule_source", "szfvar"); else if (f.src) q = q.eq("from_osm", f.src === "osm");
@@ -118,6 +118,7 @@ function itemHTML(c) {
     c.has_feast ? `<span class="tag gold">ünnepi rend</span>` : "",
     c.n_pending ? `<span class="tag conf">${c.n_pending} javaslat</span>` : "",
     c.location_approx ? `<span class="warn">hely pontosítandó</span>` : "",
+    c.near_duplicate ? `<span class="warn" title="130 m-en belül van egy másik templom is">duplikátum?</span>` : "",
     c.schedule_source ? `<span title="Az időpontok importból származnak">${c.schedule_locked ? "import, zárolt" : "import"}</span>` : "",
     c.published ? "" : `<span>rejtett</span>`,
     A.f.sort === "imp" || A.f.imp ? `<span title="Fontosság">★ ${c.importance}${c.importance_manual != null ? " (kézi)" : ""}</span>` : "",
@@ -197,6 +198,7 @@ async function openChurch(id) {
   const KORDER = { mass: 0, rorate: 1, confession: 2, adoration: 3 };
   // Feast schedules: Sunday-rule feasts from churches.feast_sunday, custom ones from services rows with a feast key.
   const feasts = {};
+  data.opening_hours ||= []; data.services ||= []; data.events ||= [];
   for (const k of data.feast_sunday || []) feasts[k] = { mode: "sunday", rows: [] };
   for (const s of data.services.filter(s => s.feast).sort(byTime)) {
     (feasts[s.feast] ||= { mode: "custom", rows: [] }).mode = "custom";
@@ -205,7 +207,7 @@ async function openChurch(id) {
   A.draft = { ...data,
     hours: data.opening_hours.map(h => ({ days: h.days, opens: hm(h.opens), closes: hm(h.closes) })),
     services: data.services.filter(s => !s.feast).sort((a, b) => KORDER[a.kind] - KORDER[b.kind] || (a.period || "").localeCompare(b.period || "") || byTime(a, b))
-      .map(s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", period: s.period || "all" })),
+      .map(s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", period: s.period || "all", valid: s.valid || "", weeks: s.weeks || [] })),
     feasts,
     events: data.events.sort((a, b) => String(a.date).localeCompare(String(b.date))).map(e => ({ date: e.date, start: hm(e.start_time), title: e.title, note: e.note || "" })) };
   A.dirty = false; A.svcSnapshot = JSON.stringify([A.draft.services, A.draft.feasts]); A.lockTouched = false;
@@ -232,15 +234,36 @@ const timeField = (id, label, attrs, value) =>
 function daysHTML(days, path) {
   return `<div class="days" role="group" aria-label="Napok">${DAY_ORDER.map(d => `<button type="button" data-days="${path}" data-d="${d}" aria-pressed="${days.includes(d)}">${DAY_SHORT[d]}</button>`).join("")}</div>`;
 }
-const PERIODS = { all: "Egész évben", summer: "Csak nyáron", winter: "Csak télen" };
+const PERIODS = { all: "Egész évben", summer: "Nyáron", winter: "Télen", autumn: "Ősszel", spring: "Tavasszal", custom: "Egyedi időszak" };
+const WEEK_BTNS = [[1, "1."], [2, "2."], [3, "3."], [4, "4."], [5, "5."], [-1, "Utolsó"]];
+// "05-01/08-31,10-01/10-31" ↔ "05.01–08.31, 10.01–10.31"
+const validToText = v => (v || "").split(",").filter(Boolean).map(r => r.split("/").map(x => x.replace("-", ".")).join("–")).join(", ");
+function textToValid(t) {
+  t = (t || "").trim(); if (!t) return "";
+  const out = [];
+  for (const part of t.split(/[,;]+/).map(x => x.trim()).filter(Boolean)) {
+    const m = part.match(/^(\d{1,2})[.\-/](\d{1,2})\.?\s*[–—-]\s*(\d{1,2})[.\-/](\d{1,2})\.?$/);
+    if (!m) return null;
+    const [a, b, c2, d] = m.slice(1).map(Number);
+    if (a < 1 || a > 12 || c2 < 1 || c2 > 12 || b < 1 || b > 31 || d < 1 || d > 31) return null;
+    const f = (x, y) => String(x).padStart(2, "0") + "-" + String(y).padStart(2, "0");
+    out.push(f(a, b) + "/" + f(c2, d));
+  }
+  return out.join(",");
+}
 function serviceRow(s, i) {
   const isRorate = s.kind === "rorate";
-  return `<div class="srow ${s.period !== "all" ? "seasonal" : ""}">
+  const sel = s.period === "all" && (s.valid || s.customRange) ? "custom" : s.period;
+  const showRange = !isRorate && (sel !== "all");
+  const weeks = s.weeks || [];
+  return `<div class="srow ${sel !== "all" || weeks.length ? "seasonal" : ""}">
     <label class="field" for="s-k-${i}">Fajta<select id="s-k-${i}" data-l="services" data-i="${i}" data-f="kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${s.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
     ${daysHTML(s.days, "services." + i)}
     ${timeField(`s-s-${i}`, "Kezdés", `data-l="services" data-i="${i}" data-f="start"`, s.start)}
     ${s.kind === "mass" || isRorate ? "" : timeField(`s-e-${i}`, "Vége", `data-l="services" data-i="${i}" data-f="end"`, s.end)}
-    ${isRorate ? `<span class="hint">Csak adventben látszik</span>` : `<label class="field" for="s-p-${i}" title="Nyár = nyári időszámítás (március utolsó vasárnapjától október utolsó vasárnapjáig)">Időszak<select id="s-p-${i}" data-l="services" data-i="${i}" data-f="period">${Object.entries(PERIODS).map(([k, v]) => `<option value="${k}" ${s.period === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>`}
+    ${isRorate ? `<span class="hint">Csak adventben látszik</span>` : `<label class="field" for="s-p-${i}" title="Nyár/tél = az óraátállításhoz igazodik, hacsak meg nem adsz pontos időszakot">Időszak<select id="s-p-${i}" data-period="${i}">${Object.entries(PERIODS).map(([k, v]) => `<option value="${k}" ${sel === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>`}
+    ${showRange ? `<label class="field range" for="s-v-${i}">Pontos időszak${sel === "summer" || sel === "winter" ? " (üresen: óraátállítás)" : ""}<input id="s-v-${i}" data-valid="${i}" value="${esc(validToText(s.valid))}" placeholder="pl. 05.01–08.31" autocomplete="off"></label>` : ""}
+    <div class="weeks"><span class="muted">A hónap hetei:</span><div class="days" role="group" aria-label="A hónap hetei">${WEEK_BTNS.map(([n, t]) => `<button type="button" data-weeks="${i}" data-n="${n}" aria-pressed="${weeks.includes(n)}">${t}</button>`).join("")}</div><span class="muted">${weeks.length ? "" : "minden héten"}</span></div>
     <label class="field note" for="s-n-${i}">Megjegyzés<input id="s-n-${i}" data-l="services" data-i="${i}" data-f="note" value="${esc(s.note)}" placeholder="${isRorate ? "pl. gyertyafényes hajnali mise" : "pl. latin nyelvű, diákmise"}"></label>
     <button type="button" class="icon-btn" data-del="services" data-i="${i}" aria-label="Sor törlése">Törlés</button></div>`;
 }
@@ -338,10 +361,11 @@ function renderEditor() {
 
     <div class="bar">
       <button class="btn primary" type="submit" id="save">Mentés</button>
-      ${c.id && isAdmin ? `<button type="button" class="btn danger" id="del">Templom törlése</button>` : ""}
+      ${c.id && isAdmin ? `<button type="button" class="btn" id="merge-open">Összevonás egy másik templommal…</button><button type="button" class="btn danger" id="del">Templom törlése</button>` : ""}
       <span class="msg" id="emsg" role="status"></span>
     </div>
-  </form>`;
+  </form>
+  <section class="card-box merge" id="merge" hidden></section>`;
   document.scrollingElement.scrollTop = scroll;
   bindEditor();
 }
@@ -361,11 +385,17 @@ function bindEditor() {
   });
   f.addEventListener("change", e => {
     const el = e.target;
+    if (el.dataset.period !== undefined) { A.dirty = true; const r = c.services[+el.dataset.period];
+      if (el.value === "custom") { r.period = "all"; r.valid ||= ""; r.customRange = true; } else { r.period = el.value; if (el.value === "all") r.valid = ""; r.customRange = false; }
+      return renderEditor(); }
+    if (el.dataset.valid !== undefined) { const v = textToValid(el.value); el.classList.toggle("bad", v === null); if (v !== null) { c.services[+el.dataset.valid].valid = v; el.value = validToText(v); } A.dirty = true; return; }
     if (el.dataset.feastmode) { A.dirty = true; const fe = c.feasts[el.dataset.feastmode]; fe.mode = el.value; if (fe.mode === "custom" && !fe.rows.length) fe.rows.push({ kind: "mass", start: "", end: "", note: "" }); renderEditor(); }
     else if (el.dataset.f === "kind") renderEditor();
   });
   f.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.weeks !== undefined) { const row = c.services[+b.dataset.weeks], n = +b.dataset.n; row.weeks ||= [];
+      row.weeks = row.weeks.includes(n) ? row.weeks.filter(x => x !== n) : [...row.weeks, n].sort((a, z) => a - z); A.dirty = true; return renderEditor(); }
     if (b.dataset.days) { const [list, i] = b.dataset.days.split("."), d = +b.dataset.d, row = c[list][+i];
       row.days = row.days.includes(d) ? row.days.filter(x => x !== d) : [...row.days, d].sort((a, z) => a - z);
       b.setAttribute("aria-pressed", row.days.includes(d)); A.dirty = true; return; }
@@ -382,6 +412,7 @@ function bindEditor() {
   });
   f.addEventListener("submit", e => { e.preventDefault(); save(); });
   $("#del")?.addEventListener("click", delChurch);
+  $("#merge-open")?.addEventListener("click", openMerge);
 }
 function validate(c) {
   if (!c.name.trim()) return "Add meg a templom nevét.";
@@ -400,6 +431,9 @@ function validate(c) {
     if (!s.start) return `${w}: add meg a kezdés idejét.`;
     const e = okT(s.start, w) || okT(s.end, w); if (e) return e;
     if (s.end && s.end <= s.start) return `${w}: a vége legyen a kezdés után.`;
+    const vEl = document.getElementById(`s-v-${i}`);
+    if (vEl && textToValid(vEl.value) === null) return `${w}: az időszakot így írd: 05.01–08.31 (több időszak vesszővel).`;
+    if (s.period === "all" && s.customRange && !s.valid) return `${w}: add meg az egyedi időszakot, pl. 07.01–08.31.`;
   }
   for (const [k, f] of Object.entries(c.feasts)) {
     const w = window.LitCal.FEAST_BY_KEY[k].name;
@@ -421,7 +455,8 @@ async function save() {
   const c = A.draft, m = $("#emsg");
   const err = validate(c); if (err) { m.textContent = err; m.className = "msg err"; return; }
   $("#save").disabled = true; m.textContent = "Mentés…"; m.className = "msg";
-  const regular = c.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: s.kind === "mass" || s.kind === "rorate" ? "" : (s.end || ""), note: s.note, period: s.kind === "rorate" ? "all" : s.period }));
+  const regular = c.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: s.kind === "mass" || s.kind === "rorate" ? "" : (s.end || ""), note: s.note,
+    period: s.kind === "rorate" ? "all" : s.period, valid: s.kind === "rorate" ? "" : (s.valid || ""), weeks: s.weeks || [] }));
   const feastRows = Object.entries(c.feasts).filter(([, f]) => f.mode === "custom")
     .flatMap(([k, f]) => f.rows.map(r => ({ kind: r.kind, days: [], start: r.start, end: r.kind === "mass" ? "" : (r.end || ""), note: r.note, period: "all", feast: k })));
   const p = { id: c.id, name: c.name.trim(), city: c.city.trim(), address: (c.address || "").trim(), rite: c.rite,
@@ -449,6 +484,62 @@ async function delChurch() {
   const { error } = await sb.from("churches").delete().eq("id", c.id);
   if (error) { $("#emsg").textContent = "Nem sikerült törölni: " + error.message; $("#emsg").className = "msg err"; return; }
   A.draft = null; A.sel = null; A.dirty = false; renderChurches();
+}
+
+/* ---------- Merging duplicates ---------- */
+// The same church in the database twice (an import put it beside the map's church, or the map has it twice).
+const mkm = (a, b) => { const R = Math.PI / 180, h = Math.sin((b.lat - a.lat) * R / 2) ** 2 + Math.cos(a.lat * R) * Math.cos(b.lat * R) * Math.sin((b.lon - a.lon) * R / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); };
+const distText = d => d < 1 ? Math.round(d * 1000) + " m" : d.toFixed(1).replace(".", ",") + " km";
+async function openMerge() {
+  const box = $("#merge"), c = A.draft;
+  if (A.dirty) { box.hidden = false; box.innerHTML = `<p class="msg err" style="margin:0">Előbb mentsd el a módosításokat, utána vond össze.</p>`; return; }
+  box.hidden = false;
+  box.innerHTML = `<h3 class="mh">Melyik templommal azonos?</h3>
+    <label class="search" for="mq"><input id="mq" type="search" placeholder="Keresés névre (üresen: a legközelebbiek)" autocomplete="off"></label>
+    <ul class="clist" id="mlist"><li class="muted" style="padding:8px">Betöltés…</li></ul><div id="mcmp"></div>`;
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
+  const load = async () => {
+    const term = fold($("#mq").value.trim()).replace(/[%,()*]/g, " ").trim();
+    let q = sb.from("admin_church_list").select("id,name,city,address,lat,lon,n_services,schedule_source,location_approx,created_by,n_events,n_pending").neq("id", c.id).limit(40);
+    if (term) for (const w of term.split(/\s+/)) q = q.like("search", `%${w}%`);
+    else q = q.gte("lat", c.lat - 0.03).lte("lat", c.lat + 0.03).gte("lon", c.lon - 0.045).lte("lon", c.lon + 0.045);
+    const { data, error } = await q;
+    if (error) { $("#mlist").innerHTML = `<li class="msg err">${esc(error.message)}</li>`; return; }
+    const list = (data || []).map(o => ({ ...o, d: mkm(c, o) })).sort((a, b) => a.d - b.d).slice(0, 15);
+    $("#mlist").innerHTML = list.map(o => `<li><button type="button" data-mid="${o.id}"><span class="nm">${esc(o.name)}</span><span class="sub"><span>${esc(o.city || "–")}</span><span>${distText(o.d)}</span><span>${o.n_services ? o.n_services + " időpont" : "nincs időpont"}</span>${o.location_approx ? `<span class="warn">hely pontosítandó</span>` : ""}${o.schedule_source ? "<span>import</span>" : ""}</span></button></li>`).join("") || `<li class="muted" style="padding:8px">Nincs találat.</li>`;
+    $("#mlist").querySelectorAll("[data-mid]").forEach(b => b.addEventListener("click", () => compare(list.find(o => o.id === +b.dataset.mid))));
+  };
+  let t; $("#mq").addEventListener("input", () => { clearTimeout(t); t = setTimeout(load, 250); });
+  load();
+}
+function compare(o) {
+  const c = A.draft, me = { id: c.id, name: c.name, city: c.city, lat: +c.lat, lon: +c.lon, n_services: c.services.length + Object.values(c.feasts).reduce((n, f) => n + f.rows.length, 0), location_approx: c.location_approx, schedule_source: c.schedule_source };
+  // Defaults: keep the place that is not approximate; take the times from the one that has them.
+  const keepOther = me.location_approx && !o.location_approx;
+  const timesFromOther = o.n_services > me.n_services;
+  const opt = (name, v, label, checked) => `<label class="check"><input type="radio" name="${name}" value="${v}" ${checked ? "checked" : ""}>${label}</label>`;
+  const who = x => `${esc(x.name)}${x.city ? ` (${esc(x.city)})` : ""}`;
+  $("#mcmp").innerHTML = `<div class="cmp">
+    <p style="margin:0"><b>${who(me)}</b> és <b>${who(o)}</b> — ${distText(mkm(me, o))} egymástól.</p>
+    <fieldset><legend>Melyik helye pontos a térképen? Ez marad meg.</legend>
+      ${opt("keep", "me", `Ez: ${who(me)}${me.location_approx ? " – hely pontosítandó" : ""}`, !keepOther)}${opt("keep", "other", `A másik: ${who(o)}${o.location_approx ? " – hely pontosítandó" : ""}`, keepOther)}</fieldset>
+    <fieldset><legend>Melyik nevet használjuk?</legend>${opt("name", "me", esc(me.name), true)}${opt("name", "other", esc(o.name), false)}</fieldset>
+    <fieldset><legend>Kinek az időpontjai maradjanak?</legend>${opt("times", "me", `${esc(me.name)} – ${me.n_services} időpont${me.schedule_source ? " (import)" : ""}`, !timesFromOther)}${opt("times", "other", `${esc(o.name)} – ${o.n_services} időpont${o.schedule_source ? " (import)" : ""}`, timesFromOther)}</fieldset>
+    <p class="muted" style="margin:0">Az eseményeket, javaslatokat és plébániai szerkesztőket mindkettőtől átvesszük. A másik bejegyzés törlődik. Az import a jövőben a megmaradt templomot frissíti.</p>
+    <div class="row"><button type="button" class="btn primary" id="do-merge">Összevonás</button><button type="button" class="btn" id="cancel-merge">Mégse</button><span class="msg" id="mmsg" role="status"></span></div>
+  </div>`;
+  $("#cancel-merge").addEventListener("click", () => { $("#merge").hidden = true; });
+  $("#do-merge").addEventListener("click", async () => {
+    const pick = n => $(`#mcmp input[name="${n}"]:checked`).value;
+    const keepMe = pick("keep") === "me", keepId = keepMe ? me.id : o.id, dropId = keepMe ? o.id : me.id;
+    const nameFrom = (pick("name") === "me") === keepMe ? "keep" : "drop";
+    const scheduleFrom = (pick("times") === "me") === keepMe ? "keep" : "drop";
+    $("#do-merge").disabled = true; $("#mmsg").textContent = "Összevonás…"; $("#mmsg").className = "msg";
+    const { data, error } = await sb.rpc("merge_churches", { keep_id: keepId, drop_id: dropId, schedule_from: scheduleFrom, name_from: nameFrom });
+    if (error) { $("#do-merge").disabled = false; $("#mmsg").textContent = "Nem sikerült: " + error.message; $("#mmsg").className = "msg err"; return; }
+    A.dirty = false; await openChurch(data); loadList();
+    const m = $("#emsg"); if (m) { m.textContent = "Összevonva. Ez a megmaradt templom."; m.className = "msg ok"; }
+  });
 }
 
 /* ---------- Suggestions ---------- */

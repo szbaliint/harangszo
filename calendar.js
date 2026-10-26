@@ -65,5 +65,18 @@
     const a = f.date(from.getFullYear()); return a >= d0 ? a : f.date(from.getFullYear() + 1);
   }
 
-  root.LitCal = { easter, adventStart, inAdvent, isSummerTime, nextClockChange, FEASTS, FEAST_BY_KEY, feastsOn, nextFeastDate, ymd, addDays };
+  // `valid` = "MM-DD/MM-DD[,…]" (ranges may wrap the new year): is the date inside?
+  const mdOf = d => String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  function inValid(date, valid) {
+    if (!valid) return true;
+    const x = mdOf(date);
+    return valid.split(",").some(r => { const [a, b] = r.split("/"); return a <= b ? x >= a && x <= b : x >= a || x <= b; });
+  }
+  // `weeks` = [1..5, -1 = last]: is this date's weekday that week of its month?
+  function weekOk(date, weeks) {
+    if (!weeks || !weeks.length) return true;
+    const d = date.getDate(), n = Math.ceil(d / 7), dim = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    return weeks.includes(n) || (weeks.includes(-1) && d + 7 > dim);
+  }
+  root.LitCal = { inValid, weekOk, mdOf, easter, adventStart, inAdvent, isSummerTime, nextClockChange, FEASTS, FEAST_BY_KEY, feastsOn, nextFeastDate, ymd, addDays };
 })(typeof window !== "undefined" ? window : globalThis);

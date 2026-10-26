@@ -59,21 +59,48 @@ export function anchorFor(entry, places) {
   return null;
 }
 
-// Pick the database church for an entry. Returns { church, how, sim, dist } or null.
-export function matchChurch(entry, anchor, churches, claimed) {
-  if (!anchor) return null;
+// Score one database church for an entry. Name words count most; the district, the parish page's address
+// ("…-vasutvidek-prohaszka") and table labels are hints that catch names like "Jó Pásztor" ↔ "Prohászka-templom".
+const NOT_A_PARISH_CHURCH = /kapolna|iskola|gimnazium|otthon|korhaz|temeto|kollegium|zarda/;
+export function scoreCandidate(entry, c, dist) {
+  const place = new Set(tokens(entry.settlement));
+  const nameT = tokens(entry.name).filter(t => !place.has(t));
+  const hintT = [...new Set(tokens((entry.hints || []).join(" ")))].filter(t => !place.has(t) && !nameT.some(n => same(n, t)));
+  const cT = tokens([c.name, ...(c.altNames || [])].join(" "));
+  const hit = list => list.filter(t => cT.some(u => same(t, u))).length;
+  const simName = nameT.length ? hit(nameT) / nameT.length : 0;
+  const simHint = hintT.length ? hit(hintT) / hintT.length : 0;
+  const cf = fold(c.name);
+  let type = 0;
+  // A parish (or rectorate) is almost never a chapel, school or hospital chapel.
+  if (entry.type === "parish" || entry.type === "directorate") type = NOT_A_PARISH_CHURCH.test(cf) ? -1.2 : /templom|szekesegyhaz|bazilika|plebania/.test(cf) ? 0.15 : 0;
+  const ok = simName >= 0.5 || (simHint >= 0.5 && hit(hintT) > 0);
+  return { ok, score: 2 * simName + 1.2 * simHint + type - dist * 0.08, simName, simHint };
+}
+
+// All acceptable (entry, church) pairs near the entry's place, best first.
+export function candidatePairs(entry, anchor, churches) {
+  if (!anchor) return [];
   const radius = anchor.level === "district" ? 2.5 : (anchor.place === "city" || anchor.place === "town") ? 6 : 3;
-  const cands = churches
-    .filter(c => !claimed.has(c.id) && !(c.schedule_source && c.source_ref && c.schedule_source !== "szfvar"))
-    .map(c => ({ c, dist: km(anchor.lat, anchor.lon, c.lat, c.lon), sim: entry.name ? nameSim(entry.name, c.name) : 0 }))
-    .filter(x => x.dist <= radius)
-    .sort((a, b) => b.sim - a.sim || a.dist - b.dist);
-  if (!cands.length) return null;
-  const top = cands[0];
-  if (entry.name && top.sim >= 0.5) return { church: top.c, how: "name", sim: top.sim, dist: top.dist };
-  // A single church nearby with a generic name ("Római katolikus templom") is safe for a parish in a village.
-  const near = cands.filter(x => x.dist <= 1.5);
-  if (near.length === 1 && tokens(near[0].c.name).length === 0 && entry.type !== "place") return { church: near[0].c, how: "only-church", sim: 0, dist: near[0].dist };
-  if (!entry.name && near.length === 1 && entry.type === "parish") return { church: near[0].c, how: "only-church", sim: 0, dist: near[0].dist };
-  return null;
+  const out = [];
+  for (const c of churches) {
+    const dist = km(anchor.lat, anchor.lon, c.lat, c.lon);
+    if (dist > radius) continue;
+    const s = scoreCandidate(entry, c, dist);
+    if (s.ok) out.push({ church: c, how: s.simName >= 0.5 ? "name" : "hint", ...s, dist });
+  }
+  // A village with a single church that has a generic name ("Római katolikus templom").
+  if (!out.length) {
+    const near = churches.map(c => ({ c, dist: km(anchor.lat, anchor.lon, c.lat, c.lon) })).filter(x => x.dist <= 1.5);
+    if (near.length === 1 && entry.type !== "place" && (tokens(near[0].c.name).length === 0 || (!entry.name && entry.type === "parish")))
+      out.push({ church: near[0].c, how: "only-church", score: 0.1, dist: near[0].dist });
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
+// Two OpenStreetMap objects for one building (a node and the outline): very close and sharing a name word.
+export function looksLikeSameBuilding(a, b) {
+  if (km(a.lat, a.lon, b.lat, b.lon) > 0.06) return false;
+  const ta = tokens(a.name), tb = tokens(b.name);
+  return !ta.length || !tb.length || ta.some(t => tb.some(u => same(t, u)));
 }

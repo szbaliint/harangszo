@@ -67,7 +67,8 @@ function fromDb(c) {
   return { id: c.id, name: c.name, city: c.city || "", addr: c.address || "", rite: c.rite, lat: c.lat, lon: c.lon,
     web: c.website, phone: c.phone, onlyServices: !!c.open_only_services,
     hours: (c.hours || []).map(h => ({ days: h.days, o: h.opens, c: h.closes })),
-    svc: (c.services || []).map(s => ({ k: KIND[s.kind] || "mass", d: s.days || [], t: s.start, u: s.end || null, n: s.note, p: s.period || "all", feast: s.feast || null })),
+    svc: (c.services || []).map(s => ({ k: KIND[s.kind] || "mass", d: s.days || [], t: s.start, u: s.end || null, n: s.note, p: s.period || "all", feast: s.feast || null,
+      v: s.valid || null, w: s.weeks && s.weeks.length ? s.weeks : null })),
     feastSunday: c.feast_sunday || [], imp: c.imp ?? 30,
     note: c.schedule_note || "", source: c.schedule_source || null, sourceUrl: c.schedule_source_url || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
     ev: (c.events || []).map(e => ({ date: e.date, t: e.start || "", title: e.title, n: e.note })) };
@@ -92,14 +93,22 @@ const isRegular = s => !s.feast;
 function dayContext(date) {
   return { date, dow: date.getDay(), key: ymd(date), summer: C.isSummerTime(date), advent: C.inAdvent(date), feasts: C.feastsOn(date) };
 }
-function seasonOk(s, ctx) { return s.p === "all" || (s.p === "summer") === ctx.summer; }
+// Seasons: a date range (`v`) wins; otherwise summer/winter follow the clock change; autumn/spring need a range.
+const DEFAULT_RANGE = { autumn: "09-01/10-31", spring: "03-01/04-30" };
+function seasonOk(s, ctx) {
+  if (s.v) return C.inValid(ctx.date, s.v);
+  if (s.p === "all") return true;
+  if (s.p === "summer" || s.p === "winter") return (s.p === "summer") === ctx.summer;
+  return C.inValid(ctx.date, DEFAULT_RANGE[s.p]);
+}
+const weekOk = (s, ctx) => C.weekOk(ctx.date, s.w);
 function dayInfo(c, ctx) {
   let rows, feast = null, feastMode = null;
   const custom = ctx.feasts.length ? c.svc.filter(s => s.feast && ctx.feasts.includes(s.feast)) : [];
   const sundayFeast = ctx.feasts.find(k => c.feastSunday.includes(k));
   if (custom.length) { rows = custom; feast = C.FEAST_BY_KEY[custom[0].feast]?.name; feastMode = "custom"; }
-  else if (sundayFeast) { rows = c.svc.filter(s => isRegular(s) && s.k !== "rorate" && seasonOk(s, ctx) && s.d.includes(0)); feast = C.FEAST_BY_KEY[sundayFeast]?.name; feastMode = "sunday"; }
-  else rows = c.svc.filter(s => isRegular(s) && seasonOk(s, ctx) && s.d.includes(ctx.dow) && (s.k !== "rorate" || ctx.advent));
+  else if (sundayFeast) { rows = c.svc.filter(s => isRegular(s) && s.k !== "rorate" && seasonOk(s, ctx) && !s.w && s.d.includes(0)); feast = C.FEAST_BY_KEY[sundayFeast]?.name; feastMode = "sunday"; }
+  else rows = c.svc.filter(s => isRegular(s) && seasonOk(s, ctx) && weekOk(s, ctx) && s.d.includes(ctx.dow) && (s.k !== "rorate" || ctx.advent));
   const items = rows.map(s => ({ k: s.k, t: s.t, end: s.k === "mass" || s.k === "rorate" ? null : s.u, n: s.n,
     what: s.k === "mass" ? massWord(c) : s.k === "rorate" ? "Rorate" : s.k === "conf" ? "Gyóntatás" : "Szentségimádás" }));
   for (const e of c.ev) if (e.date === ctx.key) items.push({ k: "ev", t: e.t, end: null, what: e.title, n: e.n });
@@ -241,19 +250,42 @@ function locateMe() {
 }
 
 /* ---------- Rendering: detail ---------- */
+const SEASON_NAME = { summer: "nyári", winter: "téli", autumn: "őszi", spring: "tavaszi" };
+const ORDW = { 1: "első", 2: "második", 3: "harmadik", 4: "negyedik", 5: "ötödik", "-1": "utolsó" };
+const DAYW = ["vasárnapján", "hétfőjén", "keddjén", "szerdáján", "csütörtökén", "péntekjén", "szombatján"];
+// "minden hónap utolsó szombatján" when a parish note does not already say it
+const weeksText = (w, dow) => "a hónap " + w.map(n => ORDW[n]).join(" és ") + " " + DAYW[dow];
+const rangeText = v => v.split(",").map(r => r.split("/").map(x => { const [m, d] = x.split("-").map(Number); return `${MON[m - 1]} ${d}.`; }).join(" – ")).join(", ");
 function weekTable(c, ctx) {
   const today = now().getDay();
   const reg = c.svc.filter(s => isRegular(s) && s.k !== "rorate" && seasonOk(s, ctx));
-  return [1, 2, 3, 4, 5, 6, 0].map(dow => {
-    const ms = reg.filter(s => s.k === "mass" && s.d.includes(dow)).map(s => s.t).sort((a, b) => mins(a) - mins(b)).map(showT).join(", ") || "–";
-    const cs = reg.filter(s => s.k === "conf" && s.d.includes(dow)).map(s => range(s.t, s.u)).join(", ");
-    return `<tr class="${dow === today ? "today" : ""}"><th scope="row">${DAYN[dow].slice(0, 3)}.</th><td>${ms}${cs ? `<br><span class="c">gyón. ${cs}</span>` : ""}</td><td>${hoursText(c, dow)}</td></tr>`;
+  const withHours = c.onlyServices || c.hours.length > 0;
+  const item = (s, dow, label) => {
+    const extra = s.n || (s.w ? weeksText(s.w, dow) : "");
+    return `<span class="wt"><span class="t">${label}</span>${extra ? `<small>${esc(extra)}</small>` : ""}</span>`;
+  };
+  const rows = [1, 2, 3, 4, 5, 6, 0].map(dow => {
+    const ms = reg.filter(s => s.k === "mass" && s.d.includes(dow)).sort((a, b) => mins(a.t) - mins(b.t)).map(s => item(s, dow, showT(s.t))).join("");
+    const cs = reg.filter(s => s.k === "conf" && s.d.includes(dow)).map(s => item(s, dow, "gyón. " + range(s.t, s.u))).join("");
+    return `<tr class="${dow === today ? "today" : ""}"><th scope="row">${DAYN[dow].slice(0, 3)}.</th><td>${ms || cs ? ms + cs : "–"}</td>${withHours ? `<td class="hrs">${hoursText(c, dow)}</td>` : ""}</tr>`;
   }).join("");
+  return `<thead><tr><th scope="col">Nap</th><th scope="col">${massWord(c) === "Szent Liturgia" ? "Liturgia" : "Szentmise"}${reg.some(s => s.k === "conf") ? " · gyónás" : ""}</th>${withHours ? `<th scope="col">Nyitva</th>` : ""}</tr></thead><tbody>${rows}</tbody>`;
 }
+// Which named seasons does this church use, which one applies now, and when does it change?
 function seasonNote(c, ctx) {
-  if (!c.svc.some(s => isRegular(s) && s.p !== "all")) return "";
-  const next = C.nextClockChange(ctx.date);
-  return `<p class="muted season">${ctx.summer ? "Nyári" : "Téli"} miserend van érvényben. ${next ? `${next.getFullYear()}. ${shortDate(next)} -tól a ${ctx.summer ? "téli" : "nyári"} rend szerint változik.` : ""}</p>`;
+  const groups = new Map();
+  for (const s of c.svc) if (isRegular(s) && s.p !== "all" && s.k !== "rorate") groups.set(s.p + "|" + (s.v || ""), s);
+  if (!groups.size) return "";
+  const activeOn = d => [...groups.values()].filter(s => seasonOk(s, { date: d, summer: C.isSummerTime(d) })).map(s => s.p).sort().join(",");
+  const nowKey = activeOn(ctx.date);
+  let change = null;
+  for (let i = 1; i <= 366 && !change; i++) { const d = C.addDays(ctx.date, i); if (activeOn(d) !== nowKey) change = d; }
+  const describe = s => s.v ? rangeText(s.v) : "óraátállításhoz igazodva";
+  const names = key => key.split(",").filter(Boolean).map(p => SEASON_NAME[p]).join(" és ") || "–";
+  const active = [...groups.values()].filter(s => nowKey.split(",").includes(s.p));
+  const list = [...new Map([...groups.values()].map(s => [s.p, s])).values()].map(s => `${SEASON_NAME[s.p]}: ${describe(s)}`).join(" · ");
+  const az = w => /^[aáeéiíoóöőuúüű]/i.test(w) ? "az" : "a";
+  return `<p class="muted season">${active.length ? `Most ${az(names(nowKey))} <b>${names(nowKey)}</b> miserend érvényes.` : ""}${change ? ` Következő váltás: ${change.getFullYear() !== ctx.date.getFullYear() ? change.getFullYear() + ". " : ""}${shortDate(change)} (${names(activeOn(change))} rend).` : ""}<br>${esc(list)}</p>`;
 }
 function rorateHTML(c) {
   const rr = c.svc.filter(s => isRegular(s) && s.k === "rorate");
@@ -312,7 +344,7 @@ function renderDetail() {
     </div>
     <div class="actions"><a class="btn primary" href="${dir}" target="_blank" rel="noopener noreferrer">Útvonal a Google Térképen</a><button class="btn" id="go-suggest">Javítás beküldése</button></div>
     <div class="sec"><h4>${dayLabel(S.dayOffset)}</h4>${feastBar}<div class="dayline">${slots}</div></div>
-    ${hasSchedule(c) || c.hours.length ? `<div class="sec"><h4>Heti rend</h4><div class="week"><table><tbody>${weekTable(c, ctx)}</tbody></table></div>${seasonNote(c, ctx)}</div>` : ""}
+    ${hasSchedule(c) || c.hours.length ? `<div class="sec"><h4>Heti rend</h4><div class="week"><table>${weekTable(c, ctx)}</table></div>${seasonNote(c, ctx)}</div>` : ""}
     ${noteHTML(c)}
     ${feastScheduleHTML(c)}
     ${rorateHTML(c)}

@@ -63,6 +63,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/003_importance.sql` | importance scores, so the map shows notable churches first |
 | `supabase/migrations/004_admin_list.sql` | church overview used by the admin panel's filters |
 | `supabase/migrations/005_schedule_sources.sql` | schedule notes, sources and locking, for diocesan imports |
+| `supabase/migrations/006_ranges_weeks_merge.sql` | parish-defined seasons (date ranges), "last Saturday of the month" rules, merging duplicate churches |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
@@ -70,9 +71,14 @@ After 003, run the **Import churches from OpenStreetMap** workflow once: it fill
 
 The map never draws every church. It shows the most important churches in the current view (about 40–180, depending on screen size); zooming in reveals smaller ones, and from street level everything shows. Importance comes from OpenStreetMap at import time (cathedral, basilica, pilgrimage church, Wikipedia entry, city size; chapels rank lower), plus a bonus for churches whose times are entered. Editors can override it per church with "Kiemelés a térképen".
 
+## Duplicate churches
+
+In the admin panel, open either church and click **Összevonás egy másik templommal…**. Pick the other church from the nearby list (or search), choose which place is correct, which name to keep and whose times to keep, then **Összevonás**. Events, suggestions and parish editors move over; the other entry is deleted, and future imports update the kept church. Egyéb → "Lehetséges duplikátum" lists churches with another church within about 130 m.
+
 ## Schedules: seasons, feasts, Rorate
 
-- **Summer/winter:** a regular time row can be marked "Csak nyáron" or "Csak télen". Summer means summer time (last Sunday of March to last Sunday of October). Rows that never change stay "Egész évben".
+- **Seasons:** a time row can be "Nyáron", "Télen", "Ősszel", "Tavasszal" or "Egyedi időszak". Summer and winter follow the clock change unless a "Pontos időszak" is given (e.g. 05.01–08.31); a parish's own season definitions are read from its note by the diocesan import. The public page shows which season applies and when it changes.
+- **Weeks of the month:** "A hónap hetei" limits a row to e.g. the 1st, or the last Saturday of the month ("Utolsó"); none selected means every week. The import recognises phrases like "minden hónap utolsó szombatján", "elsőpénteken", "1., 3. és 5. vasárnap", "2. vasárnapja kivételével".
 - **Ünnepi miserend:** per church and feast, either "Vasárnapi miserend szerint" or custom times. Custom times replace that day's regular times. Easter-based dates are calculated for every year (`calendar.js`); Ascension and Corpus Christi fall on Sunday in Hungary.
 - **Rorate:** a row type that only appears during Advent (first Sunday of Advent to 24 December). The public map shows a "Rorate" filter in Advent.
 - Midnight Mass is entered as 00:00 and shown as 24:00 at the end of the day.
@@ -86,7 +92,8 @@ The map never draws every church. It shows the most important churches in the cu
 - Only regular times (and feast rows the page names, e.g. Pünkösdhétfő) are replaced. Opening hours, events and feast schedules set by hand stay.
 - Churches whose times were entered by hand are skipped (tick "Also overwrite hand-entered times" to include them). Churches marked "Kézzel ellenőrzött miserend" are never touched; editing an imported church's times in the admin panel ticks this automatically.
 - The page's notes appear on the public site as "Megjegyzés a miserendhez" with a link to the source and its update date. Lines with phone numbers and office contacts are left out.
-- Run it again whenever the diocese updates its page; imported churches are recognised by their source key and updated in place.
+- Run it again whenever the diocese updates its page. Each run re-checks its earlier matches: if a better match is found, the times move there, and a church the import itself created (and nobody edited) is deleted. Matches an editor confirmed by merging, and locked churches, are kept.
+- Two map objects for one church (a point and the building outline, within 60 m and sharing a name word) are merged automatically when one of them is matched.
 
 The parser lives in `scripts/lib/szfvar.mjs`; `scripts/fixtures/szfvar-sample.html` is a real excerpt for testing it.
 
