@@ -1,0 +1,50 @@
+name: Import Mass times from miserend.hu
+
+# Run manually from the Actions tab. Downloads miserend.hu's daily SQLite export (https://miserend.hu/apidocs),
+# turns each church's Mass dates into weekly rules, matches the church to the database (or adds it) and
+# updates its regular times. Churches with hand-entered times, locked by an editor, or filled by a diocese's
+# own import are left alone. The report appears on the run's summary page and as the "report" artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only show what would happen (recommended first)"
+        type: boolean
+        default: true
+      force:
+        description: "Also overwrite hand-entered times (locked churches and diocese imports are still skipped)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - name: Import
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          FORCE: ${{ inputs.force && '1' || '0' }}
+          NODE_NO_WARNINGS: "1"
+        run: node import-miserend.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report
+          path: |
+            scripts/report.md
+            scripts/report.json
+          if-no-files-found: ignore

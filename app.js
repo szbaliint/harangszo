@@ -34,7 +34,7 @@ const km = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b[0] 
 const massWord = c => c.rite === "gk" ? "Szent Liturgia" : "Szentmise";
 const riteName = c => c.rite === "gk" ? "görögkatolikus" : "római katolikus";
 const range = (a, b) => b ? a + "–" + b : a;
-const SOURCES = { szfvar: "Székesfehérvári Egyházmegye" };
+const SOURCES = { szfvar: "Székesfehérvári Egyházmegye miserendje", miserend: "miserend.hu" };
 // Escape, then turn bare web addresses into links (notes come from parishes and the community).
 const linkify = t => esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,;:)])/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
 const longDate = iso => { const d = new Date(iso + "T12:00"); return isNaN(d) ? iso : `${d.getFullYear()}. ${MON[d.getMonth()]} ${d.getDate()}.`; };
@@ -310,7 +310,7 @@ function feastScheduleHTML(c) {
 }
 function noteHTML(c) {
   const lines = (c.note || "").split("\n").filter(Boolean);
-  const src = c.source ? `<p class="muted source">Forrás: ${c.sourceUrl ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(SOURCES[c.source] || c.source)} miserendje</a>` : esc(SOURCES[c.source] || c.source)}${c.updated ? ` · frissítve ${longDate(c.updated)}` : ""}</p>` : "";
+  const src = c.source ? `<p class="muted source">Forrás: ${c.sourceUrl ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(SOURCES[c.source] || c.source)}</a>` : esc(SOURCES[c.source] || c.source)}${c.updated ? ` · frissítve ${longDate(c.updated)}` : ""}</p>` : "";
   if (!lines.length && !src) return "";
   // Lines ending in ":" are headings of the list that follows them.
   const body = lines.map(l => /:$/.test(l) ? `<p class="note-h">${linkify(l)}</p>` : `<p>${linkify(l)}</p>`).join("");

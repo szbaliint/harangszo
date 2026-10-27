@@ -17,6 +17,7 @@ A map of Catholic churches in Hungary with Mass and confession times, opening ho
 | `scripts/import-osm.mjs` | Imports Catholic churches in Hungary from OpenStreetMap. |
 | `.github/workflows/pages.yml` | Publishes the site and fills `config.js` from repository secrets. |
 | `.github/workflows/import-osm.yml` | Runs the OpenStreetMap import on demand. |
+| `scripts/import-miserend.mjs`, `.github/workflows/import-miserend.yml` | Imports Mass times from miserend.hu. |
 | `calendar.js` | Liturgical calendar: Easter and feast dates, Advent, summer time. |
 | `data.js` | Sample data, used only when no database is configured. |
 
@@ -97,6 +98,17 @@ In the admin panel, open either church and click **Összevonás egy másik templ
 
 The parser lives in `scripts/lib/szfvar.mjs`; `scripts/fixtures/szfvar-sample.html` is a real excerpt for testing it.
 
+## Importing Mass times from miserend.hu
+
+**Actions → Import Mass times from miserend.hu → Run workflow.** Leave "Only show what would happen" ticked the first time and read the summary (the full list is in the run's **report** artifact). Then run it again with the box unticked.
+
+- It downloads miserend.hu's daily SQLite export ([API documentation](https://miserend.hu/apidocs)): the v5 file with recurrence rules if it is available, otherwise v4 (single dates for the next six months).
+- Concrete Mass dates are turned into the site's rules: weekly times, summer/winter (by the clock change), date ranges, "1st / last Saturday of the month", Rorate in Advent, and feast-day schedules where a feast differs from the usual times. Fortnightly Masses are shown weekly with the note "kéthetente". One-off dates (a parish feast, a special occasion) are left out; the report counts them.
+- Each church is matched by its exact location and name (within 400 m, or the same spot); churches not found are added at miserend.hu's coordinates. The public page links to the church's miserend.hu page as the source.
+- Churches with hand-entered times or marked "Kézzel ellenőrzött miserend" are skipped (tick "Also overwrite hand-entered times" to include the former). Churches whose times come from the Székesfehérvár diocese import keep them; if such a church only had its settlement's location, it gets miserend.hu's exact one. The diocese import, in turn, replaces times that came from miserend.hu.
+- Run it again whenever you want fresher times; v4 only covers six months, so run it at least every few months if v5 isn't available.
+- miserend.hu asks everyone using its API to get in touch with its maintainers.
+
 ## Parish editors
 
 A parish editor can edit only the churches linked to them. Create their user under **Authentication → Users**, then in the SQL Editor:
@@ -124,4 +136,4 @@ Open http://localhost:8000. To test against your database, temporarily paste the
 
 ## Data and credits
 
-Church locations: © OpenStreetMap contributors, ODbL. Schedules are entered by editors and the community. A future option is the [miserend.hu](https://miserend.hu) API, after contacting its maintainers as their documentation asks.
+Church locations: © OpenStreetMap contributors, ODbL. Schedules come from [miserend.hu](https://miserend.hu), the Székesfehérvár diocese, editors and the community; each church's page names its source.

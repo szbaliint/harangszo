@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Import jobs for Harangszó (run in GitHub Actions)",
   "dependencies": {
-    "linkedom": "0.18.13"
+    "linkedom": "0.18.13",
+    "rrule": "2.8.1"
   }
 }

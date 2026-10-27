@@ -149,7 +149,9 @@ async function main() {
         }
       }
       const res = await api("rpc/import_church_schedule", { method: "POST", body: JSON.stringify({ p: {
-        church_id: id, source: SOURCE, source_url: SOURCE_URL, source_ref: r.ref, updated: e.updated, note: e.note, force: FORCE,
+        church_id: id, source: SOURCE, source_url: SOURCE_URL, source_ref: r.ref, updated: e.updated, note: e.note,
+        // The diocese's own schedule replaces times taken from miserend.hu.
+        force: FORCE || r.m?.church.schedule_source === "miserend",
         city: e.settlement, address: e.district || "",
         services: e.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: s.end || "", note: s.note || "", period: s.period,
           feast: s.feast, valid: s.valid || "", weeks: s.weeks || [] })) } }) });

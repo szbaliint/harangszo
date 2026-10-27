@@ -10,7 +10,7 @@ const main = $("#main");
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const DAY_SHORT = { 0: "V", 1: "H", 2: "K", 3: "Sze", 4: "Cs", 5: "P", 6: "Szo" };
 const KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás", rorate: "Rorate (advent)" };
-const SOURCE_NAMES = { szfvar: "Székesfehérvári Egyházmegye miserendje" };
+const SOURCE_NAMES = { szfvar: "Székesfehérvári Egyházmegye miserendje", miserend: "miserend.hu" };
 const TYPES = { conf: "Gyóntatási időpont", mass: "Mise időpont", hours: "Nyitvatartás", event: "Esemény", place: "Hely vagy egyéb" };
 const hm = t => t ? String(t).slice(0, 5) : "";
 
@@ -80,7 +80,7 @@ const FILTERS = {
   extra: { label: "Egyéb", opts: { "": "Mind", pending: "Javaslat vár rá", rorate: "Van Rorate", feast: "Van ünnepi miserend", seasonal: "Van nyári/téli eltérés", events: "Van közelgő esemény", nohours: "Nincs nyitvatartás", nocity: "Nincs település megadva", approx: "Hely pontosítandó", dup: "Lehetséges duplikátum (130 m-en belül)", created: "Az import hozta létre", locked: "Kézzel ellenőrzött (zárolt)" } },
   vis: { label: "Láthatóság", opts: { "": "Mind", shown: "Látható", hidden: "Rejtett" } },
   imp: { label: "Kiemelés", opts: { "": "Mind", high: "Fontos (70 felett)", low: "Háttérben (20 alatt)", manual: "Kézzel beállított" } },
-  src: { label: "Forrás", opts: { "": "Mind", osm: "OpenStreetMap-import", manual: "Kézzel felvett", szfvar: "Egyházmegyei miserend (Székesfehérvár)" } },
+  src: { label: "Forrás", opts: { "": "Mind", osm: "OpenStreetMap-import", manual: "Kézzel felvett", szfvar: "Egyházmegyei miserend (Székesfehérvár)", miserend: "miserend.hu" } },
 };
 const SORTS = { name: "Név szerint", imp: "Fontosság szerint", updated: "Legutóbb módosított", pending: "Legtöbb javaslat" };
 const fold = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -103,7 +103,7 @@ function buildQuery(from) {
      nocity: () => q = q.eq("city", ""), approx: () => q = q.eq("location_approx", true), dup: () => q = q.eq("near_duplicate", true), created: () => q = q.not("created_by", "is", null), locked: () => q = q.eq("schedule_locked", true) })[f.extra]?.();
   if (f.vis) q = q.eq("published", f.vis === "shown");
   if (f.imp === "high") q = q.gte("importance", 70); else if (f.imp === "low") q = q.lte("importance", 20); else if (f.imp === "manual") q = q.not("importance_manual", "is", null);
-  if (f.src === "szfvar") q = q.eq("schedule_source", "szfvar"); else if (f.src) q = q.eq("from_osm", f.src === "osm");
+  if (f.src === "szfvar" || f.src === "miserend") q = q.eq("schedule_source", f.src); else if (f.src) q = q.eq("from_osm", f.src === "osm");
   if (A.myChurches) q = q.in("id", A.myChurches.length ? A.myChurches : [-1]);
   const order = { name: ["name", true], imp: ["importance", false], updated: ["updated_at", false], pending: ["n_pending", false] }[f.sort] || ["name", true];
   q = q.order(order[0], { ascending: order[1] });
