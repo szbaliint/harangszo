@@ -78,5 +78,48 @@
     const d = date.getDate(), n = Math.ceil(d / 7), dim = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
     return weeks.includes(n) || (weeks.includes(-1) && d + 7 > dim);
   }
-  root.LitCal = { inValid, weekOk, mdOf, easter, adventStart, inAdvent, isSummerTime, nextClockChange, FEASTS, FEAST_BY_KEY, feastsOn, nextFeastDate, ymd, addDays };
+  // Every n-th week, counted from a date it happens on (`anchor`, "YYYY-MM-DD").
+  function everyOk(date, every, anchor) {
+    if (!every || every < 2 || !anchor) return true;
+    const [y, m, d] = anchor.split("-").map(Number);
+    const days = Math.round((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(y, m - 1, d)) / 864e5);
+    return ((Math.floor(days / 7) % every) + every) % every === 0;
+  }
+  // Next date on or after `from` (up to a year) for which test(date) holds.
+  function nextDate(from, test) { for (let i = 0; i < 370; i++) { const d = addDays(from, i); if (test(d)) return d; } return null; }
+
+  // Seasons a schedule row can belong to. Summer/winter follow the clock change; the church year's seasons move
+  // with Easter and Advent; school year / summer holiday and autumn/spring use default dates unless a row gives its own range.
+  const between = (d, a, b) => { const x = D(d.getFullYear(), d.getMonth() + 1, d.getDate()); return x >= a && x <= b; };
+  const PERIOD_INFO = {
+    all:        { name: "egész évben", adj: "" },
+    summer:     { name: "nyáron", adj: "nyári", test: d => isSummerTime(d) },
+    winter:     { name: "télen", adj: "téli", test: d => !isSummerTime(d) },
+    autumn:     { name: "ősszel", adj: "őszi", range: "09-01/10-31" },
+    spring:     { name: "tavasszal", adj: "tavaszi", range: "03-01/04-30" },
+    advent:     { name: "adventben", adj: "adventi", test: d => inAdvent(d) },
+    lent:       { name: "nagyböjtben", adj: "nagyböjti", test: d => { const e = easter(d.getFullYear()); return between(d, addDays(e, -46), addDays(e, -1)); } },
+    eastertide: { name: "húsvéti időben", adj: "húsvéti", test: d => { const e = easter(d.getFullYear()); return between(d, e, addDays(e, 49)); } },
+    school:     { name: "tanévben", adj: "tanévi", range: "09-01/06-15" },
+    holiday:    { name: "nyári szünetben", adj: "nyári szüneti", range: "06-16/08-31" },
+  };
+  // Does a row with this period (and optional own date range) apply on this date?
+  function inPeriod(date, period, valid) {
+    if (valid) return inValid(date, valid);
+    const p = PERIOD_INFO[period] || PERIOD_INFO.all;
+    return p.test ? p.test(date) : p.range ? inValid(date, p.range) : true;
+  }
+
+  // What a Mass is like. Languages are "lang:<code>".
+  const TAGS = {
+    family: "családos", student: "diákmise", youth: "ifjúsági", university: "egyetemista", guitar: "gitáros", organ: "orgonás",
+    choir: "kórussal", silent: "csendes", vigil: "előesti", word: "igeliturgia is lehet", confession: "közben gyóntatás",
+    traditional: "régi rítusú", irregular: "változhat",
+  };
+  const LANGS = { hu: "magyar", de: "német", en: "angol", la: "latin", sk: "szlovák", hr: "horvát", ro: "román", pl: "lengyel", it: "olasz", fr: "francia",
+    es: "spanyol", uk: "ukrán", ru: "orosz", el: "görög", cu: "ószláv", rue: "ruszin", sl: "szlovén", pt: "portugál", tl: "tagalog", rom: "cigány", cs: "cseh", sr: "szerb" };
+  const tagLabel = t => t.startsWith("lang:") ? (LANGS[t.slice(5)] || t.slice(5)) + " nyelvű" : TAGS[t] || t;
+
+  root.LitCal = { inValid, weekOk, everyOk, nextDate, mdOf, easter, adventStart, inAdvent, isSummerTime, nextClockChange, FEASTS, FEAST_BY_KEY, feastsOn, nextFeastDate, ymd, addDays,
+    PERIOD_INFO, inPeriod, TAGS, LANGS, tagLabel };
 })(typeof window !== "undefined" ? window : globalThis);

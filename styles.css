@@ -197,3 +197,9 @@ form.suggest input[type=text]{background:var(--bg);border:1px solid var(--line);
 .week td.hrs{white-space:nowrap;color:var(--ink-2)}
 .season b{color:var(--ink-2)}
 .week thead th+th{width:auto}
+/* What a Mass is like: language, family Mass, guitar… */
+.tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.tag{font-family:var(--f-body);font-size:.7rem;line-height:1.5;padding:0 6px;border-radius:999px;background:var(--sunken);color:var(--ink-2);white-space:nowrap}
+.tag.lang{background:var(--accent-soft);color:var(--accent)}
+.tag.warn{background:var(--gold-soft);color:var(--gold)}
+.k-prayer{color:var(--gold)}

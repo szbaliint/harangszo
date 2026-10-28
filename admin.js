@@ -9,7 +9,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const main = $("#main");
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const DAY_SHORT = { 0: "V", 1: "H", 2: "K", 3: "Sze", 4: "Cs", 5: "P", 6: "Szo" };
-const KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás", rorate: "Rorate (advent)" };
+const KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás", rorate: "Rorate (advent)", prayer: "Imaóra, ájtatosság" };
 const SOURCE_NAMES = { szfvar: "Székesfehérvári Egyházmegye miserendje", miserend: "miserend.hu" };
 const TYPES = { conf: "Gyóntatási időpont", mass: "Mise időpont", hours: "Nyitvatartás", event: "Esemény", place: "Hely vagy egyéb" };
 const hm = t => t ? String(t).slice(0, 5) : "";
@@ -207,7 +207,8 @@ async function openChurch(id) {
   A.draft = { ...data,
     hours: data.opening_hours.map(h => ({ days: h.days, opens: hm(h.opens), closes: hm(h.closes) })),
     services: data.services.filter(s => !s.feast).sort((a, b) => KORDER[a.kind] - KORDER[b.kind] || (a.period || "").localeCompare(b.period || "") || byTime(a, b))
-      .map(s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", period: s.period || "all", valid: s.valid || "", weeks: s.weeks || [] })),
+      .map(s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", period: s.period || "all", valid: s.valid || "", weeks: s.weeks || [],
+        every: s.every || 1, anchor: s.anchor || "", tags: s.tags || [] })),
     feasts,
     events: data.events.sort((a, b) => String(a.date).localeCompare(String(b.date))).map(e => ({ date: e.date, start: hm(e.start_time), title: e.title, note: e.note || "" })) };
   A.dirty = false; A.svcSnapshot = JSON.stringify([A.draft.services, A.draft.feasts]); A.lockTouched = false;
@@ -234,7 +235,13 @@ const timeField = (id, label, attrs, value) =>
 function daysHTML(days, path) {
   return `<div class="days" role="group" aria-label="Napok">${DAY_ORDER.map(d => `<button type="button" data-days="${path}" data-d="${d}" aria-pressed="${days.includes(d)}">${DAY_SHORT[d]}</button>`).join("")}</div>`;
 }
-const PERIODS = { all: "Egész évben", summer: "Nyáron", winter: "Télen", autumn: "Ősszel", spring: "Tavasszal", custom: "Egyedi időszak" };
+const PERIODS = { all: "Egész évben", summer: "Nyáron", winter: "Télen", advent: "Adventben", lent: "Nagyböjtben", eastertide: "Húsvéti időben",
+  school: "Tanévben", holiday: "Nyári szünetben", autumn: "Ősszel", spring: "Tavasszal", custom: "Egyedi időszak" };
+const MOVING = { summer: "óraátállítás", winter: "óraátállítás", advent: "egyházi év", lent: "egyházi év", eastertide: "egyházi év", school: "09.01–06.15", holiday: "06.16–08.31", autumn: "09.01–10.31", spring: "03.01–04.30" };
+const EVERY_OPTS = { 1: "Minden héten", 2: "Kéthetente", 3: "Háromhetente", 4: "Négyhetente" };
+// Tags editors can set (calendar.js TAGS); languages through the language list.
+const TAG_BTNS = ["family", "student", "youth", "university", "guitar", "organ", "choir", "silent", "vigil", "traditional", "word", "confession", "irregular"];
+const LANG_OPTS = Object.entries(LitCal.LANGS).filter(([k]) => k !== "hu");
 const WEEK_BTNS = [[1, "1."], [2, "2."], [3, "3."], [4, "4."], [5, "5."], [-1, "Utolsó"]];
 // "05-01/08-31,10-01/10-31" ↔ "05.01–08.31, 10.01–10.31"
 const validToText = v => (v || "").split(",").filter(Boolean).map(r => r.split("/").map(x => x.replace("-", ".")).join("–")).join(", ");
@@ -255,16 +262,21 @@ function serviceRow(s, i) {
   const isRorate = s.kind === "rorate";
   const sel = s.period === "all" && (s.valid || s.customRange) ? "custom" : s.period;
   const showRange = !isRorate && (sel !== "all");
-  const weeks = s.weeks || [];
-  return `<div class="srow ${sel !== "all" || weeks.length ? "seasonal" : ""}">
+  const weeks = s.weeks || [], tags = s.tags || [], every = +s.every || 1;
+  const lang = tags.find(t => t.startsWith("lang:"))?.slice(5) || "";
+  return `<div class="srow ${sel !== "all" || weeks.length || every > 1 ? "seasonal" : ""}">
     <label class="field" for="s-k-${i}">Fajta<select id="s-k-${i}" data-l="services" data-i="${i}" data-f="kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${s.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
     ${daysHTML(s.days, "services." + i)}
     ${timeField(`s-s-${i}`, "Kezdés", `data-l="services" data-i="${i}" data-f="start"`, s.start)}
     ${s.kind === "mass" || isRorate ? "" : timeField(`s-e-${i}`, "Vége", `data-l="services" data-i="${i}" data-f="end"`, s.end)}
     ${isRorate ? `<span class="hint">Csak adventben látszik</span>` : `<label class="field" for="s-p-${i}" title="Nyár/tél = az óraátállításhoz igazodik, hacsak meg nem adsz pontos időszakot">Időszak<select id="s-p-${i}" data-period="${i}">${Object.entries(PERIODS).map(([k, v]) => `<option value="${k}" ${sel === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>`}
-    ${showRange ? `<label class="field range" for="s-v-${i}">Pontos időszak${sel === "summer" || sel === "winter" ? " (üresen: óraátállítás)" : ""}<input id="s-v-${i}" data-valid="${i}" value="${esc(validToText(s.valid))}" placeholder="pl. 05.01–08.31" autocomplete="off"></label>` : ""}
+    ${showRange ? `<label class="field range" for="s-v-${i}">Pontos időszak${MOVING[sel] ? ` (üresen: ${MOVING[sel]})` : ""}<input id="s-v-${i}" data-valid="${i}" value="${esc(validToText(s.valid))}" placeholder="pl. 05.01–08.31" autocomplete="off"></label>` : ""}
+    <label class="field" for="s-x-${i}">Ismétlődés<select id="s-x-${i}" data-every="${i}">${Object.entries(EVERY_OPTS).map(([k, v]) => `<option value="${k}" ${every === +k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+    ${every > 1 ? `<label class="field" for="s-a-${i}" title="Egy nap, amikor biztosan van – ettől számolva minden ${every}. héten">Egyik alkalom napja<input id="s-a-${i}" type="date" data-anchor="${i}" value="${esc(s.anchor || "")}"></label>` : ""}
     <div class="weeks"><span class="muted">A hónap hetei:</span><div class="days" role="group" aria-label="A hónap hetei">${WEEK_BTNS.map(([n, t]) => `<button type="button" data-weeks="${i}" data-n="${n}" aria-pressed="${weeks.includes(n)}">${t}</button>`).join("")}</div><span class="muted">${weeks.length ? "" : "minden héten"}</span></div>
-    <label class="field note" for="s-n-${i}">Megjegyzés<input id="s-n-${i}" data-l="services" data-i="${i}" data-f="note" value="${esc(s.note)}" placeholder="${isRorate ? "pl. gyertyafényes hajnali mise" : "pl. latin nyelvű, diákmise"}"></label>
+    ${s.kind === "mass" || isRorate ? `<div class="weeks"><span class="muted">Jellege:</span><div class="days" role="group" aria-label="A mise jellege">${TAG_BTNS.map(t => `<button type="button" data-tag="${i}" data-t="${t}" aria-pressed="${tags.includes(t)}">${esc(LitCal.TAGS[t])}</button>`).join("")}</div>
+      <label class="check" for="s-l-${i}">Nyelv <select id="s-l-${i}" data-lang="${i}"><option value="">magyar</option>${LANG_OPTS.map(([k, v]) => `<option value="${k}" ${lang === k ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label></div>` : ""}
+    <label class="field note" for="s-n-${i}">${s.kind === "prayer" ? "Megnevezés" : "Megjegyzés"}<input id="s-n-${i}" data-l="services" data-i="${i}" data-f="note" value="${esc(s.note)}" placeholder="${isRorate ? "pl. gyertyafényes hajnali mise" : s.kind === "prayer" ? "pl. Vesperás, rózsafüzér, keresztút" : "pl. utána szentségimádás"}"></label>
     <button type="button" class="icon-btn" data-del="services" data-i="${i}" aria-label="Sor törlése">Törlés</button></div>`;
 }
 const FEAST_KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás" };
@@ -388,12 +400,18 @@ function bindEditor() {
     if (el.dataset.period !== undefined) { A.dirty = true; const r = c.services[+el.dataset.period];
       if (el.value === "custom") { r.period = "all"; r.valid ||= ""; r.customRange = true; } else { r.period = el.value; if (el.value === "all") r.valid = ""; r.customRange = false; }
       return renderEditor(); }
+    if (el.dataset.every !== undefined) { A.dirty = true; const r = c.services[+el.dataset.every]; r.every = +el.value; if (r.every < 2) r.anchor = ""; return renderEditor(); }
+    if (el.dataset.anchor !== undefined) { A.dirty = true; c.services[+el.dataset.anchor].anchor = el.value; return; }
+    if (el.dataset.lang !== undefined) { A.dirty = true; const r = c.services[+el.dataset.lang];
+      r.tags = [...(r.tags || []).filter(t => !t.startsWith("lang:")), ...(el.value ? ["lang:" + el.value] : [])]; return; }
     if (el.dataset.valid !== undefined) { const v = textToValid(el.value); el.classList.toggle("bad", v === null); if (v !== null) { c.services[+el.dataset.valid].valid = v; el.value = validToText(v); } A.dirty = true; return; }
     if (el.dataset.feastmode) { A.dirty = true; const fe = c.feasts[el.dataset.feastmode]; fe.mode = el.value; if (fe.mode === "custom" && !fe.rows.length) fe.rows.push({ kind: "mass", start: "", end: "", note: "" }); renderEditor(); }
     else if (el.dataset.f === "kind") renderEditor();
   });
   f.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.tag !== undefined) { const row = c.services[+b.dataset.tag], t = b.dataset.t; row.tags ||= [];
+      row.tags = row.tags.includes(t) ? row.tags.filter(x => x !== t) : [...row.tags, t]; b.setAttribute("aria-pressed", row.tags.includes(t)); A.dirty = true; return; }
     if (b.dataset.weeks !== undefined) { const row = c.services[+b.dataset.weeks], n = +b.dataset.n; row.weeks ||= [];
       row.weeks = row.weeks.includes(n) ? row.weeks.filter(x => x !== n) : [...row.weeks, n].sort((a, z) => a - z); A.dirty = true; return renderEditor(); }
     if (b.dataset.days) { const [list, i] = b.dataset.days.split("."), d = +b.dataset.d, row = c[list][+i];
@@ -434,6 +452,8 @@ function validate(c) {
     const vEl = document.getElementById(`s-v-${i}`);
     if (vEl && textToValid(vEl.value) === null) return `${w}: az időszakot így írd: 05.01–08.31 (több időszak vesszővel).`;
     if (s.period === "all" && s.customRange && !s.valid) return `${w}: add meg az egyedi időszakot, pl. 07.01–08.31.`;
+    if (+s.every > 1 && !s.anchor) return `${w}: add meg egy nap dátumát, amikor biztosan van (ettől számoljuk a ${EVERY_OPTS[s.every].toLowerCase()} rendet).`;
+    if (+s.every > 1 && !s.days.includes(new Date(s.anchor + "T12:00").getDay())) return `${w}: az „Egyik alkalom napja” nem a kijelölt napok egyikére esik.`;
   }
   for (const [k, f] of Object.entries(c.feasts)) {
     const w = window.LitCal.FEAST_BY_KEY[k].name;
@@ -456,7 +476,8 @@ async function save() {
   const err = validate(c); if (err) { m.textContent = err; m.className = "msg err"; return; }
   $("#save").disabled = true; m.textContent = "Mentés…"; m.className = "msg";
   const regular = c.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: s.kind === "mass" || s.kind === "rorate" ? "" : (s.end || ""), note: s.note,
-    period: s.kind === "rorate" ? "all" : s.period, valid: s.kind === "rorate" ? "" : (s.valid || ""), weeks: s.weeks || [] }));
+    period: s.kind === "rorate" ? "all" : s.period, valid: s.kind === "rorate" ? "" : (s.valid || ""), weeks: s.weeks || [],
+    every: +s.every > 1 ? +s.every : null, anchor: +s.every > 1 ? s.anchor : "", tags: s.kind === "mass" || s.kind === "rorate" ? (s.tags || []) : [] }));
   const feastRows = Object.entries(c.feasts).filter(([, f]) => f.mode === "custom")
     .flatMap(([k, f]) => f.rows.map(r => ({ kind: r.kind, days: [], start: r.start, end: r.kind === "mass" ? "" : (r.end || ""), note: r.note, period: "all", feast: k })));
   const p = { id: c.id, name: c.name.trim(), city: c.city.trim(), address: (c.address || "").trim(), rite: c.rite,

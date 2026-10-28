@@ -13,6 +13,7 @@ import fs from "fs";
 import { extractEntries, parseEntry, churchNameFor, fold, SOURCE, SOURCE_NAME, SOURCE_URL } from "./lib/szfvar.mjs";
 import { placeIndex, anchorFor, candidatePairs, looksLikeSameBuilding } from "./lib/match.mjs";
 import { overpass } from "./import-osm.mjs";
+import { parseNote } from "./lib/notes.mjs";
 
 const url = (process.env.SUPABASE_URL || "").replace(/\/$/, ""), key = process.env.SUPABASE_SECRET_KEY || "";
 const DRY = process.env.DRY_RUN === "1", FORCE = process.env.FORCE === "1";
@@ -153,8 +154,13 @@ async function main() {
         // The diocese's own schedule replaces times taken from miserend.hu.
         force: FORCE || r.m?.church.schedule_source === "miserend",
         city: e.settlement, address: e.district || "",
-        services: e.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: s.end || "", note: s.note || "", period: s.period,
-          feast: s.feast, valid: s.valid || "", weeks: s.weeks || [] })) } }) });
+        services: e.services.map(s => {
+          // Language, kind of Mass, Vesperás… from the row's note become structure; the rest stays as the note.
+          const pn = parseNote(s.note || "", { weeks: (s.weeks || []).length > 0 });
+          const kind = s.kind === "mass" && pn.kind ? pn.kind : s.kind;
+          return { kind, days: s.days, start: s.start, end: s.end || "", note: pn.note, period: s.period,
+            feast: s.feast, valid: s.valid || "", weeks: s.weeks || [], tags: pn.tags };
+        }) } }) });
       r.result = res; if (res === "updated") updated++; else skipped++;
     } catch (err) {
       r.result = "error"; r.error = err.message.slice(0, 200); failed++;

@@ -9,6 +9,7 @@ import fs from "fs";
 import vm from "vm";
 import { fileURLToPath } from "url";
 import rrulePkg from "rrule";
+import { parseNote, langTag } from "./notes.mjs";
 const { RRule } = rrulePkg;
 
 export const SOURCE = "miserend";
@@ -30,22 +31,17 @@ const lastSunday = (y, m) => { const end = Math.round(Date.UTC(y, m, 0) / 864e5)
 const adventStart = y => localDn(LitCal.adventStart(y));
 const nthOfMonth = n => { const p = parts(n), dim = new Date(Date.UTC(p.y, p.m, 0)).getUTCDate(); return { nth: Math.ceil(p.d / 7), last: p.d + 7 > dim }; };
 
-// ---- what a Mass row says besides its time: language, kind, comment → one short Hungarian note ----
-const LANG = { de: "német", en: "angol", va: "latin", la: "latin", sk: "szlovák", hr: "horvát", ro: "román", pl: "lengyel", it: "olasz", fr: "francia",
-  es: "spanyol", ua: "ukrán", uk: "ukrán", ru: "orosz", gr: "görög", cu: "ószláv", rue: "ruszin", si: "szlovén", sl: "szlovén", pt: "portugál", tl: "tagalog",
-  cig: "cigány", rom: "cigány", cz: "cseh", cs: "cseh", sr: "szerb", ser: "szerb" };
-const TYPE = { FAMILY: "családos", csal: "családos", STUDENT: "diákmise", d: "diákmise", UNIVERSITY_YOUTH: "egyetemista", ifi: "ifjúsági",
-  GUITAR: "gitáros", g: "gitáros", ORGAN: "orgonás", SILENT: "csendes", cs: "csendes", SINGER: "énekes" };
+// ---- what a Mass row says besides its time: language and kind as tags, the comment parsed for more ----
+const TYPE = { FAMILY: "family", csal: "family", STUDENT: "student", d: "student", UNIVERSITY_YOUTH: "university", ifi: "youth",
+  GUITAR: "guitar", g: "guitar", ORGAN: "organ", SILENT: "silent", cs: "silent", SINGER: "choir", TRADITIONAL: "traditional" };
 const list = s => String(s || "").split(",").map(x => x.trim()).filter(Boolean);
-export function noteFor(row) {
-  const out = [];
-  // Languages may carry a period suffix in v4 ("de2" = German on the 2nd week); only the language matters here.
-  const langs = [...new Set(list(row.nyelv).map(x => x.replace(/[0-9\-]+$/, "").toLowerCase()).filter(x => x && x !== "h" && x !== "hu"))];
-  if (langs.length) out.push(langs.map(l => LANG[l] || l).join("–") + " nyelvű");
-  for (const t of list(row.milyen)) { const k = TYPE[t] || TYPE[t.replace(/[0-9\-]+$/, "")]; if (k && !out.includes(k)) out.push(k); }
-  const c = String(row.megjegyzes || "").replace(/\s+/g, " ").trim();
-  if (c && !out.some(o => c.toLowerCase().includes(o))) out.push(c);
-  return out.join(", ").slice(0, 200);
+export function describe(row) {
+  // Languages and types may carry a period suffix in v4 ("de2" = German on the 2nd week); only the code matters here.
+  const p = parseNote(row.megjegyzes || "");
+  const tags = new Set(p.tags);
+  for (const x of list(row.nyelv)) { const t = langTag(x.replace(/[0-9\-]+$/, "").toLowerCase()); if (t) tags.add(t); }
+  for (const x of list(row.milyen)) { const t = TYPE[x] || TYPE[x.replace(/[0-9\-]+$/, "")]; if (t) tags.add(t); }
+  return { tags: [...tags].sort(), kind: p.kind, note: p.note };
 }
 const RORATE = /rorate|roráté/i;
 
@@ -65,7 +61,11 @@ export async function readExport(file) {
 export function occurrences({ version, rows }, today) {
   const out = []; let from = Infinity, to = -Infinity;
   // pa/pb: first and last day of the period the row belongs to (v5), so a season gets its real bounds, not just the first and last Mass.
-  const push = (r, day, time, pa = day, pb = day) => { out.push({ tid: r.tid, day, time, pa, pb, note: noteFor(r), rorate: RORATE.test((r.megjegyzes || "") + " " + (r.idoszak || "")) }); };
+  const desc = new Map();
+  const push = (r, day, time, pa = day, pb = day) => {
+    let d = desc.get(r); if (!d) { d = { ...describe(r), rorate: RORATE.test((r.megjegyzes || "") + " " + (r.idoszak || "")) }; desc.set(r, d); }
+    out.push({ tid: r.tid, day, time, pa, pb, note: d.note, tags: d.tags, kind: d.kind, rorate: d.rorate });
+  };
   for (const r of rows) {
     if (!r.ido) continue;
     const time = String(r.ido).slice(0, 5);
@@ -113,7 +113,15 @@ function seasonOf(s, e, from, to, truncS, truncE) {
   const eNearAutumn = endsAt(autumnChange(parts(e).y)), eNearSpring = endsAt(springChange(parts(e).y));
   if ((sNearSpring || truncS) && (eNearAutumn || truncE) && !(truncS && truncE)) return { period: "summer" };
   if ((sNearAutumn || truncS) && (eNearSpring || truncE) && !(truncS && truncE)) return { period: "winter" };
-  if (startsAt(adventStart(y)) && md(e) >= "12-15" && md(e) <= "12-24") return { period: "all", advent: true };
+  if (startsAt(adventStart(y)) && md(e) >= "12-15" && md(e) <= "12-24") return { period: "advent", advent: true };
+  // Seasons that move with Easter: Lent (Ash Wednesday – Holy Saturday), Eastertide (Easter – Pentecost).
+  const E = localDn(LitCal.easter(y));
+  if (startsAt(E - 46) && e <= E && e >= E - 8) return { period: "lent" };
+  if (startsAt(E) && e >= E + 42 && e <= E + 50) return { period: "eastertide" };
+  // School year (September – mid-June) and the summer holiday.
+  const inMd = (n, a, b) => md(n) >= a && md(n) <= b;
+  if (inMd(s, "08-28", "09-08") && inMd(e, "06-08", "06-24")) return { period: "school" };
+  if (inMd(s, "06-14", "06-28") && inMd(e, "08-24", "09-01")) return { period: "holiday" };
   return { period: "all", valid: `${md(s)}/${md(e)}` };
 }
 
@@ -123,8 +131,8 @@ export function deriveSchedule(occ, { from, to, today }) {
   const horizon = today + 365, feasts = feastDays(from, to);
   const groups = new Map();
   for (const o of occ) {
-    const wd = parts(o.day).wd, k = `${wd}|${o.time}|${o.note}`;
-    if (!groups.has(k)) groups.set(k, { wd, time: o.time, note: o.note, rorate: false, days: new Set(), bounds: new Map() });
+    const wd = parts(o.day).wd, k = `${wd}|${o.time}|${o.kind || ""}|${o.tags.join(" ")}|${o.note}`;
+    if (!groups.has(k)) groups.set(k, { wd, time: o.time, note: o.note, tags: o.tags, okind: o.kind, rorate: false, days: new Set(), bounds: new Map() });
     const g = groups.get(k); g.days.add(o.day); if (o.rorate) g.rorate = true;
     const b = g.bounds.get(o.day); g.bounds.set(o.day, b ? [Math.min(b[0], o.pa), Math.max(b[1], o.pb)] : [o.pa, o.pb]);
   }
@@ -139,13 +147,12 @@ export function deriveSchedule(occ, { from, to, today }) {
     const chains = []; let cur = [];
     for (const d of days) { const p = cur[cur.length - 1]; if (cur.length && d - p > 14 && !bridged(p, d)) { chains.push(cur); cur = []; } cur.push(d); }
     if (cur.length) chains.push(cur);
-    const runs = [], fortnightly = [];
+    const runs = [];
     const boundsOf = c => [Math.min(c[0], ...c.map(d => g.bounds.get(d)[0])), Math.max(c[c.length - 1], ...c.map(d => g.bounds.get(d)[1]))];
     for (const c of chains) {
       const expected = (c[c.length - 1] - c[0]) / 7 + 1;
       const gaps = c.slice(1).map((d, i) => d - c[i]);
       if (c.length >= 3 && c.length / expected >= 0.85) { const [s, e] = boundsOf(c); runs.push({ s, e }); c.forEach(d => used.add(d)); }
-      else if (c.length >= 4 && gaps.filter(x => x === 14).length >= 0.85 * gaps.length) fortnightly.push(c);
     }
     // Keep the runs that matter for the coming year; prefer complete ones to those cut off by the export's window.
     const addRuns = () => {
@@ -159,10 +166,9 @@ export function deriveSchedule(occ, { from, to, today }) {
     for (const r of cand) {
       if (r.cut && hasFull && r.season.valid) continue;
       const season = r.season;
-      const kind = season.advent && (g.rorate || g.time < "08:00") ? "rorate" : "mass";
-      const note = r.note ? [r.note, g.note].filter(Boolean).join(", ") : g.note;
-      rules.push({ wd: g.wd, time: g.time, note, kind, period: season.period,
-        valid: season.advent && kind === "mass" ? `${md(r.s)}/${md(r.e)}` : season.valid || "", weeks: [], s: r.s, e: r.e });
+      const kind = g.okind || (season.advent && (g.rorate || g.time < "08:00") ? "rorate" : "mass");
+      rules.push({ wd: g.wd, time: g.time, note: g.note, tags: g.tags, kind, period: kind === "rorate" ? "all" : season.period,
+        valid: season.valid || "", weeks: [], every: r.every || null, anchor: r.every ? ymdOf(r.anchor) : null, s: r.s, e: r.e });
     }
     runs.length = 0;
     };
@@ -185,25 +191,38 @@ export function deriveSchedule(occ, { from, to, today }) {
         const hs = left0.filter(d => used.has(d));
         const s = hs[0], e = hs[hs.length - 1];
         const whole = (s - 35 < from && e + 35 > to) || e - s >= 300;
-        rules.push({ wd: g.wd, time: g.time, note: g.note, kind: "mass", period: "all", valid: whole ? "" : `${md(s)}/${md(e)}`, weeks: weeks.sort((a, b) => (a < 0) - (b < 0) || a - b), s, e });
+        rules.push({ wd: g.wd, time: g.time, note: g.note, tags: g.tags, kind: g.okind || "mass", period: "all", valid: whole ? "" : `${md(s)}/${md(e)}`,
+          weeks: weeks.sort((a, b) => (a < 0) - (b < 0) || a - b), every: null, anchor: null, s, e });
       }
     }
-    // 3. Every other week (what is left of it): shown weekly with a note, since week-of-month rules can't say it.
-    for (const c of fortnightly) {
-      const rest = c.filter(d => !used.has(d));
-      if (rest.length >= 4) { const [s, e] = boundsOf(rest); runs.push({ s, e, note: "kéthetente" }); rest.forEach(d => used.add(d)); }
+    // 3. Every 2nd, 3rd or 4th week, counted from one of its dates (holiday gaps bridged).
+    for (const k of [2, 3, 4]) {
+      const step = 7 * k, rest = days.filter(d => !used.has(d));
+      let seq = [];
+      const flush = () => {
+        if (seq.length >= 4) { const [s, e] = boundsOf(seq); runs.push({ s, e, every: k, anchor: seq.find(d => d >= today) ?? seq[seq.length - 1] }); seq.forEach(d => used.add(d)); }
+        seq = [];
+      };
+      for (const d of rest) {
+        const p = seq[seq.length - 1];
+        if (seq.length && !(d - p === step || ((d - p) % step === 0 && d - p <= 3 * step && bridged(p, d)))) flush();
+        seq.push(d);
+      }
+      flush();
     }
+    // A fortnightly rule counted in ISO weeks slips a week at New Year; keep only the stretch that covers the coming months.
+    if (runs.some(r => r.every)) { const now = runs.filter(r => r.every && r.e >= today).sort((a, b) => a.s - b.s)[0]; runs.splice(0, runs.length, ...(now ? [now] : [])); }
     addRuns();
     for (const d of days) if (used.has(d)) explained.add(d + "|" + g.time); else if (!feasts.has(d)) unexplained++;
   }
 
   // 4. Feast days: if what happens that day differs from the regular rules, it becomes the feast's own schedule.
   const regularOn = d => {
-    const p = parts(d), x = { getDate: () => p.d, getMonth: () => p.m - 1, getFullYear: () => p.y };
-    const summer = d >= lastSunday(p.y, 3) && d < lastSunday(p.y, 10);
+    const p = parts(d);
     const advent = LitCal.inAdvent(new Date(p.y, p.m - 1, p.d));
-    return rules.filter(r => r.wd === p.wd && (r.kind === "mass" || advent) && (r.period === "all" || (r.period === "summer") === summer)
-      && (!r.valid || LitCal.inValid(x, r.valid)) && (!r.weeks.length || LitCal.weekOk(new Date(p.y, p.m - 1, p.d), r.weeks)))
+    const date = new Date(p.y, p.m - 1, p.d);
+    return rules.filter(r => r.wd === p.wd && (r.kind !== "rorate" || advent) && LitCal.inPeriod(date, r.period, r.valid)
+      && (!r.weeks.length || LitCal.weekOk(date, r.weeks)) && LitCal.everyOk(date, r.every, r.anchor))
       .map(r => r.time).filter((t, i, all) => all.indexOf(t) === i).sort().join(",");
   };
   const feastSvc = [], doneFeast = new Set();
@@ -216,16 +235,20 @@ export function deriveSchedule(occ, { from, to, today }) {
     if (times === regularOn(d)) continue;
     const seen = new Set();
     for (const o of that.sort((a, b) => a.time.localeCompare(b.time))) {
-      if (seen.has(o.time + o.note)) continue; seen.add(o.time + o.note);
-      feastSvc.push({ kind: "mass", days: [], start: o.time, note: o.note, period: "all", feast: key, valid: "", weeks: [] });
+      if (seen.has(o.time + o.note + o.tags)) continue; seen.add(o.time + o.note + o.tags);
+      feastSvc.push({ kind: o.kind || "mass", days: [], start: o.time, note: o.note, tags: o.tags, period: "all", feast: key, valid: "", weeks: [], every: null, anchor: null });
     }
   }
 
   // 5. Merge rules that differ only in the weekday into one row.
   const merged = new Map();
   for (const r of rules) {
-    const k = [r.kind, r.time, r.note, r.period, r.valid, r.weeks.join(".")].join("|");
-    if (!merged.has(k)) merged.set(k, { kind: r.kind, days: [], start: r.time, note: r.note, period: r.period, valid: r.valid, weeks: r.weeks, feast: null });
+    // Wording the rule now says itself ("kéthetente", "elsőpénteken") leaves the note.
+    const pn = parseNote(r.note, { every: r.every, weeks: r.weeks.length > 0 });
+    const tags = [...new Set([...r.tags, ...pn.tags])].sort(), note = pn.note;
+    // Anchors of rows on different weekdays differ; the earliest day of that week keeps them in step.
+    const k = [r.kind, r.time, note, tags.join(" "), r.period, r.valid, r.weeks.join("."), r.every || ""].join("|");
+    if (!merged.has(k)) merged.set(k, { kind: r.kind, days: [], start: r.time, note, tags, period: r.period, valid: r.valid, weeks: r.weeks, every: r.every, anchor: r.anchor, feast: null });
     const m = merged.get(k); if (!m.days.includes(r.wd)) m.days.push(r.wd);
   }
   const services = [...merged.values()].map(s => ({ ...s, days: s.days.sort((a, b) => a - b) }))

@@ -12,7 +12,7 @@
 // Env: SUPABASE_URL, SUPABASE_SECRET_KEY
 // Optional: DRY_RUN=1, FORCE=1, SOURCE_FILE=<local .sqlite3 instead of downloading>, MISEREND_VERSION=4|5, LIMIT=<n churches, for testing>
 import fs from "fs";
-import { readExport, occurrences, deriveSchedule, dn, ymdOf, SOURCE, SOURCE_NAME, churchUrl } from "./lib/miserend.mjs";
+import { readExport, occurrences, deriveSchedule, dn, ymdOf, SOURCE, SOURCE_NAME, churchUrl, LitCal } from "./lib/miserend.mjs";
 import { nameSim, km, tokens } from "./lib/match.mjs";
 import { fold } from "./lib/szfvar.mjs";
 
@@ -162,7 +162,7 @@ async function main() {
         church_id: id, source: SOURCE, source_url: churchUrl(m.tid), source_ref: r.ref, updated: ymdOf(today), note: "", force: FORCE,
         city: (m.varos || "").replace(/\s*\(.*\)$/, ""), address: m.cim || "",
         services: r.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: "", note: s.note || "", period: s.period,
-          feast: s.feast, valid: s.valid || "", weeks: s.weeks || [] })) } }) });
+          feast: s.feast, valid: s.valid || "", weeks: s.weeks || [], every: s.every || null, anchor: s.anchor || "", tags: s.tags || [] })) } }) });
       r.result = res; if (res === "updated") updated++; else skipped++;
     } catch (err) {
       r.result = "error"; r.error = err.message.slice(0, 200); failed++;
@@ -174,7 +174,7 @@ async function main() {
   const RES = { error: "HIBA", updated: "frissítve", manual: "kihagyva (kézzel felvitt időpontok)", locked: "kihagyva (zárolt)", missing: "nincs ilyen templom",
     "no-times": "nincs időpont", "other-source": "kihagyva (egyházmegyei import)", "would-update": "frissülne", "would-create": "új templom lenne" };
   const count = k => report.filter(r => r.result === k).length;
-  const fmt = s => `${s.feast ? "[" + s.feast + "] " : ""}${s.kind === "rorate" ? "Rorate " : ""}${s.days.map(d => ["V", "H", "K", "Sze", "Cs", "P", "Szo"][d]).join(",")} ${s.start}${s.period !== "all" ? " " + (s.period === "summer" ? "nyáron" : "télen") : ""}${s.valid ? " " + s.valid : ""}${s.weeks?.length ? " (" + s.weeks.map(w => w === -1 ? "utolsó" : w + ".").join(",") + " hét)" : ""}`;
+  const fmt = s => `${s.feast ? "[" + s.feast + "] " : ""}${s.kind === "rorate" ? "Rorate " : ""}${s.days.map(d => ["V", "H", "K", "Sze", "Cs", "P", "Szo"][d]).join(",")} ${s.start}${s.kind === "prayer" ? " " + (s.note || "ájtatosság") : ""}${s.period !== "all" ? " " + LitCal.PERIOD_INFO[s.period].name : ""}${s.valid ? " " + s.valid : ""}${s.weeks?.length ? " (" + s.weeks.map(w => w === -1 ? "utolsó" : w + ".").join(",") + " hét)" : ""}${s.every ? ` (${s.every} hetente)` : ""}${s.tags?.length ? " [" + s.tags.map(LitCal.tagLabel).join(", ") + "]" : ""}`;
   const head = [`# ${SOURCE_NAME} – miserend import${DRY ? " (próbafuttatás)" : ""}`, "",
     `Export: v${ex.version}, ${mChurches.length} magyarországi templom, időpontok ${ymdOf(from)} – ${ymdOf(to)}.`, "",
     DRY ? `Frissülne: **${count("would-update")}**, új templom lenne: **${count("would-create")}**, egyházmegyei import miatt kihagyva: **${count("other-source")}** (ebből pontos helyet kapna: ${moved}), időpont nélkül: ${count("no-times")}.`

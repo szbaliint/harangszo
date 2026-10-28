@@ -65,6 +65,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/004_admin_list.sql` | church overview used by the admin panel's filters |
 | `supabase/migrations/005_schedule_sources.sql` | schedule notes, sources and locking, for diocesan imports |
 | `supabase/migrations/006_ranges_weeks_merge.sql` | parish-defined seasons (date ranges), "last Saturday of the month" rules, merging duplicate churches |
+| `supabase/migrations/007_rules_tags.sql` | every 2nd/3rd week, Mass tags (language, családos, gitáros…), Advent/Lent/Eastertide/school-year seasons, prayer times (Vesperás, keresztút) |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
@@ -82,6 +83,10 @@ In the admin panel, open either church and click **Összevonás egy másik templ
 - **Weeks of the month:** "A hónap hetei" limits a row to e.g. the 1st, or the last Saturday of the month ("Utolsó"); none selected means every week. The import recognises phrases like "minden hónap utolsó szombatján", "elsőpénteken", "1., 3. és 5. vasárnap", "2. vasárnapja kivételével".
 - **Ünnepi miserend:** per church and feast, either "Vasárnapi miserend szerint" or custom times. Custom times replace that day's regular times. Easter-based dates are calculated for every year (`calendar.js`); Ascension and Corpus Christi fall on Sunday in Hungary.
 - **Rorate:** a row type that only appears during Advent (first Sunday of Advent to 24 December). The public map shows a "Rorate" filter in Advent.
+- **Every n-th week:** "Ismétlődés" (kéthetente, háromhetente…) with the date of one occurrence; the site counts from it and shows the next date.
+- **Church-year and school seasons:** "Adventben", "Nagyböjtben" (Ash Wednesday – Holy Saturday) and "Húsvéti időben" (Easter – Pentecost) move with the calendar every year; "Tanévben" (09.01–06.15) and "Nyári szünetben" (06.16–08.31) can be given their own dates.
+- **What a Mass is like:** language and tags (családos, diákmise, ifjúsági, egyetemista, gitáros, orgonás, kórussal, csendes, előesti, régi rítusú, igeliturgia is lehet, közben gyóntatás, változhat). They show as labels, and the public map can filter by language and kind. The importers read them from miserend.hu's fields and from the parishes' notes ("német nyelvű", "kéthetente", "szentmise v. igeliturgia"…); what they can't place stays as the note.
+- **Imaóra, ájtatosság:** Vesperás, rózsafüzér, keresztút and the like, with their name as "Megnevezés".
 - Midnight Mass is entered as 00:00 and shown as 24:00 at the end of the day.
 - Times are always 24-hour (17:30); the editor accepts 1730, 17.30 or 17,30 too.
 
