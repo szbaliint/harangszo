@@ -5,6 +5,7 @@
   "description": "Import jobs for Harangszó (run in GitHub Actions)",
   "dependencies": {
     "linkedom": "0.18.13",
+    "pdfjs-dist": "4.10.38",
     "rrule": "2.8.1"
   }
 }

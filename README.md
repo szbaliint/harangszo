@@ -65,6 +65,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/004_admin_list.sql` | church overview used by the admin panel's filters |
 | `supabase/migrations/005_schedule_sources.sql` | schedule notes, sources and locking, for diocesan imports |
 | `supabase/migrations/006_ranges_weeks_merge.sql` | parish-defined seasons (date ranges), "last Saturday of the month" rules, merging duplicate churches |
+| `supabase/migrations/008_dated_services.sql` | times for given dates from a parish's own weekly schedule (Ferenciek tere) |
 | `supabase/migrations/007_rules_tags.sql` | every 2nd/3rd week, Mass tags (language, családos, gitáros…), Advent/Lent/Eastertide/school-year seasons, prayer times (Vesperás, keresztút) |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
@@ -113,6 +114,15 @@ The parser lives in `scripts/lib/szfvar.mjs`; `scripts/fixtures/szfvar-sample.ht
 - Churches with hand-entered times or marked "Kézzel ellenőrzött miserend" are skipped (tick "Also overwrite hand-entered times" to include the former). Churches whose times come from the Székesfehérvár diocese import keep them; if such a church only had its settlement's location, it gets miserend.hu's exact one. The diocese import, in turn, replaces times that came from miserend.hu.
 - Run it again whenever you want fresher times; v4 only covers six months, so run it at least every few months if v5 isn't available.
 - miserend.hu asks everyone using its API to get in touch with its maintainers.
+
+## The Franciscans' weekly schedule (Budapest, Ferenciek tere)
+
+**Actions → Import Ferenciek tere weekly schedule** runs every morning by itself (and can be started by hand). It reads the
+weekly "Mise- és gyóntatási rend" PDF from [pestiferencesek.hu/miserend](https://pestiferencesek.hu/miserend/) and stores
+its Masses, confession hours, Vesperás, litanies and adoration by date (`dated_services`, migration 008). On those dates the
+public page shows these times ("A templom heti miserendje szerint", with a link to the PDF) instead of the regular rules, and
+the church page lists the coming days. Mass intentions and the priests' names in the PDF are never read or stored. If the PDF's
+layout changes, the run fails without writing anything. The parser is `scripts/lib/ferences.mjs`.
 
 ## Parish editors
 

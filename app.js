@@ -71,7 +71,9 @@ function fromDb(c) {
       v: s.valid || null, w: s.weeks && s.weeks.length ? s.weeks : null, e: s.every || null, a: s.anchor || null, g: s.tags || [] })),
     feastSunday: c.feast_sunday || [], imp: c.imp ?? 30,
     note: c.schedule_note || "", source: c.schedule_source || null, sourceUrl: c.schedule_source_url || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
-    ev: (c.events || []).map(e => ({ date: e.date, t: e.start || "", title: e.title, n: e.note })) };
+    ev: (c.events || []).map(e => ({ date: e.date, t: e.start || "", title: e.title, n: e.note })),
+    // Times for given dates from the parish's own weekly schedule; on those dates they replace the regular rules.
+    dated: (c.dated || []).map(d => ({ date: d.date, k: KIND[d.kind] || "mass", d: [], t: d.start, u: d.end || null, n: d.note, g: d.tags || [], url: d.url || null })) };
 }
 function setChurches(list) {
   CHURCHES = list;
@@ -95,7 +97,7 @@ async function fetchLive() {
 }
 
 /* ---------- Schedule for one church on one day ---------- */
-const hasSchedule = c => c.svc.some(s => !s.feast);
+const hasSchedule = c => c.svc.some(s => !s.feast) || (c.dated || []).length > 0;
 const isRegular = s => !s.feast;
 function dayContext(date) {
   return { date, dow: date.getDay(), key: ymd(date), summer: C.isSummerTime(date), advent: C.inAdvent(date), feasts: C.feastsOn(date) };
@@ -108,16 +110,18 @@ const tagsOf = s => s.g || [];
 const tagsHTML = g => g && g.length ? `<span class="tags">${g.map(t => `<span class="tag ${t.startsWith("lang:") ? "lang" : t === "irregular" ? "warn" : ""}">${esc(C.tagLabel(t))}</span>`).join("")}</span>` : "";
 function dayInfo(c, ctx) {
   let rows, feast = null, feastMode = null;
+  const dated = (c.dated || []).filter(d => d.date === ctx.key);
   const custom = ctx.feasts.length ? c.svc.filter(s => s.feast && ctx.feasts.includes(s.feast)) : [];
   const sundayFeast = ctx.feasts.find(k => c.feastSunday.includes(k));
-  if (custom.length) { rows = custom; feast = C.FEAST_BY_KEY[custom[0].feast]?.name; feastMode = "custom"; }
+  if (dated.length) { rows = dated; feastMode = "dated"; feast = ctx.feasts.length ? C.FEAST_BY_KEY[ctx.feasts[0]]?.name : null; }
+  else if (custom.length) { rows = custom; feast = C.FEAST_BY_KEY[custom[0].feast]?.name; feastMode = "custom"; }
   else if (sundayFeast) { rows = c.svc.filter(s => isRegular(s) && s.k !== "rorate" && seasonOk(s, ctx) && !s.w && !s.e && s.d.includes(0)); feast = C.FEAST_BY_KEY[sundayFeast]?.name; feastMode = "sunday"; }
   else rows = c.svc.filter(s => isRegular(s) && seasonOk(s, ctx) && weekOk(s, ctx) && s.d.includes(ctx.dow) && (s.k !== "rorate" || ctx.advent));
   const items = rows.map(s => ({ k: s.k, t: s.t, end: s.k === "mass" || s.k === "rorate" ? null : s.u, n: s.k === "prayer" ? "" : s.n, g: tagsOf(s),
     what: s.k === "mass" ? massWord(c) : s.k === "rorate" ? "Rorate" : s.k === "conf" ? "Gyóntatás" : s.k === "prayer" ? (s.n || "Ájtatosság") : "Szentségimádás" }));
   for (const e of c.ev) if (e.date === ctx.key) items.push({ k: "ev", t: e.t, end: null, what: e.title, n: e.n, g: [] });
   items.sort((a, b) => mins(a.t) - mins(b.t));
-  return { items, feast, feastMode,
+  return { items, feast, feastMode, datedUrl: dated[0]?.url || null,
     hasMass: items.some(i => i.k === "mass" || i.k === "rorate"), hasConf: items.some(i => i.k === "conf"), hasRorate: items.some(i => i.k === "rorate") };
 }
 // Cache of dayInfo per date (a few dates at most), so typing and filtering don't recompute schedules.
@@ -378,6 +382,21 @@ function seasonNote(c, ctx) {
   const az = w => /^[aáeéiíoóöőuúüű]/i.test(w) ? "az" : "a";
   return `<p class="muted season">${active.length ? `Most ${az(names(nowKey))} <b>${names(nowKey)}</b> miserend érvényes.` : ""}${change ? ` Következő váltás: ${change.getFullYear() !== ctx.date.getFullYear() ? change.getFullYear() + ". " : ""}${shortDate(change)} (${names(activeOn(change))} rend).` : ""}<br>${esc(list)}</p>`;
 }
+// The coming days from the parish's own weekly schedule, day by day.
+function datedWeekHTML(c) {
+  const today = ymd(now()), until = ymd(C.addDays(now(), 7));
+  const days = [...new Set((c.dated || []).map(d => d.date))].filter(d => d >= today && d < until).sort();
+  if (!days.length) return "";
+  const url = c.dated.find(d => d.url)?.url;
+  const rows = days.map(day => {
+    const dt = new Date(day + "T12:00"), list = c.dated.filter(d => d.date === day).sort((a, b) => mins(a.t) - mins(b.t));
+    const ms = list.filter(i => i.k === "mass" || i.k === "rorate").map(i => showT(i.t)).join(" · ");
+    const cs = list.filter(i => i.k === "conf").map(i => range(i.t, i.u)).join(" · ");
+    const other = list.filter(i => i.k === "prayer" || i.k === "ador").map(i => `${showT(i.t)} ${i.n || (i.k === "ador" ? "szentségimádás" : "")}`).join(" · ");
+    return `<tr class="${day === today ? "today" : ""}"><th scope="row">${DAYN[dt.getDay()].slice(0, 3)}.<br><small>${shortDate(dt)}</small></th><td><span class="wt"><span class="t">${ms || "–"}</span></span>${cs ? `<span class="wt"><small>gyónás: ${esc(cs)}</small></span>` : ""}${other ? `<span class="wt"><small>${esc(other)}</small></span>` : ""}</td></tr>`;
+  }).join("");
+  return `<div class="sec"><h4>A következő napok · a templom heti miserendje szerint</h4><div class="week"><table><thead><tr><th scope="col">Nap</th><th scope="col">Szentmise</th></tr></thead><tbody>${rows}</tbody></table></div>${url ? `<p class="muted source">Forrás: <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">a templom heti miserendje (PDF)</a></p>` : ""}</div>`;
+}
 function rorateHTML(c) {
   const rr = c.svc.filter(s => isRegular(s) && s.k === "rorate");
   if (!rr.length) return "";
@@ -423,20 +442,22 @@ function renderDetail() {
   const dir = `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}`;
   const where = [c.city, c.addr].filter(Boolean).join(", ");
   const contact = [c.web ? `<a href="${esc(/^https?:/i.test(c.web) ? c.web : "https://" + c.web)}" target="_blank" rel="noopener noreferrer">Weboldal</a>` : "", c.phone ? `<span>${esc(c.phone)}</span>` : ""].filter(Boolean).join(" · ");
-  const feastBar = di.feast ? `<div class="feastbar">Ünnepi miserend · ${esc(di.feast)}${di.feastMode === "sunday" ? " (vasárnapi rend szerint)" : ""}</div>` : "";
+  const feastBar = di.feastMode === "dated" ? `<div class="feastbar">A templom heti miserendje szerint${di.feast ? " · " + esc(di.feast) : ""}${di.datedUrl ? ` · <a href="${esc(di.datedUrl)}" target="_blank" rel="noopener noreferrer">forrás</a>` : ""}</div>`
+    : di.feast ? `<div class="feastbar">Ünnepi miserend · ${esc(di.feast)}${di.feastMode === "sunday" ? " (vasárnapi rend szerint)" : ""}</div>` : "";
   panel.innerHTML = `<div class="detail pad">
     <button class="back" id="back">${S.tab === "map" && !isDesktop() ? "✕ Bezárás" : "← Vissza a listához"}</button>
     <div class="d-head">
       <div class="next">${os.label ? `<span class="pill ${os.known && os.open ? "p-open" : "p-closed"}">${os.label}</span>` : ""}<span class="pill p-rite">${riteName(c)}</span></div>
       <h2>${esc(c.name)}</h2>
       <div class="where">${esc(where)} · ${kmText(distOf(c))} (${esc(S.origin)})</div>
-      ${(() => { const n = nextOf(di); return n.k ? `<div class="hero-next"><span class="micro">${n.k === "conf" ? "Következő gyóntatás" : "Következő " + (c.rite === "gk" ? "liturgia" : "mise")}${isToday() ? "" : " · " + esc(dayLabel(S.dayOffset).toLowerCase())}</span><b class="hero-t k-${n.cls === "conf" ? "conf" : "mass"}">${esc(n.t)}</b></div>` : ""; })()}
+      ${(() => { const nm = nextOf({ items: di.items.filter(i => i.k === "mass" || i.k === "rorate") }), n = nm.k ? nm : nextOf(di); return n.k ? `<div class="hero-next"><span class="micro">${n.k === "conf" ? "Következő gyóntatás" : "Következő " + (c.rite === "gk" ? "liturgia" : "mise")}${isToday() ? "" : " · " + esc(dayLabel(S.dayOffset).toLowerCase())}</span><b class="hero-t k-${n.cls === "conf" ? "conf" : "mass"}">${esc(n.t)}</b></div>` : ""; })()}
       ${contact ? `<div class="where">${contact}</div>` : ""}
       ${c.approx ? `<div class="approx">A templom helye a térképen hozzávetőleges (a település közepe). Útvonaltervezés előtt ellenőrizd a címet.</div>` : ""}
     </div>
     <div class="actions"><a class="btn primary" href="${dir}" target="_blank" rel="noopener noreferrer">Útvonal a Google Térképen</a><button class="btn" id="go-suggest">Javítás beküldése</button></div>
     <div class="sec"><h4>${dayLabel(S.dayOffset)}</h4>${feastBar}<div class="dayline">${slots}</div></div>
-    ${hasSchedule(c) || c.hours.length ? `<div class="sec"><h4>Heti rend</h4><div class="week"><table>${weekTable(c, ctx)}</table></div>${seasonNote(c, ctx)}</div>` : ""}
+    ${datedWeekHTML(c)}
+    ${c.svc.some(s => !s.feast) || c.hours.length ? `<div class="sec"><h4>${(c.dated || []).length ? "Általános heti rend" : "Heti rend"}</h4><div class="week"><table>${weekTable(c, ctx)}</table></div>${seasonNote(c, ctx)}</div>` : ""}
     ${noteHTML(c)}
     ${feastScheduleHTML(c)}
     ${rorateHTML(c)}

@@ -3,3 +3,6 @@
 _site/
 node_modules/
 replica/screens/
+scripts/report.md
+scripts/report.json
+scripts/*.sqlite3

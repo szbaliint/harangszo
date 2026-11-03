@@ -1,0 +1,38 @@
+name: Import Ferenciek tere weekly schedule
+
+# Every day: reads the Pest Franciscans' weekly Mass and confession schedule (PDF, https://pestiferencesek.hu/miserend/)
+# and stores its dates for the Ferenciek tere church. On those dates the site shows these times instead of the
+# regular ones. A day with no new PDF just writes the same week again. Intentions and priests' names are not stored.
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only show what would happen"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - name: Import
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          NODE_NO_WARNINGS: "1"
+        run: node import-ferences.mjs
