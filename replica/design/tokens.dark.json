@@ -1,0 +1,177 @@
+{
+  "_about": "Harangszó tokens, dark theme (same roles).",
+  "color": {
+    "bg": "#0f131b",
+    "surface": "#171c27",
+    "glass": "#1a2030",
+    "border": "#2c3445",
+    "border-input": "#7c8597",
+    "text": "#e9ecf2",
+    "text-muted": "#aeb6c6",
+    "text-faint": "#8b94a6",
+    "accent": "#8fa7ec",
+    "on-accent": "#0f131b",
+    "penance": "#c79be0",
+    "on-penance": "#0f131b",
+    "gold": "#e0b55a",
+    "open": "#5fcf95",
+    "danger": "#f08a70",
+    "marker-none-text": "#c9cfdb",
+    "marker-none-bg": "#232a39",
+    "accent-soft": "#1f2a4a"
+  },
+  "pairs": [
+    [
+      "text",
+      "bg"
+    ],
+    [
+      "text",
+      "surface"
+    ],
+    [
+      "text",
+      "glass"
+    ],
+    [
+      "text-muted",
+      "surface"
+    ],
+    [
+      "text-muted",
+      "glass"
+    ],
+    [
+      "text-faint",
+      "surface"
+    ],
+    [
+      "text-faint",
+      "glass"
+    ],
+    [
+      "on-accent",
+      "accent"
+    ],
+    [
+      "on-penance",
+      "penance"
+    ],
+    [
+      "accent",
+      "glass"
+    ],
+    [
+      "accent",
+      "accent-soft"
+    ],
+    [
+      "gold",
+      "glass"
+    ],
+    [
+      "open",
+      "glass"
+    ],
+    [
+      "danger",
+      "surface"
+    ],
+    [
+      "marker-none-text",
+      "marker-none-bg"
+    ],
+    [
+      "border-input",
+      "surface",
+      "ui"
+    ],
+    [
+      "accent",
+      "surface",
+      "ui"
+    ]
+  ],
+  "font": {
+    "display": "Spectral, Georgia, serif",
+    "sans": "IBM Plex Sans, system-ui, -apple-system, Segoe UI, sans-serif",
+    "mono": "IBM Plex Mono, ui-monospace, Menlo, monospace"
+  },
+  "type": {
+    "micro": {
+      "size": 11,
+      "line": 14,
+      "weight": 600,
+      "note": "mono caps, letter-spacing .12em"
+    },
+    "xs": {
+      "size": 12,
+      "line": 16,
+      "weight": 500
+    },
+    "sm": {
+      "size": 14,
+      "line": 20,
+      "weight": 400
+    },
+    "base": {
+      "size": 15,
+      "line": 22,
+      "weight": 400
+    },
+    "lg": {
+      "size": 18,
+      "line": 24,
+      "weight": 600
+    },
+    "xl": {
+      "size": 26,
+      "line": 30,
+      "weight": 700
+    },
+    "hero-time": {
+      "size": 40,
+      "line": 40,
+      "weight": 600,
+      "note": "mono, next Mass time in the sheet"
+    }
+  },
+  "space": [
+    0,
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48
+  ],
+  "radius": {
+    "sm": 8,
+    "md": 14,
+    "lg": 22,
+    "sheet": 24,
+    "pill": 999
+  },
+  "shadow": {
+    "float": "0 6px 24px rgb(0 0 0 / .18), 0 1px 3px rgb(0 0 0 / .12)",
+    "sheet": "0 -8px 32px rgb(0 0 0 / .22)"
+  },
+  "glass": {
+    "alpha": 0.86,
+    "blur": "14px"
+  },
+  "motion": {
+    "fast": "120ms",
+    "base": "220ms",
+    "sheet": "320ms",
+    "ease": "cubic-bezier(.2,.8,.2,1)"
+  },
+  "layout": {
+    "tabbar-height": 60,
+    "float-gap": 12,
+    "desktop-panel": 400,
+    "breakpoint": 900,
+    "marker-label-zoom": 13
+  }
+}

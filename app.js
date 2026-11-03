@@ -152,7 +152,7 @@ function hoursText(c, dow) {
 }
 
 /* ---------- State ---------- */
-const S = { q: "", dayOffset: 0, origin: "Budapest", f: { open: false, mass: false, conf: false, ev: false, rorate: false, tag: "" }, sel: null, loading: true, error: "" };
+const S = { q: "", dayOffset: 0, origin: "Budapest", f: { open: false, mass: false, conf: false, ev: false, rorate: false, tag: "" }, sel: null, loading: true, error: "", tab: "map", sheet: window.matchMedia("(min-width:900px)").matches ? "full" : "closed" };
 try { const saved = JSON.parse(localStorage.getItem("harangszo") || "{}"); if (saved.origin && ORIGINS[saved.origin]) S.origin = saved.origin; } catch (e) { }
 const now = () => new Date();
 const selDate = () => { const d = now(); d.setDate(d.getDate() + S.dayOffset); return d; };
@@ -182,6 +182,74 @@ function upcoming(items) {
   if (!isToday()) return items;
   const m = now().getHours() * 60 + now().getMinutes();
   return items.filter(i => !i.t || mins(i.end || i.t) >= m);
+}
+
+// The next Mass or confession of the day (from now on, if it is today): its time and kind, for markers and cards.
+function nextOf(di) {
+  const m = now().getHours() * 60 + now().getMinutes();
+  const items = di.items.filter(i => (i.k === "mass" || i.k === "rorate" || i.k === "conf") && i.t);
+  const up = isToday() ? items.filter(i => mins(i.end || i.t) >= m) : items;
+  const i = up[0];
+  return i ? { t: showT(i.t), cls: i.k === "conf" ? "conf" : "mass", k: i.k } : { t: "–", cls: "none", k: null };
+}
+
+/* ---------- Sheet, tabs, nearest strip ---------- */
+const sheetEl = $("#sheet"), isDesktop = () => window.matchMedia("(min-width:900px)").matches;
+function setSheet(state) {
+  if (isDesktop() && state === "peek") state = "full";
+  S.sheet = state; sheetEl.dataset.state = state;
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === (state === "closed" ? "map" : S.tab))));
+}
+function openTab(tab) {
+  S.tab = tab;
+  if (tab === "map") { S.sel = null; setSheet("closed"); render(); return; }
+  S.sel = null; render(); setSheet("full");
+  if (tab === "search") setTimeout(() => $("#q")?.focus(), 250);
+}
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => openTab(b.dataset.tab)));
+$("#filter-btn").addEventListener("click", () => { openTab("list"); });
+$("#locate-btn").addEventListener("click", () => locateMe());
+$("#menu-btn").addEventListener("click", () => { const m = $("#menu"), open = m.hidden; m.hidden = !open; $("#menu-btn").setAttribute("aria-expanded", String(open)); });
+document.addEventListener("click", e => { const m = $("#menu"); if (!m.hidden && !e.target.closest("#menu,#menu-btn")) { m.hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#menu").hidden) { $("#menu").hidden = true; return; } if (!isDesktop() && S.sheet !== "closed") { S.sel = null; S.tab = "map"; setSheet("closed"); render(); } } });
+// Drag the grabber: up opens, down closes; a tap toggles between peek and full.
+(function sheetDrag() {
+  const grab = $("#grab"); let y0 = null, t0 = 0, h = 0, base = 0, moved = false;
+  const pos = () => S.sheet === "full" ? 0 : S.sheet === "peek" ? h * .54 : h;
+  grab.addEventListener("pointerdown", e => { y0 = e.clientY; t0 = Date.now(); h = sheetEl.offsetHeight; base = pos(); moved = false; grab.setPointerCapture(e.pointerId); sheetEl.classList.add("dragging"); });
+  grab.addEventListener("pointermove", e => { if (y0 === null) return; const dy = e.clientY - y0; if (Math.abs(dy) > 4) moved = true; sheetEl.style.transform = `translateY(${Math.max(0, Math.min(h, base + dy))}px)`; });
+  grab.addEventListener("pointerup", e => {
+    if (y0 === null) return; sheetEl.classList.remove("dragging"); sheetEl.style.transform = "";
+    const dy = e.clientY - y0, v = dy / Math.max(1, Date.now() - t0), at = base + dy; y0 = null;
+    if (!moved) return setSheet(S.sheet === "full" ? "peek" : "full");
+    const next = v > .6 ? (S.sheet === "full" ? "peek" : "closed") : v < -.6 ? "full" : at < h * .27 ? "full" : at < h * .75 ? "peek" : "closed";
+    if (next === "closed") { S.sel = null; S.tab = "map"; render(); }
+    setSheet(next);
+  });
+  grab.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSheet(S.sheet === "full" ? "peek" : "full"); } });
+})();
+const NEAR_KM = 25;
+function renderNearest(rows) {
+  const el = $("#nearest"); if (!el) return;
+  if (S.loading || S.error) { el.innerHTML = ""; return; }
+  const withNext = rows.filter(r => r.dist <= NEAR_KM).map(r => ({ r, n: nextOf(r.di) })).filter(x => x.n.k);
+  const two = withNext.slice(0, 2);
+  // The central button: the nearest church with a Mass still to come (confession times don't count here).
+  const firstMass = rows.filter(r => r.dist <= NEAR_KM).map(r => ({ r, n: nextOf({ items: r.di.items.filter(i => i.k === "mass" || i.k === "rorate") }) })).find(x => x.n.k);
+  const card = x => { const c = x.r.c, os = isToday() ? openState(c, now()) : null;
+    return `<button class="ncard" data-id="${c.id}"><span class="mk mk-${x.n.cls}">${esc(x.n.t)}</span><span class="nt"><span class="nn">${esc(c.name)}</span><span class="nm">${kmText(x.r.dist)}${os && os.known && os.open ? "<i title=\"Nyitva\"></i>" : ""}</span></span></button>`; };
+  const empty = `<div class="ncard empty">${isToday() ? "Ma már nincs több ismert alkalom a közelben" : "Nincs ismert alkalom a közelben"}</div>`;
+  el.innerHTML = (two[0] ? card(two[0]) : empty)
+    + `<button class="nmain" id="nmain" ${firstMass ? "" : "disabled"} title="Legközelebbi mise${firstMass ? ": " + esc(firstMass.r.c.name) + ", " + firstMass.n.t : ""}" aria-label="Legközelebbi mise${firstMass ? ": " + esc(firstMass.r.c.name) + ", " + firstMass.n.t : " – nincs a közelben"}">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v2M7 17V11a5 5 0 0 1 10 0v6"/><path d="M5 17h14"/><path d="M10.5 20a1.5 1.5 0 0 0 3 0"/></svg></button>`
+    + (two[1] ? card(two[1]) : two[0] ? `<div></div>` : "");
+  el.querySelectorAll(".ncard[data-id]").forEach(b => b.addEventListener("click", () => select(+b.dataset.id)));
+  $("#nmain")?.addEventListener("click", () => firstMass && select(firstMass.r.c.id));
+}
+const kmText = d => d < 1 ? Math.round(d * 1000 / 10) * 10 + " m" : (d < 10 ? d.toFixed(1).replace(".", ",") : Math.round(d)) + " km";
+function updateFilterBadge() {
+  const n = ["mass", "conf", "rorate", "open", "ev"].filter(k => S.f[k]).length + (S.f.tag ? 1 : 0) + (S.dayOffset ? 1 : 0);
+  const b = $("#filter-count"); b.hidden = !n; b.textContent = n; $("#filter-btn").classList.toggle("on", n > 0);
 }
 
 /* ---------- Rendering: list ---------- */
@@ -232,7 +300,7 @@ function renderList() {
     ${more > 0 ? `<li class="empty">További ${more.toLocaleString("hu-HU")} templom. Írj be egy települést, vagy válassz másik kiindulópontot.</li>` : ""}</ul>`;
   let nConf = 0; for (const r of rows) if (r.di.hasConf) nConf++;
   $("#summary").textContent = `${rows.length.toLocaleString("hu-HU")} templom · ${nConf} helyen gyóntatnak ${isToday() ? "ma" : "aznap"} · ${ctx.summer ? "nyári" : "téli"} időszámítás · távolság: ${S.origin}`;
-  bindControls(); drawMarkers(rows);
+  bindControls(); drawMarkers(rows); renderNearest(rows); updateFilterBadge();
 }
 let searchTimer;
 function bindControls() {
@@ -250,11 +318,12 @@ function bindControls() {
   panel.querySelector(".list").addEventListener("click", e => { const b = e.target.closest(".card"); if (b) select(+b.dataset.id); });
 }
 function locateMe() {
-  $("#summary").textContent = "Helymeghatározás…";
+  const sum = $("#summary"); if (sum) sum.textContent = "Helymeghatározás…";
+  if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(p => {
     ORIGINS["Saját helyzetem"] = [p.coords.latitude, p.coords.longitude]; S.origin = "Saját helyzetem";
-    MapView.focus(p.coords.latitude, p.coords.longitude, 12); render();
-  }, () => { render(); $("#summary").textContent = "A helyzeted nem érhető el. Engedélyezd a böngészőben, vagy válassz várost."; }, { timeout: 10000, maximumAge: 300000 });
+    MapView.focus(p.coords.latitude, p.coords.longitude, 13); MapView.me?.(p.coords.latitude, p.coords.longitude); render();
+  }, () => { render(); const s2 = $("#summary"); if (s2) s2.textContent = "A helyzeted nem érhető el. Engedélyezd a böngészőben, vagy válassz várost."; else { const h = $("#maphint"); h.hidden = false; h.textContent = "A helyzeted nem érhető el. Engedélyezd a böngészőben."; setTimeout(() => h.hidden = true, 4000); } }, { timeout: 10000, maximumAge: 300000 });
 }
 
 /* ---------- Rendering: detail ---------- */
@@ -356,11 +425,12 @@ function renderDetail() {
   const contact = [c.web ? `<a href="${esc(/^https?:/i.test(c.web) ? c.web : "https://" + c.web)}" target="_blank" rel="noopener noreferrer">Weboldal</a>` : "", c.phone ? `<span>${esc(c.phone)}</span>` : ""].filter(Boolean).join(" · ");
   const feastBar = di.feast ? `<div class="feastbar">Ünnepi miserend · ${esc(di.feast)}${di.feastMode === "sunday" ? " (vasárnapi rend szerint)" : ""}</div>` : "";
   panel.innerHTML = `<div class="detail pad">
-    <button class="back" id="back">← Vissza a listához</button>
+    <button class="back" id="back">${S.tab === "map" && !isDesktop() ? "✕ Bezárás" : "← Vissza a listához"}</button>
     <div class="d-head">
       <div class="next">${os.label ? `<span class="pill ${os.known && os.open ? "p-open" : "p-closed"}">${os.label}</span>` : ""}<span class="pill p-rite">${riteName(c)}</span></div>
       <h2>${esc(c.name)}</h2>
-      <div class="where">${esc(where)} · ${Math.round(distOf(c))} km (${esc(S.origin)})</div>
+      <div class="where">${esc(where)} · ${kmText(distOf(c))} (${esc(S.origin)})</div>
+      ${(() => { const n = nextOf(di); return n.k ? `<div class="hero-next"><span class="micro">${n.k === "conf" ? "Következő gyóntatás" : "Következő " + (c.rite === "gk" ? "liturgia" : "mise")}${isToday() ? "" : " · " + esc(dayLabel(S.dayOffset).toLowerCase())}</span><b class="hero-t k-${n.cls === "conf" ? "conf" : "mass"}">${esc(n.t)}</b></div>` : ""; })()}
       ${contact ? `<div class="where">${contact}</div>` : ""}
       ${c.approx ? `<div class="approx">A templom helye a térképen hozzávetőleges (a település közepe). Útvonaltervezés előtt ellenőrizd a címet.</div>` : ""}
     </div>
@@ -373,7 +443,7 @@ function renderDetail() {
     <div class="sec"><h4>Közelgő események</h4><div class="ev-list">${evs}</div></div>
     <div class="sec" id="suggest-sec"><h4>Pontosítás vagy új időpont</h4>${suggestForm()}</div>
   </div>`;
-  $("#back").addEventListener("click", () => { S.sel = null; render(); });
+  $("#back").addEventListener("click", () => { S.sel = null; if (S.tab === "map" && !isDesktop()) setSheet("closed"); render(); });
   $("#go-suggest").addEventListener("click", () => { $("#suggest-sec").scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => $("#s-text")?.focus(), 300); });
   bindSuggest(c);
   drawMarkers(lastRows.length ? lastRows : filtered());
@@ -424,7 +494,7 @@ function bindSuggest(c) {
    Importance = the church's score (cathedral, basilica, pilgrimage church, Wikipedia entry, city… or an editor's
    override) plus a bonus for churches with times entered, and for confession or Mass on the chosen day. */
 const HU_BOUNDS = { s: 45.7, w: 16.1, n: 48.6, e: 22.9 };
-const SHOW_ALL_ZOOM = 14;
+const SHOW_ALL_ZOOM = 14, LABEL_ZOOM = 12.5;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const pinSVG = (fill, sel) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38"><path d="M15 37C15 37 3 22 3 14a12 12 0 0 1 24 0c0 8-12 23-12 23z" fill="${fill}" stroke="${sel ? "#c9971c" : "#fff"}" stroke-width="${sel ? 3 : 2}"/><path d="M14 7h2v14h-2zM10 11h10v2H10z" fill="#fff"/></svg>`);
@@ -440,7 +510,7 @@ function makeDiffer(create, restyle, addMany, removeMany) {
     for (const p of list) {
       let e = cache.get(p.c.id);
       if (!e) { e = { mk: create(p.c), sig: "" }; cache.set(p.c.id, e); }
-      const sig = p.cls + (p.sel ? "*" : "");
+      const sig = p.cls + "|" + (p.label || "") + (p.dot ? "." : "") + (p.sel ? "*" : "");
       if (e.sig !== sig) { restyle(e.mk, p); e.sig = sig; }
       next.add(p.c.id);
       if (!shown.has(p.c.id)) toAdd.push(e.mk);
@@ -453,15 +523,23 @@ function makeDiffer(create, restyle, addMany, removeMany) {
   };
 }
 function leafletView() {
-  const map = L.map("map", { minZoom: 6, maxZoom: 18, zoomSnap: .25, maxBounds: [[44.9, 15.3], [49.4, 23.8]] });
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-közreműködők' }).addTo(map);
+  const map = L.map("map", { minZoom: 6, maxZoom: 18, zoomSnap: .25, zoomControl: false, maxBounds: [[44.9, 15.3], [49.4, 23.8]] });
+  // Light or dark base map with the site's theme (CARTO basemaps on OpenStreetMap data).
+  const dark = window.matchMedia("(prefers-color-scheme: dark)");
+  const tiles = () => L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark.matches ? "dark_all" : "rastertiles/voyager"}/{z}/{x}/{y}{r}.png`, { maxZoom: 19, subdomains: "abcd",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-közreműködők &copy; <a href="https://carto.com/attributions">CARTO</a>' });
+  let base = tiles().addTo(map);
+  dark.addEventListener?.("change", () => { map.removeLayer(base); base = tiles().addTo(map); });
+  $("#zoom-in").addEventListener("click", () => map.zoomIn()); $("#zoom-out").addEventListener("click", () => map.zoomOut());
+  let meMk = null;
   map.fitBounds([[HU_BOUNDS.s, HU_BOUNDS.w], [HU_BOUNDS.n, HU_BOUNDS.e]]);
   const layer = L.layerGroup().addTo(map);
   const icons = {};
-  const icon = (cls, sel) => icons[cls + sel] || (icons[cls + sel] = L.divIcon({ className: "", html: `<div class="pin ${cls} ${sel ? "sel" : ""}"><i></i></div>`, iconSize: [26, 26], iconAnchor: [13, 26] }));
+  const icon = p => { const k = p.cls + p.label + p.dot + p.sel; return icons[k] || (icons[k] = L.divIcon({ className: "mkicon", iconSize: [0, 0],
+    html: p.dot ? `<div class="mkdot mk-${p.cls} ${p.sel ? "sel" : ""}"></div>` : `<div class="mkwrap ${p.sel ? "sel" : ""}"><span class="mk mk-${p.cls}">${esc(p.label)}</span></div>` })); };
   const draw = makeDiffer(
-    c => { const mk = L.marker([c.lat, c.lon], { title: c.name, icon: icon("dim", false) }); mk.on("click", () => select(c.id)); return mk; },
-    (mk, p) => { mk.setIcon(icon(p.cls, p.sel)); mk.setZIndexOffset(p.sel ? 1000 : Math.round(p.c.score)); },
+    c => { const mk = L.marker([c.lat, c.lon], { title: c.name, icon: icon({ cls: "none", label: "–", dot: true, sel: false }), keyboard: false }); mk.on("click", () => select(c.id)); return mk; },
+    (mk, p) => { mk.setIcon(icon(p)); mk.setZIndexOffset(p.sel ? 1000 : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200)); },
     arr => arr.forEach(m => layer.addLayer(m)),
     arr => arr.forEach(m => layer.removeLayer(m)));
   let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { map.invalidateSize(); queueMarkers(); }, 150); });
@@ -469,7 +547,8 @@ function leafletView() {
   return {
     draw, ready: () => true,
     view() { const b = map.getBounds().pad(0.05); return { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast(), zoom: map.getZoom() }; },
-    focus(lat, lon, z) { map.flyTo([lat, lon], Math.max(map.getZoom(), z), { duration: .5 }); }
+    focus(lat, lon, z) { map.flyTo([lat, lon], Math.max(map.getZoom(), z), { duration: .5 }); },
+    me(lat, lon) { if (meMk) meMk.setLatLng([lat, lon]); else meMk = L.marker([lat, lon], { icon: L.divIcon({ className: "mkicon", iconSize: [0, 0], html: '<div class="me-dot"></div>' }), interactive: false, zIndexOffset: 2000 }).addTo(map); }
   };
 }
 function googleView() {
@@ -478,7 +557,7 @@ function googleView() {
     gmap = new google.maps.Map(document.getElementById("map"), { center: { lat: 47.16, lng: 19.5 }, zoom: 7,
       restriction: { latLngBounds: { north: 49.4, south: 44.9, west: 15.3, east: 23.8 } }, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false });
     gmap.fitBounds({ north: HU_BOUNDS.n, south: HU_BOUNDS.s, west: HU_BOUNDS.w, east: HU_BOUNDS.e });
-    colors = { conf: css("--penance") || "#6a2e8c", mass: css("--accent") || "#23408e", dim: css("--ink-3") || "#7b8496" };
+    colors = { conf: css("--penance") || "#6a2e8c", mass: css("--accent") || "#23408e", none: css("--ink-3") || "#5f687b" };
     const iconCache = {};
     const icon = (cls, sel) => iconCache[cls + sel] || (iconCache[cls + sel] = { url: pinSVG(colors[cls], sel), scaledSize: new google.maps.Size(30, 38), anchor: new google.maps.Point(15, 37) });
     draw = makeDiffer(
@@ -489,6 +568,7 @@ function googleView() {
     gmap.addListener("idle", () => queueMarkers());
     if (pendingFocus) api.focus(...pendingFocus);
   };
+  $("#zoom-in").addEventListener("click", () => gmap && gmap.setZoom(gmap.getZoom() + 1)); $("#zoom-out").addEventListener("click", () => gmap && gmap.setZoom(gmap.getZoom() - 1));
   window.gm_authFailure = () => { $("#notice").innerHTML = "<b>Térképhiba.</b> A Google Maps kulcs nem érvényes ehhez a címhez. Ellenőrizd a kulcs webhely-korlátozását."; };
   const s = document.createElement("script");
   s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(MAPS_KEY)}&callback=__initGoogle&language=hu&region=HU&loading=async`;
@@ -521,8 +601,10 @@ function updateMarkers() {
     const rank = r => r.c.score + (r.di.hasConf ? 8 : 0) + (r.di.hasMass ? 5 : 0);
     shown = inView.sort((a, b) => rank(b) - rank(a)).slice(0, budget);
   }
-  const list = shown.map(r => ({ c: r.c, cls: r.di.hasConf ? "conf" : r.di.hasMass ? "mass" : "dim", sel: S.sel === r.c.id }));
-  if (S.sel && !list.some(p => p.sel)) { const c = BY_ID.get(S.sel); if (c) list.push({ c, cls: "mass", sel: true }); }
+  // Zoomed in: a pill with the next time; zoomed out: a coloured dot.
+  const dot = v.zoom < LABEL_ZOOM;
+  const list = shown.map(r => { const n = nextOf(r.di); return { c: r.c, cls: n.cls, label: n.t, dot, sel: S.sel === r.c.id }; });
+  if (S.sel && !list.some(p => p.sel)) { const c = BY_ID.get(S.sel); if (c) { const n = nextOf(dayInfoCached(c, dayContext(selDate()))); list.push({ c, cls: n.cls, label: n.t, dot, sel: true }); } }
   MapView.draw(list);
   const hidden = inView.length - shown.length, hint = $("#maphint");
   if (hint) { hint.hidden = hidden <= 0; if (hidden > 0) hint.textContent = `Kiemelt templomok: ${shown.length} / ${inView.length.toLocaleString("hu-HU")} ebben a nézetben. Nagyíts a többiért.`; }
@@ -532,6 +614,7 @@ function select(id) {
   const c = BY_ID.get(id);
   if (c) MapView.focus(c.lat, c.lon, 15);
   render();
+  if (S.sheet === "closed" || isDesktop()) setSheet(isDesktop() ? "full" : "peek");
 }
 
 /* ---------- Boot ---------- */
@@ -553,5 +636,5 @@ function boot() {
     if (!typing()) render();
   }).catch(() => { if (S.loading) { S.loading = false; S.error = "Nem sikerült betölteni a templomokat. Frissítsd az oldalt egy kicsit később."; render(); } });
 }
-render(); boot();
+setSheet(S.sheet); render(); boot();
 setInterval(() => { if (!S.loading && isToday() && !typing()) render(); }, 60000);

@@ -1,0 +1,23 @@
+feature,area,priority,original,clone,notes
+Full-screen map as the home screen,map,must,yes,yes,list and controls float over it
+Dark basemap that keeps streets legible,map,must,yes,yes,free tiles with OSM attribution; light theme alternative
+Labelled circle markers coloured by state,map,must,yes,yes,Harangszó: next Mass time inside; colour = Mass soon / confession / nothing today
+User location dot,map,must,yes,yes,uses Saját helyzetem
+Two nearest places at the bottom of the map,map,must,yes,yes,nearest churches with their next Mass
+Central primary action between the nearest cards,map,must,yes,yes,Legközelebbi mise
+Floating rounded tab bar,navigation,must,yes,yes,Térkép / Lista / Keresés
+Bottom sheet with grabber for a place's details,detail,must,yes,yes,side panel on desktop
+Glass control pill (filter + locate),map,should,yes,yes,
+Filter chips as icon tiles,filters,should,yes,no,Mise / Gyóntatás / Rorate / nyelv / jelleg
+Distance and open state on cards,map,should,yes,yes,distance + Nyitva dot
+Big highlighted number in the sheet header,detail,should,yes,yes,next Mass time instead of a score
+Rounded grouped rows with chevrons in the sheet,detail,should,yes,no,
+Mono caps micro-labels,design,should,yes,yes,
+Swipe the sheet down to close,detail,could,yes,yes,
+Country overview dot map on the landing area,map,could,yes,no,
+Directions button from the sheet,detail,could,yes,yes,Útvonal link to Google/Apple Maps
+Score rating 1–10,ratings,skip,yes,skip,not Harangszó's purpose
+XP leaderboards cards badges,gamification,skip,yes,skip,not Harangszó's purpose
+SOS mode with compass,map,skip,yes,skip,covered by Legközelebbi mise
+Brand identity (name logo B mark lime),design,skip,yes,skip,the original's own; Harangszó keeps its palette
+Their place database and live reports,data,skip,yes,skip,their data

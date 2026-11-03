@@ -1,0 +1,8 @@
+/* Mirror of the design tokens (tokens.json / tokens.dark.json) as Harangszó's custom properties.
+   The live copy is the :root block at the top of styles.css; role → variable:
+   bg→--bg  surface→--surface  glass→--glass  border→--line  border-input→--border  text→--ink  text-muted→--ink-2
+   text-faint→--ink-3  accent→--accent  on-accent→--on-accent  penance→--penance  on-penance→--on-penance  gold→--gold
+   open→--open  danger→--closed  marker-none-*→--mk-none-*  accent-soft→--accent-soft. No Tailwind in this project. */
+:root{--glass:rgb(247 248 250 / .86);--on-accent:#fff;--on-penance:#fff;--ink-3:#5f687b;--gold:#8a5f0c;--mk-none-bg:#fff;--mk-none-ink:#4a5468;
+  --shadow-float:0 6px 24px rgb(0 0 0 / .18),0 1px 3px rgb(0 0 0 / .12);--shadow-sheet:0 -8px 32px rgb(0 0 0 / .22);--r-lg:22px;--r-sheet:24px;--ease:cubic-bezier(.2,.8,.2,1)}
+:root[data-theme="dark"]{--glass:rgb(26 32 48 / .86);--on-accent:#0f131b;--on-penance:#0f131b;--ink-3:#8b94a6;--mk-none-bg:#232a39;--mk-none-ink:#c9cfdb}

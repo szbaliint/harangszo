@@ -18,22 +18,41 @@ body{margin:0}
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="app">
-  <header class="top">
-    <div class="brand"><h1>Harangszó</h1><span>templomok · misék · gyóntatás</span></div>
-    <nav class="views" aria-label="Hivatkozások">
-      <a class="viewlink" href="admin.html">Szerkesztőknek</a>
-    </nav>
-  </header>
-  <div class="notice" id="notice"></div>
-  <div class="main">
-    <section class="panel" id="panel" aria-live="polite"></section>
-    <div class="mapwrap">
-      <div id="map" role="application" aria-label="Magyarország térképe templomokkal"></div>
-      <div class="maphint" id="maphint" role="status" hidden></div>
-      <div class="legend"><span><i style="background:var(--penance)"></i>Gyóntatás a kiválasztott napon</span><span><i style="background:var(--accent)"></i>Mise</span><span><i style="background:var(--ink-3)"></i>Nincs ismert alkalom aznap</span></div>
-    </div>
+<div class="app" id="app">
+  <div id="map" role="application" aria-label="Magyarország térképe templomokkal"></div>
+
+  <div class="topbar">
+    <button class="brandchip" id="menu-btn" aria-expanded="false" aria-controls="menu"><span class="bname">Harangszó</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr">Menü</span></button>
+    <div class="maphint" id="maphint" role="status" hidden></div>
   </div>
+  <div class="menu" id="menu" hidden>
+    <p class="menu-sub">templomok · misék · gyóntatás</p>
+    <div class="notice" id="notice"></div>
+    <div class="legend"><span><i class="mk mk-mass">18:00</i>mise</span><span><i class="mk mk-conf">17:30</i>gyóntatás</span><span><i class="mk mk-none">–</i>aznap nincs ismert alkalom</span></div>
+    <a class="btn" href="admin.html">Szerkesztőknek</a>
+  </div>
+
+  <div class="ctrls" aria-label="Térkép vezérlői">
+    <button class="cbtn" id="filter-btn" aria-label="Szűrők"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg><b class="badge" id="filter-count" hidden></b></button>
+    <button class="cbtn" id="locate-btn" aria-label="Saját helyzetem"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+    <span class="csep" aria-hidden="true"></span>
+    <button class="cbtn" id="zoom-in" aria-label="Nagyítás"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="cbtn" id="zoom-out" aria-label="Kicsinyítés"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+  </div>
+
+  <div class="dock">
+    <div class="nearest" id="nearest" aria-label="Legközelebbi templomok"></div>
+    <nav class="tabbar" aria-label="Nézetek">
+      <button class="tab" data-tab="map" aria-pressed="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg><span>Térkép</span></button>
+      <button class="tab" data-tab="list" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="18" r="1" fill="currentColor"/></svg><span>Lista</span></button>
+      <button class="tab" data-tab="search" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Keresés</span></button>
+    </nav>
+  </div>
+
+  <section class="sheet" id="sheet" data-state="closed" aria-label="Templomok">
+    <div class="grab" id="grab" role="button" tabindex="0" aria-label="Lap méretének váltása"><span></span></div>
+    <div class="panel" id="panel" aria-live="polite"></div>
+  </section>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="config.js"></script>
