@@ -65,8 +65,8 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/004_admin_list.sql` | church overview used by the admin panel's filters |
 | `supabase/migrations/005_schedule_sources.sql` | schedule notes, sources and locking, for diocesan imports |
 | `supabase/migrations/006_ranges_weeks_merge.sql` | parish-defined seasons (date ranges), "last Saturday of the month" rules, merging duplicate churches |
-| `supabase/migrations/008_dated_services.sql` | times for given dates from a parish's own weekly schedule (Ferenciek tere) |
 | `supabase/migrations/007_rules_tags.sql` | every 2nd/3rd week, Mass tags (language, családos, gitáros…), Advent/Lent/Eastertide/school-year seasons, prayer times (Vesperás, keresztút) |
+| `supabase/migrations/008_dated_services.sql` | times for given dates from a parish's own weekly schedule (Ferenciek tere) |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
