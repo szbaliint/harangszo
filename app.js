@@ -517,8 +517,6 @@ function bindSuggest(c) {
 const HU_BOUNDS = { s: 45.7, w: 16.1, n: 48.6, e: 22.9 };
 const SHOW_ALL_ZOOM = 14, LABEL_ZOOM = 12.5;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const pinSVG = (fill, sel) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38"><path d="M15 37C15 37 3 22 3 14a12 12 0 0 1 24 0c0 8-12 23-12 23z" fill="${fill}" stroke="${sel ? "#c9971c" : "#fff"}" stroke-width="${sel ? 3 : 2}"/><path d="M14 7h2v14h-2zM10 11h10v2H10z" fill="#fff"/></svg>`);
 const OSM_DATA_CREDIT = 'Templomhelyek: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const markerBudget = () => { const el = $("#map"); const a = (el.clientWidth || 800) * (el.clientHeight || 500); return Math.max(40, Math.min(180, Math.round(a / 4500))); };
 
@@ -572,18 +570,45 @@ function leafletView() {
     me(lat, lon) { if (meMk) meMk.setLatLng([lat, lon]); else meMk = L.marker([lat, lon], { icon: L.divIcon({ className: "mkicon", iconSize: [0, 0], html: '<div class="me-dot"></div>' }), interactive: false, zIndexOffset: 2000 }).addTo(map); }
   };
 }
+// Google Maps in the same look as the Leaflet map: muted light or dark style, no Google buttons, time pills as markers.
+const GM_LIGHT = [{ featureType: "poi", stylers: [{ visibility: "off" }] }, { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { elementType: "geometry", stylers: [{ saturation: -60 }] }, { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9d6e6" }] }, { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f1f0ec" }] }];
+const GM_DARK = [{ featureType: "poi", stylers: [{ visibility: "off" }] }, { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { elementType: "geometry", stylers: [{ color: "#1b1f27" }] }, { elementType: "labels.text.fill", stylers: [{ color: "#8b94a6" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#11141a" }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#2b313d" }] },
+  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] }, { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#363d4b" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0d1520" }] }, { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#3a4253" }] }];
+const pillSVG = (fill, ink, ring, label, sel) => {
+  const w = Math.max(40, 12 + label.length * 7.4), h = 24, W = w + 8, H = h + 8;
+  return { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    ${sel ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="${H / 2 - 1}" fill="none" stroke="#c9971c" stroke-width="3"/>` : ""}
+    <rect x="4" y="4" width="${w}" height="${h}" rx="${h / 2}" fill="${fill}" stroke="${ring}" stroke-width="2"/>
+    <text x="${W / 2}" y="${H / 2 + 4}" text-anchor="middle" font-family="IBM Plex Mono,Menlo,monospace" font-size="11" font-weight="600" fill="${ink}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text></svg>`), w: W, h: H };
+};
+const dotSVG = (fill, ring, sel) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">${sel ? '<circle cx="10" cy="10" r="9" fill="none" stroke="#c9971c" stroke-width="3"/>' : ""}<circle cx="10" cy="10" r="6" fill="${fill}" stroke="${ring}" stroke-width="2"/></svg>`);
 function googleView() {
-  let gmap = null, pendingFocus = null, draw = null, colors = null;
+  let gmap = null, pendingFocus = null, draw = null, meMk = null;
+  const dark = window.matchMedia("(prefers-color-scheme: dark)");
+  const pal = () => ({ mass: [css("--accent"), css("--on-accent")], conf: [css("--penance"), css("--on-penance")], none: [css("--mk-none-bg"), css("--mk-none-ink")], ring: css("--surface"), border: css("--border") });
+  let colors = null, iconCache = {};
+  const icon = p => {
+    const k = p.cls + p.label + p.dot + p.sel; if (iconCache[k]) return iconCache[k];
+    const [fill, ink] = colors[p.cls], ring = p.cls === "none" ? colors.border : colors.ring;
+    if (p.dot) return iconCache[k] = { url: dotSVG(p.cls === "none" ? colors.border : fill, colors.ring, p.sel), scaledSize: new google.maps.Size(20, 20), anchor: new google.maps.Point(10, 10) };
+    const sv = pillSVG(fill, ink, ring, p.label, p.sel);
+    return iconCache[k] = { url: sv.url, scaledSize: new google.maps.Size(sv.w, sv.h), anchor: new google.maps.Point(sv.w / 2, sv.h / 2) };
+  };
   window.__initGoogle = () => {
-    gmap = new google.maps.Map(document.getElementById("map"), { center: { lat: 47.16, lng: 19.5 }, zoom: 7,
-      restriction: { latLngBounds: { north: 49.4, south: 44.9, west: 15.3, east: 23.8 } }, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false });
+    colors = pal();
+    gmap = new google.maps.Map(document.getElementById("map"), { center: { lat: 47.16, lng: 19.5 }, zoom: 7, disableDefaultUI: true, keyboardShortcuts: false,
+      gestureHandling: "greedy", clickableIcons: false, backgroundColor: css("--land"), styles: dark.matches ? GM_DARK : GM_LIGHT,
+      restriction: { latLngBounds: { north: 49.4, south: 44.9, west: 15.3, east: 23.8 } } });
     gmap.fitBounds({ north: HU_BOUNDS.n, south: HU_BOUNDS.s, west: HU_BOUNDS.w, east: HU_BOUNDS.e });
-    colors = { conf: css("--penance") || "#6a2e8c", mass: css("--accent") || "#23408e", none: css("--ink-3") || "#5f687b" };
-    const iconCache = {};
-    const icon = (cls, sel) => iconCache[cls + sel] || (iconCache[cls + sel] = { url: pinSVG(colors[cls], sel), scaledSize: new google.maps.Size(30, 38), anchor: new google.maps.Point(15, 37) });
+    dark.addEventListener?.("change", () => { gmap.setOptions({ styles: dark.matches ? GM_DARK : GM_LIGHT }); colors = pal(); iconCache = {}; queueMarkers(); });
     draw = makeDiffer(
       c => { const mk = new google.maps.Marker({ position: { lat: c.lat, lng: c.lon }, title: c.name, optimized: true }); mk.addListener("click", () => select(c.id)); return mk; },
-      (mk, p) => { mk.setIcon(icon(p.cls, p.sel)); mk.setZIndex(p.sel ? 1000 : Math.round(p.c.score)); },
+      (mk, p) => { mk.setIcon(icon(p)); mk.setZIndex(p.sel ? 1000 : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200)); },
       arr => arr.forEach(m => m.setMap(gmap)),
       arr => arr.forEach(m => m.setMap(null)));
     gmap.addListener("idle", () => queueMarkers());
@@ -598,7 +623,9 @@ function googleView() {
     draw: list => draw && draw(list), ready: () => !!(draw && gmap.getBounds()),
     view() { const b = gmap.getBounds(), ne = b.getNorthEast(), sw = b.getSouthWest(), dy = (ne.lat() - sw.lat()) * .05, dx = (ne.lng() - sw.lng()) * .05;
       return { s: sw.lat() - dy, w: sw.lng() - dx, n: ne.lat() + dy, e: ne.lng() + dx, zoom: gmap.getZoom() }; },
-    focus(lat, lon, z) { if (!gmap) { pendingFocus = [lat, lon, z]; return; } gmap.panTo({ lat, lng: lon }); if (gmap.getZoom() < z) gmap.setZoom(z); }
+    focus(lat, lon, z) { if (!gmap) { pendingFocus = [lat, lon, z]; return; } gmap.panTo({ lat, lng: lon }); if (gmap.getZoom() < z) gmap.setZoom(z); },
+    me(lat, lon) { if (!gmap) return; const pos = { lat, lng: lon }; if (meMk) meMk.setPosition(pos); else meMk = new google.maps.Marker({ position: pos, map: gmap, clickable: false, zIndex: 2000,
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: colors.mass[0], fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 } }); }
   };
   return api;
 }
