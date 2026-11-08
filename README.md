@@ -67,6 +67,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/006_ranges_weeks_merge.sql` | parish-defined seasons (date ranges), "last Saturday of the month" rules, merging duplicate churches |
 | `supabase/migrations/007_rules_tags.sql` | every 2nd/3rd week, Mass tags (language, családos, gitáros…), Advent/Lent/Eastertide/school-year seasons, prayer times (Vesperás, keresztút) |
 | `supabase/migrations/008_dated_services.sql` | times for given dates from a parish's own weekly schedule (Ferenciek tere) |
+| `supabase/migrations/009_celebrant_place_feasts.sql` | who celebrates, Masses held elsewhere, "ünnepnapokon nincs", one rule for all holy days / public holidays, calendar summer/winter and Christmas time, the "ünnepi" tag |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
@@ -80,13 +81,17 @@ In the admin panel, open either church and click **Összevonás egy másik templ
 
 ## Schedules: seasons, feasts, Rorate
 
-- **Seasons:** a time row can be "Nyáron", "Télen", "Ősszel", "Tavasszal" or "Egyedi időszak". Summer and winter follow the clock change unless a "Pontos időszak" is given (e.g. 05.01–08.31); a parish's own season definitions are read from its note by the diocesan import. The public page shows which season applies and when it changes.
+- **Seasons:** "Nyári időszámítás" / "Téli időszámítás" follow the clock change; "Nyáron (jún.–aug.)" / "Télen (dec.–febr.)" are calendar months; there are also "Ősszel", "Tavasszal" and "Egyedi időszak". Any of them can be given a "Pontos időszak" (e.g. 05.01–08.31); a parish's own season definitions are read from its note by the diocesan import. The public page shows which season applies and when it changes.
+- **Ki tartja:** who says a Mass (or hears confessions): "P. Kamill", "plébános", "püspök". Shown under the time as "Celebrál: …".
+- **Más helyszín:** "Helyszín, ha nem a templomban" (temetőkápolna, kórház, idősek otthona) is shown under the time. If the place is another church on the map, choose it in "Másik templomban": the time then also shows on that church ("… tartja"), and counts there on the map instead of at the parish church.
+- **Ünnepnapokon nincs:** a regular time that does not happen on holy days of obligation and public holidays (when they fall on a weekday). The miserend.hu import sets it when a weekly Mass is missing on exactly those days.
+- **Holy days and public holidays at once:** in "Ünnepi miserend", "Parancsolt ünnepeken" (jan. 1, jan. 6, aug. 15, nov. 1, dec. 25) and "Munkaszüneti napokon" (all public holidays, incl. márc. 15, nagypéntek, máj. 1, okt. 23, dec. 24) apply to every such weekday; a feast added by itself wins over them. Both can also be "Vasárnapi miserend szerint".
 - **Weeks of the month:** "A hónap hetei" limits a row to e.g. the 1st, or the last Saturday of the month ("Utolsó"); none selected means every week. The import recognises phrases like "minden hónap utolsó szombatján", "elsőpénteken", "1., 3. és 5. vasárnap", "2. vasárnapja kivételével".
 - **Ünnepi miserend:** per church and feast, either "Vasárnapi miserend szerint" or custom times. Custom times replace that day's regular times. Easter-based dates are calculated for every year (`calendar.js`); Ascension and Corpus Christi fall on Sunday in Hungary.
 - **Rorate:** a row type that only appears during Advent (first Sunday of Advent to 24 December). The public map shows a "Rorate" filter in Advent.
 - **Every n-th week:** "Ismétlődés" (kéthetente, háromhetente…) with the date of one occurrence; the site counts from it and shows the next date.
-- **Church-year and school seasons:** "Adventben", "Nagyböjtben" (Ash Wednesday – Holy Saturday) and "Húsvéti időben" (Easter – Pentecost) move with the calendar every year; "Tanévben" (09.01–06.15) and "Nyári szünetben" (06.16–08.31) can be given their own dates.
-- **What a Mass is like:** language and tags (családos, diákmise, ifjúsági, egyetemista, gitáros, orgonás, kórussal, csendes, előesti, régi rítusú, igeliturgia is lehet, közben gyóntatás, változhat). They show as labels, and the public map can filter by language and kind. The importers read them from miserend.hu's fields and from the parishes' notes ("német nyelvű", "kéthetente", "szentmise v. igeliturgia"…); what they can't place stays as the note.
+- **Church-year and school seasons:** "Adventben", "Karácsonyi időben" (dec. 25 – Baptism of the Lord), "Nagyböjtben" (Ash Wednesday – Holy Saturday) and "Húsvéti időben" (Easter – Pentecost) move with the calendar every year; "Tanévben" (09.01–06.15) and "Nyári szünetben" (06.16–08.31) can be given their own dates.
+- **What a Mass is like:** language and tags (ünnepi, családos, diákmise, ifjúsági, egyetemista, gitáros, orgonás, kórussal, csendes, előesti, régi rítusú, igeliturgia is lehet, közben gyóntatás, változhat). They show as labels, and the public map can filter by language and kind. The importers read them from miserend.hu's fields and from the parishes' notes ("német nyelvű", "kéthetente", "szentmise v. igeliturgia"…); what they can't place stays as the note.
 - **Imaóra, ájtatosság:** Vesperás, rózsafüzér, keresztút and the like, with their name as "Megnevezés".
 - Midnight Mass is entered as 00:00 and shown as 24:00 at the end of the day.
 - Times are always 24-hour (17:30); the editor accepts 1730, 17.30 or 17,30 too.
@@ -121,7 +126,7 @@ The parser lives in `scripts/lib/szfvar.mjs`; `scripts/fixtures/szfvar-sample.ht
 weekly "Mise- és gyóntatási rend" PDF from [pestiferencesek.hu/miserend](https://pestiferencesek.hu/miserend/) and stores
 its Masses, confession hours, Vesperás, litanies and adoration by date (`dated_services`, migration 008). On those dates the
 public page shows these times ("A templom heti miserendje szerint", with a link to the PDF) instead of the regular rules, and
-the church page lists the coming days. Mass intentions and the priests' names in the PDF are never read or stored. If the PDF's
+the church page lists the coming days. Who celebrates each Mass is stored as on the parish's own schedule; Mass intentions and the confessors' names are never read. If the PDF's
 layout changes, the run fails without writing anything. The parser is `scripts/lib/ferences.mjs`.
 
 ## Parish editors

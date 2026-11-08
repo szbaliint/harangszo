@@ -68,16 +68,24 @@ function fromDb(c) {
     web: c.website, phone: c.phone, onlyServices: !!c.open_only_services,
     hours: (c.hours || []).map(h => ({ days: h.days, o: h.opens, c: h.closes })),
     svc: (c.services || []).map(s => ({ k: KIND[s.kind] || "mass", d: s.days || [], t: s.start, u: s.end || null, n: s.note, p: s.period || "all", feast: s.feast || null,
-      v: s.valid || null, w: s.weeks && s.weeks.length ? s.weeks : null, e: s.every || null, a: s.anchor || null, g: s.tags || [] })),
+      v: s.valid || null, w: s.weeks && s.weeks.length ? s.weeks : null, e: s.every || null, a: s.anchor || null, g: s.tags || [],
+      cel: s.celebrant || "", pl: s.place || "", pid: s.place_id || null, skip: !!s.skip })),
     feastSunday: c.feast_sunday || [], imp: c.imp ?? 30,
     note: c.schedule_note || "", source: c.schedule_source || null, sourceUrl: c.schedule_source_url || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
     ev: (c.events || []).map(e => ({ date: e.date, t: e.start || "", title: e.title, n: e.note })),
     // Times for given dates from the parish's own weekly schedule; on those dates they replace the regular rules.
-    dated: (c.dated || []).map(d => ({ date: d.date, k: KIND[d.kind] || "mass", d: [], t: d.start, u: d.end || null, n: d.note, g: d.tags || [], url: d.url || null })) };
+    dated: (c.dated || []).map(d => ({ date: d.date, k: KIND[d.kind] || "mass", d: [], t: d.start, u: d.end || null, n: d.note, g: d.tags || [], url: d.url || null,
+      cel: d.celebrant || "", pl: d.place || "", pid: d.place_id || null })) };
 }
 function setChurches(list) {
   CHURCHES = list;
   BY_ID = new Map(list.map(c => [c.id, c]));
+  // A time held at another church of the list ("a temetőkápolnában") also shows there, and counts there on the map.
+  for (const c of list) for (const key of ["svc", "dated"]) for (const s of c[key] || []) {
+    if (s.guestOf || !s.pid) continue;
+    const at = BY_ID.get(s.pid); if (!at) continue;
+    s.away = at.name; (at[key] ||= []).push({ ...s, pid: null, pl: "", away: null, guestOf: c.name, guestId: c.id });
+  }
   for (const c of list) { c.key = fold(c.name + " " + c.city + " " + c.addr); c.score = c.imp + (c.svc.some(s => !s.feast) ? 25 : 0); }
   // Kinds of Mass worth filtering by: the ones at least a few churches have (languages first).
   const n = new Map();
@@ -100,29 +108,39 @@ async function fetchLive() {
 const hasSchedule = c => c.svc.some(s => !s.feast) || (c.dated || []).length > 0;
 const isRegular = s => !s.feast;
 function dayContext(date) {
-  return { date, dow: date.getDay(), key: ymd(date), summer: C.isSummerTime(date), advent: C.inAdvent(date), feasts: C.feastsOn(date) };
+  return { date, dow: date.getDay(), key: ymd(date), summer: C.isSummerTime(date), advent: C.inAdvent(date), feasts: C.feastsOn(date), holiday: C.isHoliday(date) };
 }
 // Seasons: a date range (`v`) wins; otherwise the period's own rule (clock change, Advent, Lent, school year… see calendar.js).
 const seasonOk = (s, ctx) => C.inPeriod(ctx.date, s.p, s.v);
 // Week of the month and "every n-th week".
 const weekOk = (s, ctx) => C.weekOk(ctx.date, s.w) && C.everyOk(ctx.date, s.e, s.a);
 const tagsOf = s => s.g || [];
+// "P. Kamill · 📍 Temetőkápolna" under a time; "a Plébánia miséje" when another church holds it here.
+const whoWhere = s => [s.cel ? "Celebrál: " + s.cel : "", s.place || s.away || s.pl ? "Helyszín: " + (s.place || s.away || s.pl) : "", s.guestOf ? s.guestOf + " tartja" : ""].filter(Boolean).join(" · ");
 const tagsHTML = g => g && g.length ? `<span class="tags">${g.map(t => `<span class="tag ${t.startsWith("lang:") ? "lang" : t === "irregular" ? "warn" : ""}">${esc(C.tagLabel(t))}</span>`).join("")}</span>` : "";
 function dayInfo(c, ctx) {
   let rows, feast = null, feastMode = null;
-  const dated = (c.dated || []).filter(d => d.date === ctx.key);
-  const custom = ctx.feasts.length ? c.svc.filter(s => s.feast && ctx.feasts.includes(s.feast)) : [];
-  const sundayFeast = ctx.feasts.find(k => c.feastSunday.includes(k));
-  if (dated.length) { rows = dated; feastMode = "dated"; feast = ctx.feasts.length ? C.FEAST_BY_KEY[ctx.feasts[0]]?.name : null; }
-  else if (custom.length) { rows = custom; feast = C.FEAST_BY_KEY[custom[0].feast]?.name; feastMode = "custom"; }
-  else if (sundayFeast) { rows = c.svc.filter(s => isRegular(s) && s.k !== "rorate" && seasonOk(s, ctx) && !s.w && !s.e && s.d.includes(0)); feast = C.FEAST_BY_KEY[sundayFeast]?.name; feastMode = "sunday"; }
-  else rows = c.svc.filter(s => isRegular(s) && seasonOk(s, ctx) && weekOk(s, ctx) && s.d.includes(ctx.dow) && (s.k !== "rorate" || ctx.advent));
+  // Times another parish holds here (guests) are added on top; they never replace this church's own schedule.
+  const dated = (c.dated || []).filter(d => d.date === ctx.key && !d.guestOf);
+  const regularOn = s => isRegular(s) && seasonOk(s, ctx) && weekOk(s, ctx) && s.d.includes(ctx.dow) && (s.k !== "rorate" || ctx.advent) && !(s.skip && ctx.holiday);
+  const guests = [...(c.dated || []).filter(d => d.date === ctx.key && d.guestOf), ...c.svc.filter(s => s.guestOf && regularOn(s))];
+  // A row for this very feast wins over a row for all holy days / public holidays.
+  const allCustom = ctx.feasts.length ? c.svc.filter(s => s.feast && !s.guestOf && ctx.feasts.includes(s.feast)) : [];
+  const own = allCustom.filter(s => !C.isGroup(s.feast)), custom = own.length ? own : allCustom;
+  const sundayFeast = ctx.feasts.find(k => c.feastSunday.includes(k) && (!custom.length || !C.isGroup(k)));
+  const feastName = ctx.feasts.length ? C.FEAST_BY_KEY[ctx.feasts[0]]?.name : null;
+  if (dated.length) { rows = dated; feastMode = "dated"; feast = feastName; }
+  else if (custom.length) { rows = custom; feast = feastName; feastMode = "custom"; }
+  else if (sundayFeast) { rows = c.svc.filter(s => isRegular(s) && !s.guestOf && s.k !== "rorate" && seasonOk(s, ctx) && !s.w && !s.e && s.d.includes(0)); feast = feastName; feastMode = "sunday"; }
+  else rows = c.svc.filter(s => !s.guestOf && regularOn(s));
+  rows = [...rows, ...guests];
   const items = rows.map(s => ({ k: s.k, t: s.t, end: s.k === "mass" || s.k === "rorate" ? null : s.u, n: s.k === "prayer" ? "" : s.n, g: tagsOf(s),
+    cel: s.cel || "", place: s.away || s.pl || "", away: !!s.away, guestOf: s.guestOf || "",
     what: s.k === "mass" ? massWord(c) : s.k === "rorate" ? "Rorate" : s.k === "conf" ? "Gyóntatás" : s.k === "prayer" ? (s.n || "Ájtatosság") : "Szentségimádás" }));
   for (const e of c.ev) if (e.date === ctx.key) items.push({ k: "ev", t: e.t, end: null, what: e.title, n: e.n, g: [] });
   items.sort((a, b) => mins(a.t) - mins(b.t));
   return { items, feast, feastMode, datedUrl: dated[0]?.url || null,
-    hasMass: items.some(i => i.k === "mass" || i.k === "rorate"), hasConf: items.some(i => i.k === "conf"), hasRorate: items.some(i => i.k === "rorate") };
+    hasMass: items.some(i => !i.away && (i.k === "mass" || i.k === "rorate")), hasConf: items.some(i => !i.away && i.k === "conf"), hasRorate: items.some(i => !i.away && i.k === "rorate") };
 }
 // Cache of dayInfo per date (a few dates at most), so typing and filtering don't recompute schedules.
 const dayCache = new Map();
@@ -191,7 +209,8 @@ function upcoming(items) {
 // The next Mass or confession of the day (from now on, if it is today): its time and kind, for markers and cards.
 function nextOf(di) {
   const m = now().getHours() * 60 + now().getMinutes();
-  const items = di.items.filter(i => (i.k === "mass" || i.k === "rorate" || i.k === "conf") && i.t);
+  // Times this parish holds elsewhere count at that place, not here.
+  const items = di.items.filter(i => (i.k === "mass" || i.k === "rorate" || i.k === "conf") && i.t && !i.away);
   const up = isToday() ? items.filter(i => mins(i.end || i.t) >= m) : items;
   const i = up[0];
   return i ? { t: showT(i.t), cls: i.k === "conf" ? "conf" : "mass", k: i.k } : { t: "–", cls: "none", k: null };
@@ -355,7 +374,7 @@ function weekTable(c, ctx) {
   const svcLabel = s => s.k === "prayer" ? `${showT(s.t)} ${s.n || "ájtatosság"}` : showT(s.t);
   const withHours = c.onlyServices || c.hours.length > 0;
   const item = (s, dow, label) => {
-    const extra = [s.w ? weeksText(s.w, dow) : "", everyText(s, dow), s.k === "prayer" ? "" : s.n].filter(Boolean).join(" · ");
+    const extra = [s.w ? weeksText(s.w, dow) : "", everyText(s, dow), s.skip ? "ünnepnapokon nincs" : "", s.k === "prayer" ? "" : s.n, whoWhere(s)].filter(Boolean).join(" · ");
     return `<span class="wt"><span class="t">${label}</span>${extra ? `<small>${esc(extra)}</small>` : ""}${tagsHTML(s.g)}</span>`;
   };
   const rows = [1, 2, 3, 4, 5, 6, 0].map(dow => {
@@ -375,7 +394,7 @@ function seasonNote(c, ctx) {
   let change = null;
   for (let i = 1; i <= 366 && !change; i++) { const d = C.addDays(ctx.date, i); if (activeOn(d) !== nowKey) change = d; }
   const describe = s => s.v ? rangeText(s.v) : s.p === "summer" || s.p === "winter" ? "óraátállításhoz igazodva"
-    : ["advent", "lent", "eastertide"].includes(s.p) ? "az egyházi év szerint" : rangeText(C.PERIOD_INFO[s.p].range || "");
+    : ["advent", "lent", "eastertide", "christmas"].includes(s.p) ? "az egyházi év szerint" : rangeText(C.PERIOD_INFO[s.p].range || "");
   const names = key => key.split(",").filter(Boolean).map(p => SEASON_NAME[p]).join(" és ") || "–";
   const active = [...groups.values()].filter(s => nowKey.split(",").includes(s.p));
   const list = [...new Map([...groups.values()].map(s => [s.p, s])).values()].map(s => `${SEASON_NAME[s.p]}: ${describe(s)}`).join(" · ");
@@ -409,7 +428,9 @@ function feastScheduleHTML(c) {
   const keys = new Set([...c.feastSunday, ...c.svc.filter(s => s.feast).map(s => s.feast)]);
   if (!keys.size) return "";
   const from = now(), limit = C.addDays(from, 120);
-  const list = [...keys].map(k => ({ k, d: C.nextFeastDate(k, from) })).filter(x => x.d && x.d <= limit).sort((a, b) => a.d - b.d);
+  const seen = new Set();
+  const list = [...keys].map(k => ({ k, d: C.nextFeastDate(k, from) })).filter(x => x.d && x.d <= limit).sort((a, b) => a.d - b.d || C.isGroup(a.k) - C.isGroup(b.k))
+    .filter(x => !seen.has(+x.d) && seen.add(+x.d)).map(x => C.isGroup(x.k) ? { k: C.feastsOn(x.d)[0], d: x.d } : x);
   if (!list.length) return "";
   return `<div class="sec"><h4>Ünnepi miserend</h4><div class="ev-list">${list.map(({ k, d }) => {
     const di = dayInfo(c, dayContext(d));
@@ -433,7 +454,7 @@ function renderDetail() {
   const label = k => k === "mass" ? massWord(c) : k === "conf" ? "Gyóntatás" : k === "ador" ? "Szentségimádás" : k === "rorate" ? "Rorate" : k === "prayer" ? "Imaóra, ájtatosság" : "Esemény";
   const slots = di.items.map(i => {
     const past = isToday() && i.t && mins(i.end || i.t) < m;
-    return `<div class="slot ${past ? "past" : ""}"><span class="t">${showT(i.t) || "–"}${i.end ? "–<br>" + i.end : ""}</span><div><div class="k k-${i.k === "rorate" ? "ev" : i.k}">${label(i.k)}</div><div class="what">${i.k === "ev" || i.k === "prayer" ? esc(i.what) : esc(i.n)}${tagsHTML(i.g)}</div>${i.k === "ev" && i.n ? `<div class="note">${esc(i.n)}</div>` : ""}</div></div>`;
+    return `<div class="slot ${past ? "past" : ""}"><span class="t">${showT(i.t) || "–"}${i.end ? "–<br>" + i.end : ""}</span><div><div class="k k-${i.k === "rorate" ? "ev" : i.k}">${label(i.k)}</div><div class="what">${i.k === "ev" || i.k === "prayer" ? esc(i.what) : esc(i.n)}${tagsHTML(i.g)}</div>${i.k === "ev" && i.n ? `<div class="note">${esc(i.n)}</div>` : ""}${whoWhere(i) ? `<div class="note who">${esc(whoWhere(i))}</div>` : ""}</div></div>`;
   }).join("") || `<div class="slot"><span class="t">–</span><div class="what muted">${hasSchedule(c) ? "Nincs meghirdetett alkalom ezen a napon." : "Ehhez a templomhoz még nincs feltöltött időpont. Ha tudod a miserendet, küldd be lent."}</div></div>`;
   const evs = c.ev.filter(e => e.date >= ymd(now())).sort((a, b) => a.date.localeCompare(b.date)).map(e => {
     const dt = new Date(e.date + "T12:00");

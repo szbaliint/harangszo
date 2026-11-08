@@ -5,11 +5,14 @@
 //                    "Szentségimádás", "Keresztút", "Rózsafüzér") → prayer / adoration
 //   middle (180–320): Mass intentions — names of private people. Never read, never stored.
 //   right (320–360): confession hours ("6:00", "7:00"… one row per hour); x ≥ 360: the confessors' names, not stored.
-// Input: pdf.js text items per page ({x, y, str}). Output: [{date, kind, start, end, note}].
+// Input: pdf.js text items per page ({x, y, str}). Output: [{date, kind, start, end, note, celebrant}]; celebrant = the
+// priest named in the left column for a Mass (the public "ki tartja"), nothing else.
 
 const MONTHS = { jan: 1, febr: 2, feb: 2, márc: 3, marc: 3, ápr: 4, apr: 4, máj: 5, maj: 5, jún: 6, jun: 6, júl: 7, jul: 7, aug: 8, szept: 9, szep: 9, okt: 10, nov: 11, dec: 12 };
 const HEAD = /^(\d{4})\.\s*([a-záéíóöőúüű]+)\.?\s*(\d{1,2})\.\s*(vasárnap|hétfő|kedd|szerda|csütörtök|péntek|szombat)(?=\s|$)\s*(?:[—–-]\s*(.*))?$/i;
 const TIME = /^(\d{1,2})[:.](\d{2})\b\s*(.*)$/;
+// A left-column label that names a priest ("P. Kamill", "Fr. Ivan", "Bíró László püspök"); anything else is a note.
+const PERSON = /^(P|Fr|Br|Dr|Mons)\.\s|(?:^|\s)(atya|testvér|püspök|érsek|plébános|káplán|diakónus)(?=[\s,.;]|$)/i;
 const pad = n => String(n).padStart(2, "0");
 const hm = (h, m) => `${pad(h)}:${pad(m)}`;
 
@@ -40,7 +43,9 @@ export function parseWeek(pages) {
         const tm = t.s.match(TIME), start = hm(+tm[1], +tm[2]);
         const label = tm[3] || labels.filter(l => Math.abs(l.y - t.y) <= 4).sort((a, b) => Math.abs(a.y - t.y) - Math.abs(b.y - t.y))[0]?.s || "";
         const lit = liturgy(label);
-        rows.push(lit ? { date, kind: lit.kind, start, end: "", note: lit.note } : { date, kind: "mass", start, end: "", note: "" });
+        rows.push(lit ? { date, kind: lit.kind, start, end: "", note: lit.note, celebrant: "" }
+          : PERSON.test(label) ? { date, kind: "mass", start, end: "", note: "", celebrant: label.replace(/\s+/g, " ").trim().slice(0, 80) }
+          : { date, kind: "mass", start, end: "", note: label.trim().slice(0, 120), celebrant: "" });
       }
       // Right column: confession hours → continuous ranges.
       const hours = [...new Set(inDay.filter(i => i.x >= 320 && i.x < 360 && TIME.test(i.s)).map(i => { const tm = i.s.match(TIME); return +tm[1] * 60 + +tm[2]; }))].sort((a, b) => a - b);

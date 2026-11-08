@@ -2,7 +2,7 @@
 // https://pestiferencesek.hu/miserend/ (a PDF that changes every week) into dated_services.
 // On the dates it covers, those times replace the church's regular rules on the public site.
 // Runs in GitHub Actions every day (.github/workflows/import-ferences.yml); a run with nothing new changes nothing.
-// Mass intentions and the priests' names in the PDF are never read or stored.
+// Who celebrates each Mass is stored (as on the parish's own public schedule); Mass intentions and the confessors' names are never read.
 //
 // Env: SUPABASE_URL, SUPABASE_SECRET_KEY   Optional: DRY_RUN=1, SOURCE_PDF=<local file>, PDF_URL=<url>, CHURCH_ID=<id>
 import fs from "fs";
@@ -67,11 +67,11 @@ async function main() {
   console.log(`${days.length} days (${days[0]} – ${days[days.length - 1]}), ${masses} Masses, ${rows.filter(r => r.kind === "confession").length} confession ranges, ${rows.filter(r => r.kind === "prayer" || r.kind === "adoration").length} other.`);
   if (days.length < 3 || masses < days.length * 2) throw new Error("The PDF does not look like the usual weekly schedule; its layout may have changed. Nothing was written.");
   const lines = [`# Pesti ferencesek – heti miserend${DRY ? " (próbafuttatás)" : ""}`, "", `Forrás: ${pdfUrl}`, "",
-    ...days.map(d => `- **${d}**: ${rows.filter(r => r.date === d).map(r => r.kind === "confession" ? `gyónás ${r.start}–${r.end}` : r.kind === "mass" ? r.start : `${r.start} ${r.note || (r.kind === "adoration" ? "szentségimádás" : "")}`).join(", ")}`)];
+    ...days.map(d => `- **${d}**: ${rows.filter(r => r.date === d).map(r => r.kind === "confession" ? `gyónás ${r.start}–${r.end}` : r.kind === "mass" ? r.start + (r.celebrant ? ` (${r.celebrant})` : "") : `${r.start} ${r.note || (r.kind === "adoration" ? "szentségimádás" : "")}`).join(", ")}`)];
   if (!DRY) {
     const church = await findChurch();
     const n = await api("rpc/import_dated_services", { method: "POST", body: JSON.stringify({ p: { church_id: church.id, source: SOURCE, source_url: pdfUrl, from: days[0], to: days[days.length - 1],
-      rows: rows.map(r => ({ date: r.date, kind: r.kind, start: r.start, end: r.end, note: r.note })) } }) });
+      rows: rows.map(r => ({ date: r.date, kind: r.kind, start: r.start, end: r.end, note: r.note, celebrant: r.celebrant || "" })) } }) });
     lines.splice(2, 0, `Templom: ${church.name} (#${church.id}), ${n} időpont mentve.`, "");
   }
   const md = lines.join("\n") + "\n";

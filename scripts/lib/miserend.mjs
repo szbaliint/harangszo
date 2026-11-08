@@ -122,6 +122,10 @@ function seasonOf(s, e, from, to, truncS, truncE) {
   const inMd = (n, a, b) => md(n) >= a && md(n) <= b;
   if (inMd(s, "08-28", "09-08") && inMd(e, "06-08", "06-24")) return { period: "school" };
   if (inMd(s, "06-14", "06-28") && inMd(e, "08-24", "09-01")) return { period: "holiday" };
+  // Calendar summer and winter (not the clock change), and Christmas time (25 Dec – Baptism of the Lord).
+  if (inMd(s, "06-01", "06-07") && inMd(e, "08-25", "08-31")) return { period: "summer_months" };
+  if (inMd(s, "12-01", "12-07") && (inMd(e, "02-22", "02-29"))) return { period: "winter_months" };
+  if (inMd(s, "12-24", "12-31") && inMd(e, "01-07", "01-14")) return { period: "christmas" };
   return { period: "all", valid: `${md(s)}/${md(e)}` };
 }
 
@@ -168,7 +172,7 @@ export function deriveSchedule(occ, { from, to, today }) {
       const season = r.season;
       const kind = g.okind || (season.advent && (g.rorate || g.time < "08:00") ? "rorate" : "mass");
       rules.push({ wd: g.wd, time: g.time, note: g.note, tags: g.tags, kind, period: kind === "rorate" ? "all" : season.period,
-        valid: season.valid || "", weeks: [], every: r.every || null, anchor: r.every ? ymdOf(r.anchor) : null, s: r.s, e: r.e });
+        valid: season.valid || "", weeks: [], every: r.every || null, anchor: r.every ? ymdOf(r.anchor) : null, s: r.s, e: r.e, present: g.days });
     }
     runs.length = 0;
     };
@@ -216,12 +220,23 @@ export function deriveSchedule(occ, { from, to, today }) {
     for (const d of days) if (used.has(d)) explained.add(d + "|" + g.time); else if (!feasts.has(d)) unexplained++;
   }
 
-  // 4. Feast days: if what happens that day differs from the regular rules, it becomes the feast's own schedule.
+  // 4. A weekly rule that never happens on the holy days / public holidays (not Sundays) inside its stretch:
+  //    "ünnepnapokon nincs". Only days inside the export's window count.
+  const isHol = d => { const p = parts(d); return LitCal.isHoliday(new Date(p.y, p.m - 1, p.d)); };
+  for (const r of rules) {
+    if (!r.present || r.weeks.length || r.kind === "rorate") continue;
+    const hol = [];
+    for (let d = Math.max(r.s, from); d <= Math.min(r.e, to); d++) if (parts(d).wd === r.wd && isHol(d) && LitCal.everyOk(new Date(parts(d).y, parts(d).m - 1, parts(d).d), r.every, r.anchor)) hol.push(d);
+    r.skip = hol.length ? hol.every(d => !r.present.has(d)) : null; // null: no such day to tell
+  }
+
+  // 5. Feast days: if what happens that day differs from the regular rules, it becomes the feast's own schedule.
   const regularOn = d => {
     const p = parts(d);
     const advent = LitCal.inAdvent(new Date(p.y, p.m - 1, p.d));
     const date = new Date(p.y, p.m - 1, p.d);
-    return rules.filter(r => r.wd === p.wd && (r.kind !== "rorate" || advent) && LitCal.inPeriod(date, r.period, r.valid)
+    const hol = LitCal.isHoliday(date);
+    return rules.filter(r => r.wd === p.wd && (r.kind !== "rorate" || advent) && LitCal.inPeriod(date, r.period, r.valid) && !(hol && r.skip)
       && (!r.weeks.length || LitCal.weekOk(date, r.weeks)) && LitCal.everyOk(date, r.every, r.anchor))
       .map(r => r.time).filter((t, i, all) => all.indexOf(t) === i).sort().join(",");
   };
@@ -240,15 +255,17 @@ export function deriveSchedule(occ, { from, to, today }) {
     }
   }
 
-  // 5. Merge rules that differ only in the weekday into one row.
+  // 6. Merge rules that differ only in the weekday into one row.
   const merged = new Map();
-  for (const r of rules) {
+  for (const r of [...rules].sort((a, b) => (a.skip == null) - (b.skip == null))) {
     // Wording the rule now says itself ("kéthetente", "elsőpénteken") leaves the note.
     const pn = parseNote(r.note, { every: r.every, weeks: r.weeks.length > 0 });
     const tags = [...new Set([...r.tags, ...pn.tags])].sort(), note = pn.note;
     // Anchors of rows on different weekdays differ; the earliest day of that week keeps them in step.
-    const k = [r.kind, r.time, note, tags.join(" "), r.period, r.valid, r.weeks.join("."), r.every || ""].join("|");
-    if (!merged.has(k)) merged.set(k, { kind: r.kind, days: [], start: r.time, note, tags, period: r.period, valid: r.valid, weeks: r.weeks, every: r.every, anchor: r.anchor, feast: null });
+    // Weekdays with no holiday to tell (skip null) join either kind; weekdays that do disagree stay apart.
+    const base = [r.kind, r.time, note, tags.join(" "), r.period, r.valid, r.weeks.join("."), r.every || ""].join("|");
+    const k = base + "|" + (r.skip === false ? "n" : r.skip ? "s" : (merged.has(base + "|s") ? "s" : "n"));
+    if (!merged.has(k)) merged.set(k, { kind: r.kind, days: [], start: r.time, note, tags, period: r.period, valid: r.valid, weeks: r.weeks, every: r.every, anchor: r.anchor, feast: null, feast_skip: !!r.skip });
     const m = merged.get(k); if (!m.days.includes(r.wd)) m.days.push(r.wd);
   }
   const services = [...merged.values()].map(s => ({ ...s, days: s.days.sort((a, b) => a - b) }))

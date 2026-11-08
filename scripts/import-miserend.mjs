@@ -162,7 +162,7 @@ async function main() {
         church_id: id, source: SOURCE, source_url: churchUrl(m.tid), source_ref: r.ref, updated: ymdOf(today), note: "", force: FORCE,
         city: (m.varos || "").replace(/\s*\(.*\)$/, ""), address: m.cim || "",
         services: r.services.map(s => ({ kind: s.kind, days: s.days, start: s.start, end: "", note: s.note || "", period: s.period,
-          feast: s.feast, valid: s.valid || "", weeks: s.weeks || [], every: s.every || null, anchor: s.anchor || "", tags: s.tags || [] })) } }) });
+          feast: s.feast, valid: s.valid || "", weeks: s.weeks || [], every: s.every || null, anchor: s.anchor || "", tags: s.tags || [], feast_skip: !!s.feast_skip })) } }) });
       r.result = res; if (res === "updated") updated++; else skipped++;
     } catch (err) {
       r.result = "error"; r.error = err.message.slice(0, 200); failed++;
