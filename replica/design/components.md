@@ -30,6 +30,16 @@ Time marker
 ```
 
 ```
+Cluster marker
+  what      churches close together on screen (same 72px grid cell) below zoom 14 merge into one circle with their count
+  variants  colour follows the group: a Mass still to come → accent, only confession → penance, otherwise neutral
+  size      30 / 36 / 42 / 50px by count (<10, <100, <1000, more), mono 12px/700, 4px soft halo in the same colour
+  states    default, hover (scale 1.08); tap = zoom in on the group's bounds
+  a11y      title "N templom – nagyíts rá"; the list remains the accessible path
+  used on   S01
+```
+
+```
 User location dot
   variants  one
   tokens    accent fill, 4px glass halo, pulsing ring (disabled with prefers-reduced-motion)

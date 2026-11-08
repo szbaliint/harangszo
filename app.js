@@ -510,37 +510,42 @@ function bindSuggest(c) {
 }
 
 /* ---------- Map ---------- */
-/* The map never draws every church. It shows the most important churches inside the current view, up to a budget
-   that fits the screen. Zooming in shrinks the view, so smaller churches appear; at street level everything shows.
-   Importance = the church's score (cathedral, basilica, pilgrimage church, Wikipedia entry, city… or an editor's
-   override) plus a bonus for churches with times entered, and for confession or Mass on the chosen day. */
+/* The map never draws every church one by one. Below street level, churches that are close together on screen
+   are merged into one round marker with their number ("37"); tapping it zooms in on them. A church that stands
+   alone keeps its own marker: a dot when zoomed out, a pill with the next time when zoomed in. From SHOW_ALL_ZOOM
+   on, every church has its own marker. */
 const HU_BOUNDS = { s: 45.7, w: 16.1, n: 48.6, e: 22.9 };
-const SHOW_ALL_ZOOM = 14, LABEL_ZOOM = 12.5;
+const SHOW_ALL_ZOOM = 14, LABEL_ZOOM = 12.5, CLUSTER_PX = 72;
+// Web Mercator world pixels at a zoom level (both map libraries use 256px tiles).
+const worldPx = (lat, lon, z) => { const k = 256 * 2 ** z, sn = Math.sin(lat * Math.PI / 180);
+  return [(lon + 180) / 360 * k, (0.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * k]; };
+const clusterSize = n => n < 10 ? 30 : n < 100 ? 36 : n < 1000 ? 42 : 50;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const OSM_DATA_CREDIT = 'Templomhelyek: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-const markerBudget = () => { const el = $("#map"); const a = (el.clientWidth || 800) * (el.clientHeight || 500); return Math.max(40, Math.min(180, Math.round(a / 4500))); };
 
-// Markers are created once per church on first show; each draw only adds/removes the ones whose visibility
-// changed and re-styles the ones whose colour or selection changed.
+// Church markers are created once per church on first show; each draw only adds/removes the ones whose visibility
+// changed and re-styles the ones whose colour or selection changed. Cluster markers are thrown away once hidden.
 function makeDiffer(create, restyle, addMany, removeMany) {
   const cache = new Map(); let shown = new Set();
   return list => {
     const next = new Set(), toAdd = [];
     for (const p of list) {
-      let e = cache.get(p.c.id);
-      if (!e) { e = { mk: create(p.c), sig: "" }; cache.set(p.c.id, e); }
-      const sig = p.cls + "|" + (p.label || "") + (p.dot ? "." : "") + (p.sel ? "*" : "");
+      let e = cache.get(p.key);
+      if (!e) { e = { mk: create(p), sig: "", temp: !!p.n }; cache.set(p.key, e); }
+      const sig = p.cls + "|" + (p.label || "") + (p.dot ? "." : "") + (p.sel ? "*" : "") + (p.n || "");
       if (e.sig !== sig) { restyle(e.mk, p); e.sig = sig; }
-      next.add(p.c.id);
-      if (!shown.has(p.c.id)) toAdd.push(e.mk);
+      next.add(p.key);
+      if (!shown.has(p.key)) toAdd.push(e.mk);
     }
     const toRemove = [];
-    for (const id of shown) if (!next.has(id)) toRemove.push(cache.get(id).mk);
+    for (const k of shown) if (!next.has(k)) { const e = cache.get(k); toRemove.push(e.mk); if (e.temp) cache.delete(k); }
     if (toRemove.length) removeMany(toRemove);
     if (toAdd.length) addMany(toAdd);
     shown = next;
   };
 }
+// Tapping a number zooms in until its churches spread out.
+const openCluster = p => MapView.zoomTo(p.b);
 function leafletView() {
   const map = L.map("map", { minZoom: 6, maxZoom: 18, zoomSnap: .25, zoomControl: false, maxBounds: [[44.9, 15.3], [49.4, 23.8]] });
   // Light or dark base map with the site's theme (CARTO basemaps on OpenStreetMap data).
@@ -554,11 +559,12 @@ function leafletView() {
   map.fitBounds([[HU_BOUNDS.s, HU_BOUNDS.w], [HU_BOUNDS.n, HU_BOUNDS.e]]);
   const layer = L.layerGroup().addTo(map);
   const icons = {};
-  const icon = p => { const k = p.cls + p.label + p.dot + p.sel; return icons[k] || (icons[k] = L.divIcon({ className: "mkicon", iconSize: [0, 0],
-    html: p.dot ? `<div class="mkdot mk-${p.cls} ${p.sel ? "sel" : ""}"></div>` : `<div class="mkwrap ${p.sel ? "sel" : ""}"><span class="mk mk-${p.cls}">${esc(p.label)}</span></div>` })); };
+  const icon = p => { const k = p.cls + p.label + p.dot + p.sel + (p.n || ""); return icons[k] || (icons[k] = L.divIcon({ className: "mkicon", iconSize: [0, 0],
+    html: p.n ? `<div class="mkclu mk-${p.cls}" style="--s:${clusterSize(p.n)}px" aria-label="${p.n} templom">${p.n.toLocaleString("hu-HU")}</div>` : p.dot ? `<div class="mkdot mk-${p.cls} ${p.sel ? "sel" : ""}"></div>` : `<div class="mkwrap ${p.sel ? "sel" : ""}"><span class="mk mk-${p.cls}">${esc(p.label)}</span></div>` })); };
   const draw = makeDiffer(
-    c => { const mk = L.marker([c.lat, c.lon], { title: c.name, icon: icon({ cls: "none", label: "–", dot: true, sel: false }), keyboard: false }); mk.on("click", () => select(c.id)); return mk; },
-    (mk, p) => { mk.setIcon(icon(p)); mk.setZIndexOffset(p.sel ? 1000 : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200)); },
+    p => { const mk = L.marker([p.lat, p.lon], { title: p.n ? `${p.n} templom – nagyíts rá` : p.c.name, icon: icon({ cls: "none", label: "–", dot: true, sel: false }), keyboard: false });
+      mk.on("click", () => p.n ? openCluster(p) : select(p.c.id)); return mk; },
+    (mk, p) => { mk.setIcon(icon(p)); mk.setZIndexOffset(p.sel ? 1000 : p.n ? 500 + Math.min(p.n, 400) : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200)); },
     arr => arr.forEach(m => layer.addLayer(m)),
     arr => arr.forEach(m => layer.removeLayer(m)));
   let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { map.invalidateSize(); queueMarkers(); }, 150); });
@@ -567,6 +573,8 @@ function leafletView() {
     draw, ready: () => true,
     view() { const b = map.getBounds().pad(0.05); return { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast(), zoom: map.getZoom() }; },
     focus(lat, lon, z) { map.flyTo([lat, lon], Math.max(map.getZoom(), z), { duration: .5 }); },
+    zoomTo(b) { const z = map.getZoom(), t = Math.min(map.getBoundsZoom([[b.s, b.w], [b.n, b.e]], false, L.point(60, 60)), 17);
+      map.flyTo([(b.s + b.n) / 2, (b.w + b.e) / 2], Math.max(t, z + 1.5), { duration: .5 }); },
     me(lat, lon) { if (meMk) meMk.setLatLng([lat, lon]); else meMk = L.marker([lat, lon], { icon: L.divIcon({ className: "mkicon", iconSize: [0, 0], html: '<div class="me-dot"></div>' }), interactive: false, zIndexOffset: 2000 }).addTo(map); }
   };
 }
@@ -586,6 +594,9 @@ const pillSVG = (fill, ink, ring, label, sel) => {
     <rect x="4" y="4" width="${w}" height="${h}" rx="${h / 2}" fill="${fill}" stroke="${ring}" stroke-width="2"/>
     <text x="${W / 2}" y="${H / 2 + 4}" text-anchor="middle" font-family="IBM Plex Mono,Menlo,monospace" font-size="11" font-weight="600" fill="${ink}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text></svg>`), w: W, h: H };
 };
+const cluSVG = (fill, ink, ring, label, d) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}" viewBox="0 0 ${d} ${d}">
+  <circle cx="${d / 2}" cy="${d / 2}" r="${d / 2 - 1}" fill="${fill}" opacity=".28"/><circle cx="${d / 2}" cy="${d / 2}" r="${d / 2 - 4}" fill="${fill}" stroke="${ring}" stroke-width="2"/>
+  <text x="${d / 2}" y="${d / 2 + 4.5}" text-anchor="middle" font-family="IBM Plex Mono,Menlo,monospace" font-size="${d > 50 ? 13 : 12}" font-weight="700" fill="${ink}">${label}</text></svg>`);
 const dotSVG = (fill, ring, sel) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">${sel ? '<circle cx="10" cy="10" r="9" fill="none" stroke="#c9971c" stroke-width="3"/>' : ""}<circle cx="10" cy="10" r="6" fill="${fill}" stroke="${ring}" stroke-width="2"/></svg>`);
 function googleView() {
   let gmap = null, pendingFocus = null, draw = null, meMk = null;
@@ -593,8 +604,9 @@ function googleView() {
   const pal = () => ({ mass: [css("--accent"), css("--on-accent")], conf: [css("--penance"), css("--on-penance")], none: [css("--mk-none-bg"), css("--mk-none-ink")], ring: css("--surface"), border: css("--border") });
   let colors = null, iconCache = {};
   const icon = p => {
-    const k = p.cls + p.label + p.dot + p.sel; if (iconCache[k]) return iconCache[k];
+    const k = p.cls + p.label + p.dot + p.sel + (p.n || ""); if (iconCache[k]) return iconCache[k];
     const [fill, ink] = colors[p.cls], ring = p.cls === "none" ? colors.border : colors.ring;
+    if (p.n) { const d = clusterSize(p.n) + 6; return iconCache[k] = { url: cluSVG(fill, ink, colors.ring, p.n.toLocaleString("hu-HU"), d), scaledSize: new google.maps.Size(d, d), anchor: new google.maps.Point(d / 2, d / 2) }; }
     if (p.dot) return iconCache[k] = { url: dotSVG(p.cls === "none" ? colors.border : fill, colors.ring, p.sel), scaledSize: new google.maps.Size(20, 20), anchor: new google.maps.Point(10, 10) };
     const sv = pillSVG(fill, ink, ring, p.label, p.sel);
     return iconCache[k] = { url: sv.url, scaledSize: new google.maps.Size(sv.w, sv.h), anchor: new google.maps.Point(sv.w / 2, sv.h / 2) };
@@ -607,8 +619,9 @@ function googleView() {
     gmap.fitBounds({ north: HU_BOUNDS.n, south: HU_BOUNDS.s, west: HU_BOUNDS.w, east: HU_BOUNDS.e });
     dark.addEventListener?.("change", () => { gmap.setOptions({ styles: dark.matches ? GM_DARK : GM_LIGHT }); colors = pal(); iconCache = {}; queueMarkers(); });
     draw = makeDiffer(
-      c => { const mk = new google.maps.Marker({ position: { lat: c.lat, lng: c.lon }, title: c.name, optimized: true }); mk.addListener("click", () => select(c.id)); return mk; },
-      (mk, p) => { mk.setIcon(icon(p)); mk.setZIndex(p.sel ? 1000 : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200)); },
+      p => { const mk = new google.maps.Marker({ position: { lat: p.lat, lng: p.lon }, title: p.n ? `${p.n} templom – nagyíts rá` : p.c.name, optimized: true });
+        mk.addListener("click", () => p.n ? openCluster(p) : select(p.c.id)); return mk; },
+      (mk, p) => { mk.setIcon(icon(p)); mk.setZIndex(p.sel ? 1000 : p.n ? 500 + Math.min(p.n, 400) : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200)); },
       arr => arr.forEach(m => m.setMap(gmap)),
       arr => arr.forEach(m => m.setMap(null)));
     gmap.addListener("idle", () => queueMarkers());
@@ -624,12 +637,16 @@ function googleView() {
     view() { const b = gmap.getBounds(), ne = b.getNorthEast(), sw = b.getSouthWest(), dy = (ne.lat() - sw.lat()) * .05, dx = (ne.lng() - sw.lng()) * .05;
       return { s: sw.lat() - dy, w: sw.lng() - dx, n: ne.lat() + dy, e: ne.lng() + dx, zoom: gmap.getZoom() }; },
     focus(lat, lon, z) { if (!gmap) { pendingFocus = [lat, lon, z]; return; } gmap.panTo({ lat, lng: lon }); if (gmap.getZoom() < z) gmap.setZoom(z); },
+    zoomTo(b) { if (!gmap) return; const z = gmap.getZoom();
+      if (b.n - b.s < 1e-4 && b.e - b.w < 1e-4) { gmap.panTo({ lat: b.s, lng: b.w }); gmap.setZoom(Math.max(z + 2, SHOW_ALL_ZOOM)); return; }
+      gmap.fitBounds({ north: b.n, south: b.s, east: b.e, west: b.w }, 60);
+      google.maps.event.addListenerOnce(gmap, "idle", () => { if (gmap.getZoom() <= z) gmap.setZoom(z + 1); else if (gmap.getZoom() > 17) gmap.setZoom(17); }); },
     me(lat, lon) { if (!gmap) return; const pos = { lat, lng: lon }; if (meMk) meMk.setPosition(pos); else meMk = new google.maps.Marker({ position: pos, map: gmap, clickable: false, zIndex: 2000,
       icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: colors.mass[0], fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 } }); }
   };
   return api;
 }
-const MapView = MAPS_KEY ? googleView() : (typeof L !== "undefined" ? leafletView() : { draw() { }, ready: () => false, view() { }, focus() { } });
+const MapView = MAPS_KEY ? googleView() : (typeof L !== "undefined" ? leafletView() : { draw() { }, ready: () => false, view() { }, focus() { }, zoomTo() { } });
 if (!MAPS_KEY && typeof L === "undefined") $("#map").innerHTML = '<p style="padding:16px;color:var(--ink-3)">A térkép nem töltődött be. A lista ettől még használható.</p>';
 
 let mapRows = [], markerJob = null;
@@ -642,20 +659,33 @@ function queueMarkers() {
 function updateMarkers() {
   markerJob = null;
   if (!MapView.ready()) return;
-  const v = MapView.view(), budget = markerBudget(), inView = [];
+  const v = MapView.view(), inView = [];
   for (const r of mapRows) { const c = r.c; if (c.lat >= v.s && c.lat <= v.n && c.lon >= v.w && c.lon <= v.e) inView.push(r); }
-  let shown = inView;
-  if (v.zoom < SHOW_ALL_ZOOM && inView.length > budget) {
-    const rank = r => r.c.score + (r.di.hasConf ? 8 : 0) + (r.di.hasMass ? 5 : 0);
-    shown = inView.sort((a, b) => rank(b) - rank(a)).slice(0, budget);
-  }
   // Zoomed in: a pill with the next time; zoomed out: a coloured dot.
   const dot = v.zoom < LABEL_ZOOM;
-  const list = shown.map(r => { const n = nextOf(r.di); return { c: r.c, cls: n.cls, label: n.t, dot, sel: S.sel === r.c.id }; });
-  if (S.sel && !list.some(p => p.sel)) { const c = BY_ID.get(S.sel); if (c) { const n = nextOf(dayInfoCached(c, dayContext(selDate()))); list.push({ c, cls: n.cls, label: n.t, dot, sel: true }); } }
+  const one = (r, sel) => { const n = nextOf(r.di); return { key: r.c.id, c: r.c, lat: r.c.lat, lon: r.c.lon, cls: n.cls, label: n.t, dot, sel }; };
+  const list = [];
+  if (v.zoom >= SHOW_ALL_ZOOM) for (const r of inView) list.push(one(r, S.sel === r.c.id));
+  else {
+    // Grid clustering in screen pixels: churches in the same CLUSTER_PX cell become one numbered marker.
+    const cells = new Map(), z = v.zoom;
+    for (const r of inView) {
+      if (S.sel === r.c.id) continue;
+      const [x, y] = worldPx(r.c.lat, r.c.lon, z), k = Math.floor(x / CLUSTER_PX) + ":" + Math.floor(y / CLUSTER_PX);
+      const g = cells.get(k); if (g) g.push(r); else cells.set(k, [r]);
+    }
+    for (const [k, g] of cells) {
+      if (g.length === 1) { list.push(one(g[0], false)); continue; }
+      let la = 0, lo = 0, s = 90, w = 180, n = -90, e = -180, mass = false, conf = false;
+      for (const r of g) { const c = r.c; la += c.lat; lo += c.lon; s = Math.min(s, c.lat); n = Math.max(n, c.lat); w = Math.min(w, c.lon); e = Math.max(e, c.lon);
+        const nx = nextOf(r.di).cls; if (nx === "mass") mass = true; else if (nx === "conf") conf = true; }
+      // Colour: a Mass still to come in the group → accent; only confession → violet; otherwise neutral.
+      list.push({ key: `g${z}:${k}`, n: g.length, lat: la / g.length, lon: lo / g.length, b: { s, w, n, e }, cls: mass ? "mass" : conf ? "conf" : "none", label: "", dot: false, sel: false });
+    }
+  }
+  if (S.sel && !list.some(p => p.sel)) { const c = BY_ID.get(S.sel); if (c) { const n = nextOf(dayInfoCached(c, dayContext(selDate()))); list.push({ key: c.id, c, lat: c.lat, lon: c.lon, cls: n.cls, label: n.t, dot, sel: true }); } }
   MapView.draw(list);
-  const hidden = inView.length - shown.length, hint = $("#maphint");
-  if (hint) { hint.hidden = hidden <= 0; if (hidden > 0) hint.textContent = `Kiemelt templomok: ${shown.length} / ${inView.length.toLocaleString("hu-HU")} ebben a nézetben. Nagyíts a többiért.`; }
+  const hint = $("#maphint"); if (hint) hint.hidden = true;
 }
 function select(id) {
   S.sel = id;

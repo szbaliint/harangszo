@@ -3,6 +3,7 @@ Full-screen map as the home screen,map,must,yes,yes,list and controls float over
 Dark basemap that keeps streets legible,map,must,yes,yes,free tiles with OSM attribution; light theme alternative
 Labelled circle markers coloured by state,map,must,yes,yes,Harangszó: next Mass time inside; colour = Mass soon / confession / nothing today
 User location dot,map,must,yes,yes,uses Saját helyzetem
+Nearby places merged into a count when zoomed out,map,must,yes,yes,grid clusters with the number of churches; tap zooms in
 Two nearest places at the bottom of the map,map,must,yes,yes,nearest churches with their next Mass
 Central primary action between the nearest cards,map,must,yes,yes,Legközelebbi mise
 Floating rounded tab bar,navigation,must,yes,yes,Térkép / Lista / Keresés

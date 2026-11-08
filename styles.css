@@ -243,6 +243,13 @@ form.suggest input[type=text]{background:var(--bg);border:1px solid var(--line);
 .mkdot{width:12px;height:12px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 1px 3px rgb(0 0 0 / .35);transform:translate(-50%,-50%)}
 .mkdot.mk-mass{background:var(--accent)} .mkdot.mk-conf{background:var(--penance)} .mkdot.mk-none{background:var(--border)}
 .mkdot.sel{outline:3px solid var(--gold);width:16px;height:16px}
+.mkclu{--s:40px;display:grid;place-items:center;width:var(--s);height:var(--s);border-radius:50%;transform:translate(-50%,-50%);cursor:pointer;
+  font:700 12px/1 var(--f-mono);font-variant-numeric:tabular-nums;border:2px solid var(--surface);
+  box-shadow:0 0 0 4px var(--clu-halo,rgb(0 0 0 / .12)),var(--shadow-float);transition:transform .15s}
+.mkclu.mk-mass{--clu-halo:color-mix(in srgb,var(--accent) 28%,transparent)} .mkclu.mk-conf{--clu-halo:color-mix(in srgb,var(--penance) 28%,transparent)}
+.mkclu.mk-none{--clu-halo:color-mix(in srgb,var(--ink-3) 20%,transparent);border-color:var(--surface)}
+.mkclu:hover{transform:translate(-50%,-50%) scale(1.08)}
+@media (prefers-reduced-motion:reduce){.mkclu{transition:none}}
 .leaflet-div-icon,.mkicon{background:none!important;border:0!important}
 .me-dot{width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 25%,transparent);transform:translate(-50%,-50%)}
 
