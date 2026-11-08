@@ -30,7 +30,7 @@ async function api(path, opts = {}) {
 async function loadChurches() {
   const out = [];
   const sel = "id,name,city,lat,lon,osm_type,osm_id,schedule_source,source_ref,schedule_locked,match_confirmed,created_by,location_approx," +
-    "services(count),events(count),suggestions(count),opening_hours(count)";
+    "services!services_church_id_fkey(count),events(count),suggestions(count),opening_hours(count)";
   for (let from = 0; ; from += 1000) {
     const page = await api(`churches?select=${sel}&lat=gte.${BBOX.s}&lat=lte.${BBOX.n}&lon=gte.${BBOX.w}&lon=lte.${BBOX.e}&order=id`,
       { headers: { Range: `${from}-${from + 999}`, "Range-Unit": "items" } });

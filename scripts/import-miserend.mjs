@@ -56,7 +56,7 @@ async function download() {
 // ---- 3. the database ----
 async function loadChurches() {
   const out = [];
-  const sel = "id,name,city,address,lat,lon,osm_id,schedule_source,source_ref,schedule_locked,match_confirmed,created_by,location_approx,services(count)";
+  const sel = "id,name,city,address,lat,lon,osm_id,schedule_source,source_ref,schedule_locked,match_confirmed,created_by,location_approx,services!services_church_id_fkey(count)";
   for (let from = 0; ; from += 1000) {
     const page = await api(`churches?select=${sel}&order=id`, { headers: { Range: `${from}-${from + 999}`, "Range-Unit": "items" } });
     for (const c of page) { c.services = c.services?.[0]?.count ?? 0; out.push(c); }

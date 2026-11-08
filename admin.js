@@ -192,7 +192,7 @@ async function openChurch(id) {
   A.sel = id;
   $("#clist")?.querySelectorAll("button").forEach(b => b.setAttribute("aria-current", +b.dataset.id === id));
   $("#editor").innerHTML = `<div class="card-box"><p class="muted" style="margin:0">Betöltés…</p></div>`;
-  const { data, error } = await sb.from("churches").select("*, opening_hours(*), services(*), events(*)").eq("id", id).single();
+  const { data, error } = await sb.from("churches").select("*, opening_hours(*), services!services_church_id_fkey(*), events(*)").eq("id", id).single();
   if (error) { $("#editor").innerHTML = `<div class="card-box msg err">Nem sikerült megnyitni: ${esc(error.message)}</div>`; return; }
   const byTime = (a, b) => String(a.start_time).localeCompare(String(b.start_time));
   const KORDER = { mass: 0, rorate: 1, confession: 2, adoration: 3 };
