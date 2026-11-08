@@ -68,6 +68,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/007_rules_tags.sql` | every 2nd/3rd week, Mass tags (language, családos, gitáros…), Advent/Lent/Eastertide/school-year seasons, prayer times (Vesperás, keresztút) |
 | `supabase/migrations/008_dated_services.sql` | times for given dates from a parish's own weekly schedule (Ferenciek tere) |
 | `supabase/migrations/009_celebrant_place_feasts.sql` | who celebrates, Masses held elsewhere, "ünnepnapokon nincs", one rule for all holy days / public holidays, calendar summer/winter and Christmas time, the "ünnepi" tag |
+| `supabase/migrations/010_parish_portal.sql` | parish portal: access requests and approval, editors list, edit history, admin-only fields protected, parish edits locked and stamped |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
@@ -129,16 +130,19 @@ public page shows these times ("A templom heti miserendje szerint", with a link 
 the church page lists the coming days. Who celebrates each Mass is stored as on the parish's own schedule; Mass intentions and the confessors' names are never read. If the PDF's
 layout changes, the run fails without writing anything. The parser is `scripts/lib/ferences.mjs`.
 
-## Parish editors
+## Parish editors (plebania.html)
 
-A parish editor can edit only the churches linked to them. Create their user under **Authentication → Users**, then in the SQL Editor:
+Parishes keep their own times up to date on **plebania.html** (linked from the map's menu as "Plébániáknak"). It shows one church at a time: the week as a board (tap a time to change it, "+ Időpont" to add one, several days at once), feast days, events and the church's details, with a live "Így látják a hívek" preview of the next seven days. Every question is asked in plain words (Milyen gyakran? Az év melyik részében? Ki tartja? Hol?).
 
-```sql
-insert into public.staff (user_id, role, display_name) values ('<their user id>', 'parish', 'Plébánia neve');
-insert into public.staff_churches (user_id, church_id) values ('<their user id>', <church id>);
-```
+How a parish gets access:
 
-The church id is shown under the church's name in the admin panel.
+1. On plebania.html they create an account (name, e-mail, password), pick their church and say who they are.
+2. In the admin panel, **Hozzáférések** lists these requests; **Jóváhagyás** makes them an editor of that church only (they can ask for several churches, e.g. filials). **Hozzáférés megvonása** takes it back.
+3. From then on they sign in on plebania.html and see their church straight away. If a parish account opens admin.html, it is sent to plebania.html.
+
+What the database enforces (migration 010): a parish editor can only save its own churches; it can't publish/unpublish, change the map importance or the import keys, even through the API; whatever it saves is locked against imports and shown publicly as "A plébánia adatai szerint · frissítve …". Each church's editor block in the admin panel shows who may edit it, the last saves, and **Megnyitás a plébániai felületen** (admins can open any church there with `plebania.html?templom=<id>`).
+
+Supabase settings for sign-up: **Authentication → URL Configuration**: add `https://<your pages>/plebania.html` to the redirect URLs. **Authentication → Providers → Email**: either set up your own SMTP (the built-in sender only delivers to the project's team members and a few mails an hour), or turn off "Confirm email" so parishes can sign in right after creating the account; access still needs your approval.
 
 ## Google Maps key (optional)
 

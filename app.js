@@ -71,7 +71,7 @@ function fromDb(c) {
       v: s.valid || null, w: s.weeks && s.weeks.length ? s.weeks : null, e: s.every || null, a: s.anchor || null, g: s.tags || [],
       cel: s.celebrant || "", pl: s.place || "", pid: s.place_id || null, skip: !!s.skip })),
     feastSunday: c.feast_sunday || [], imp: c.imp ?? 30,
-    note: c.schedule_note || "", source: c.schedule_source || null, sourceUrl: c.schedule_source_url || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
+    note: c.schedule_note || "", parishUpdated: c.parish_updated || null, source: c.schedule_source || null, sourceUrl: c.schedule_source_url || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
     ev: (c.events || []).map(e => ({ date: e.date, t: e.start || "", title: e.title, n: e.note })),
     // Times for given dates from the parish's own weekly schedule; on those dates they replace the regular rules.
     dated: (c.dated || []).map(d => ({ date: d.date, k: KIND[d.kind] || "mass", d: [], t: d.start, u: d.end || null, n: d.note, g: d.tags || [], url: d.url || null,
@@ -441,7 +441,7 @@ function feastScheduleHTML(c) {
 }
 function noteHTML(c) {
   const lines = (c.note || "").split("\n").filter(Boolean);
-  const src = c.source ? `<p class="muted source">Forrás: ${c.sourceUrl ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(SOURCES[c.source] || c.source)}</a>` : esc(SOURCES[c.source] || c.source)}${c.updated ? ` · frissítve ${longDate(c.updated)}` : ""}</p>` : "";
+  const src = c.parishUpdated ? `<p class="muted source">A plébánia adatai szerint · frissítve ${longDate(c.parishUpdated)}</p>` : c.source ? `<p class="muted source">Forrás: ${c.sourceUrl ? `<a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(SOURCES[c.source] || c.source)}</a>` : esc(SOURCES[c.source] || c.source)}${c.updated ? ` · frissítve ${longDate(c.updated)}` : ""}</p>` : "";
   if (!lines.length && !src) return "";
   // Lines ending in ":" are headings of the list that follows them.
   const body = lines.map(l => /:$/.test(l) ? `<p class="note-h">${linkify(l)}</p>` : `<p>${linkify(l)}</p>`).join("");
@@ -733,7 +733,11 @@ function boot() {
     setChurches(JSON.parse(text).map(fromDb)); writeCache(text);
     S.loading = false; S.error = "";
     if (!typing()) render();
+    openDeepLink();
   }).catch(() => { if (S.loading) { S.loading = false; S.error = "Nem sikerült betölteni a templomokat. Frissítsd az oldalt egy kicsit később."; render(); } });
 }
-setSheet(S.sheet); render(); boot();
+// A link like ./#t=123 (e.g. from the parish page) opens that church once the data is there.
+let deepLink = +((location.hash.match(/t=(\d+)/) || [])[1] || 0);
+const openDeepLink = () => { if (deepLink && BY_ID.has(deepLink)) { const id = deepLink; deepLink = 0; select(id); } };
+setSheet(S.sheet); render(); boot(); openDeepLink();
 setInterval(() => { if (!S.loading && isToday() && !typing()) render(); }, 60000);

@@ -32,6 +32,8 @@ create table if not exists public.churches (
   created_by      text,                             -- e.g. 'szfvar' when an import added the church
   match_confirmed boolean not null default false,   -- an editor confirmed the import's match (merge)
   published       boolean not null default true,
+  parish_updated_at timestamptz,                    -- last saved by the parish itself (plebania.html)
+  parish_updated_by uuid,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
   unique (osm_type, osm_id),
@@ -104,7 +106,8 @@ create index if not exists suggestions_status_idx on public.suggestions (status,
 create table if not exists public.staff (
   user_id       uuid primary key references auth.users(id) on delete cascade,
   role          text not null check (role in ('admin','parish')),
-  display_name  text
+  display_name  text,
+  email         text
 );
 create table if not exists public.staff_churches (
   user_id    uuid not null references public.staff(user_id) on delete cascade,
@@ -381,14 +384,14 @@ grant execute on function public.merge_churches(bigint, bigint, text, text) to a
 
 create or replace function public.public_data() returns jsonb
 language sql stable security invoker set search_path = public as $$
-  -- Empty and null fields are left out to keep the download small (most churches have no times yet).
   select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
     'id', c.id, 'name', c.name, 'city', c.city, 'address', c.address, 'rite', c.rite,
     'lat', round(c.lat::numeric, 5), 'lon', round(c.lon::numeric, 5), 'website', c.website, 'phone', c.phone,
     'imp', coalesce(c.importance_manual, c.importance_auto),
     'open_only_services', nullif(c.open_only_services, false),
     'schedule_note', c.schedule_note, 'schedule_source', c.schedule_source, 'schedule_source_url', c.schedule_source_url,
-    'schedule_updated', c.schedule_updated, 'location_approx', nullif(c.location_approx, false), 'feast_sunday', nullif(c.feast_sunday, '{}'),
+    'schedule_updated', c.schedule_updated, 'parish_updated', c.parish_updated_at::date,
+    'location_approx', nullif(c.location_approx, false), 'feast_sunday', nullif(c.feast_sunday, '{}'),
     'hours', (select jsonb_agg(jsonb_build_object('days', h.days, 'opens', to_char(h.opens,'HH24:MI'), 'closes', to_char(h.closes,'HH24:MI')))
               from opening_hours h where h.church_id = c.id),
     'services', (select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('kind', s.kind, 'days', s.days, 'start', to_char(s.start_time,'HH24:MI'),
@@ -418,6 +421,7 @@ declare cid bigint := nullif(p->>'id','')::bigint;
         snote text := nullif(p->>'schedule_note','');
         approx boolean := coalesce((p->>'location_approx')::boolean, false);
         locked boolean := coalesce((p->>'schedule_locked')::boolean, false);
+        admin boolean := public.is_admin();
 begin
   if cid is null then
     insert into churches (name, city, address, rite, lat, lon, website, phone, notes, open_only_services, published, feast_sunday, importance_manual, importance_auto, schedule_note, location_approx, schedule_locked)
@@ -432,24 +436,24 @@ begin
       website = nullif(p->>'website',''), phone = nullif(p->>'phone',''), notes = nullif(p->>'notes',''),
       open_only_services = coalesce((p->>'open_only_services')::boolean, false),
       published = coalesce((p->>'published')::boolean, true), feast_sunday = fs, importance_manual = imp,
-      schedule_note = snote, location_approx = approx, schedule_locked = locked
+      schedule_note = snote, location_approx = approx,
+      -- What a parish enters is never overwritten by an import.
+      schedule_locked = case when admin then locked else true end
     where id = cid;
     if not found then raise exception 'Nincs ilyen templom, vagy nincs jogod szerkeszteni (id %)', cid; end if;
   end if;
-
   delete from opening_hours where church_id = cid;
   insert into opening_hours (church_id, days, opens, closes)
     select cid, array(select jsonb_array_elements_text(x->'days')::smallint), (x->>'opens')::time, (x->>'closes')::time
     from jsonb_array_elements(coalesce(p->'hours','[]'::jsonb)) x;
-
   delete from services where church_id = cid;
   perform public.insert_services(cid, p->'services');
-
   delete from events where church_id = cid;
   insert into events (church_id, date, start_time, title, note)
     select cid, (x->>'date')::date, nullif(x->>'start','')::time, x->>'title', nullif(x->>'note','')
     from jsonb_array_elements(coalesce(p->'events','[]'::jsonb)) x;
-
+  insert into church_edits (church_id, user_id, who)
+    values (cid, auth.uid(), (select coalesce(display_name, email) from staff where user_id = auth.uid()));
   return cid;
 end $$;
 grant execute on function public.save_church(jsonb) to authenticated;
@@ -480,3 +484,104 @@ from public.churches c;
 
 revoke all on public.admin_church_list from anon;
 grant select on public.admin_church_list to authenticated;
+
+-- ─── Parish portal (plebania.html) ────────────────────────────────────────
+alter table public.staff add column if not exists email text;
+alter table public.churches add column if not exists parish_updated_at timestamptz, add column if not exists parish_updated_by uuid;
+
+create table if not exists public.access_requests (
+  id          bigint generated by default as identity primary key,
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  email       text,
+  church_id   bigint not null references public.churches(id) on delete cascade,
+  name        text not null check (char_length(name) between 2 and 120),
+  position    text check (position is null or char_length(position) <= 80),
+  phone       text check (phone is null or char_length(phone) <= 40),
+  message     text check (message is null or char_length(message) <= 600),
+  status      text not null default 'pending' check (status in ('pending','approved','rejected')),
+  created_at  timestamptz not null default now(),
+  decided_at  timestamptz,
+  unique (user_id, church_id)
+);
+create index if not exists access_requests_status_idx on public.access_requests (status, created_at desc);
+
+-- The requester and their e-mail come from the login, not from what the page sends.
+create or replace function public.access_request_defaults() returns trigger
+language plpgsql security invoker set search_path = public as $$
+begin
+  if current_user not in ('service_role','postgres') and not public.is_admin() then
+    new.user_id := auth.uid(); new.status := 'pending'; new.decided_at := null; new.created_at := now();
+    new.email := auth.jwt()->>'email';
+  end if;
+  return new;
+end $$;
+drop trigger if exists access_requests_defaults on public.access_requests;
+create trigger access_requests_defaults before insert on public.access_requests for each row execute function public.access_request_defaults();
+
+alter table public.access_requests enable row level security;
+drop policy if exists access_requests_insert on public.access_requests;
+drop policy if exists access_requests_read   on public.access_requests;
+drop policy if exists access_requests_update on public.access_requests;
+drop policy if exists access_requests_delete on public.access_requests;
+create policy access_requests_insert on public.access_requests for insert to authenticated with check (user_id = auth.uid() and status = 'pending');
+create policy access_requests_read   on public.access_requests for select using (user_id = auth.uid() or public.is_admin());
+create policy access_requests_update on public.access_requests for update using (public.is_admin()) with check (public.is_admin());
+create policy access_requests_delete on public.access_requests for delete using (public.is_admin() or (user_id = auth.uid() and status = 'pending'));
+grant select, insert, update, delete on public.access_requests to authenticated;
+grant all on public.access_requests to service_role;
+
+-- Approve: the requester becomes a parish editor of that church (an admin stays admin).
+create or replace function public.approve_access(req bigint) returns void
+language plpgsql security invoker set search_path = public as $$
+declare r access_requests%rowtype;
+begin
+  if not public.is_admin() then raise exception 'Hozzáférést csak adminisztrátor adhat.'; end if;
+  select * into r from access_requests where id = req; if not found then raise exception 'Nincs ilyen kérés: %', req; end if;
+  insert into staff (user_id, role, display_name, email) values (r.user_id, 'parish', r.name, r.email)
+    on conflict (user_id) do update set display_name = coalesce(staff.display_name, excluded.display_name), email = coalesce(excluded.email, staff.email);
+  insert into staff_churches (user_id, church_id) values (r.user_id, r.church_id) on conflict do nothing;
+  update access_requests set status = 'approved', decided_at = now() where id = req;
+end $$;
+revoke execute on function public.approve_access(bigint) from public, anon;
+grant execute on function public.approve_access(bigint) to authenticated;
+
+-- Who may edit which church (for the admin panel; RLS on staff limits it to admins and to your own rows).
+create or replace view public.parish_editors with (security_invoker = true) as
+  select sc.church_id, sc.user_id, s.role, s.display_name, s.email from public.staff_churches sc join public.staff s on s.user_id = sc.user_id;
+grant select on public.parish_editors to authenticated;
+
+-- Edit history.
+create table if not exists public.church_edits (
+  id         bigint generated by default as identity primary key,
+  church_id  bigint not null references public.churches(id) on delete cascade,
+  user_id    uuid default auth.uid(),
+  who        text,
+  at         timestamptz not null default now()
+);
+create index if not exists church_edits_church_idx on public.church_edits (church_id, at desc);
+alter table public.church_edits enable row level security;
+drop policy if exists church_edits_read   on public.church_edits;
+drop policy if exists church_edits_insert on public.church_edits;
+create policy church_edits_read   on public.church_edits for select using (public.is_admin() or user_id = auth.uid());
+create policy church_edits_insert on public.church_edits for insert to authenticated with check (public.can_edit_church(church_id) and user_id = auth.uid());
+grant select, insert on public.church_edits to authenticated;
+grant all on public.church_edits to service_role;
+
+-- A parish editor cannot change admin-only fields; their edits are stamped.
+create or replace function public.guard_church_update() returns trigger
+language plpgsql security invoker set search_path = public as $$
+begin
+  if current_user in ('service_role','postgres','supabase_admin') or public.is_admin() then return new; end if;
+  new.published := old.published; new.importance_manual := old.importance_manual; new.importance_auto := old.importance_auto;
+  new.source_ref := old.source_ref; new.schedule_source := old.schedule_source; new.schedule_source_url := old.schedule_source_url;
+  new.schedule_updated := old.schedule_updated; new.match_confirmed := old.match_confirmed; new.created_by := old.created_by;
+  new.osm_type := old.osm_type; new.osm_id := old.osm_id;
+  new.parish_updated_at := now(); new.parish_updated_by := auth.uid();
+  return new;
+end $$;
+drop trigger if exists churches_guard on public.churches;
+create trigger churches_guard before update on public.churches for each row execute function public.guard_church_update();
+
+
+
+

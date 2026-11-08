@@ -54,8 +54,11 @@ async function afterLogin(user) {
     return;
   }
   if (staff.role === "parish") {
-    const { data } = await sb.from("staff_churches").select("church_id").eq("user_id", user.id);
-    A.myChurches = (data || []).map(r => r.church_id);
+    $("#tabs").hidden = true;
+    main.innerHTML = `<div class="card-box login" style="max-width:560px"><h2>A plébániák felülete máshol van</h2>
+      <p>A templomod miserendjét a plébániáknak készült, egyszerűbb oldalon szerkesztheted.</p>
+      <a class="btn primary" href="plebania.html">Tovább a plébániai felületre</a></div>`;
+    return;
   }
   $("#tabs").hidden = false;
   refreshSuggCount();
@@ -65,10 +68,11 @@ sb.auth.onAuthStateChange((_ev, session) => { session?.user ? (A.user?.id !== se
 sb.auth.getSession().then(({ data }) => { if (!data.session) renderLogin(); });
 
 /* ---------- Tabs ---------- */
-function setTab(t) { A.tab = t; $("#t-churches").setAttribute("aria-pressed", t === "churches"); $("#t-sugg").setAttribute("aria-pressed", t === "sugg"); renderTab(); }
+function setTab(t) { A.tab = t; for (const k of ["churches", "sugg", "access"]) $("#t-" + k).setAttribute("aria-pressed", t === k); renderTab(); }
 $("#t-churches").addEventListener("click", () => setTab("churches"));
 $("#t-sugg").addEventListener("click", () => setTab("sugg"));
-function renderTab() { A.tab === "churches" ? renderChurches() : renderSuggestions(); }
+$("#t-access").addEventListener("click", () => setTab("access"));
+function renderTab() { ({ churches: renderChurches, sugg: renderSuggestions, access: renderAccess })[A.tab](); }
 
 /* ---------- Churches ---------- */
 // Filters run in the database (view admin_church_list), so they cover every church, not just a loaded page.
@@ -189,7 +193,7 @@ function bindFilters() {
 const blankChurch = () => ({ id: null, schedule_note: "", schedule_locked: false, location_approx: false, schedule_source: null, importance_manual: "", importance_auto: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, events: [] });
 async function openChurch(id) {
   if (A.dirty && !confirmDiscard()) return;
-  A.sel = id;
+  A.sel = id; A.pbHtml = null;
   $("#clist")?.querySelectorAll("button").forEach(b => b.setAttribute("aria-current", +b.dataset.id === id));
   $("#editor").innerHTML = `<div class="card-box"><p class="muted" style="margin:0">Betöltés…</p></div>`;
   const { data, error } = await sb.from("churches").select("*, opening_hours(*), services!services_church_id_fkey(*), events(*)").eq("id", id).single();
@@ -392,6 +396,8 @@ function renderEditor() {
       <div><button type="button" class="btn" data-add="events">+ Esemény</button></div>
     </div>
 
+    ${c.id ? `<div class="block"><h3>Plébániai hozzáférés</h3><div id="parish-block"><p class="muted" style="margin:0">Betöltés…</p></div></div>` : ""}
+
     <div class="bar">
       <button class="btn primary" type="submit" id="save">Mentés</button>
       ${c.id && isAdmin ? `<button type="button" class="btn" id="merge-open">Összevonás egy másik templommal…</button><button type="button" class="btn danger" id="del">Templom törlése</button>` : ""}
@@ -401,6 +407,7 @@ function renderEditor() {
   <section class="card-box merge" id="merge" hidden></section>`;
   document.scrollingElement.scrollTop = scroll;
   bindEditor();
+  if (c.id) fillParishBlock(c.id);
 }
 function bindEditor() {
   const c = A.draft, f = $("#ed");
@@ -592,6 +599,55 @@ function compare(o) {
 async function refreshSuggCount() {
   const { count } = await sb.from("suggestions").select("id", { count: "exact", head: true }).eq("status", "pending");
   $("#sugg-count").textContent = count ? String(count) : "";
+  const { count: ac } = await sb.from("access_requests").select("id", { count: "exact", head: true }).eq("status", "pending");
+  $("#access-count").textContent = ac ? String(ac) : "";
+}
+
+/* ---------- Parish access: requests from plebania.html, and who edits what ---------- */
+async function renderAccess() {
+  main.innerHTML = `<div class="suglist">
+    <div class="row"><h2 style="margin-right:auto">Hozzáférési kérések</h2></div>
+    <p class="muted" style="margin:0">A plébániák a <a href="plebania.html">plebania.html</a> oldalon hoznak létre fiókot és kérnek hozzáférést a templomukhoz. Jóváhagyás után csak azt a templomot szerkeszthetik.</p>
+    <div id="alist" class="suglist"><p class="muted">Betöltés…</p></div>
+    <h2>Plébániai szerkesztők</h2><div id="elist" class="suglist"><p class="muted">Betöltés…</p></div></div>`;
+  const [{ data: reqs, error }, { data: eds }] = await Promise.all([
+    sb.from("access_requests").select("*, churches(id,name,city)").order("status").order("created_at", { ascending: false }).limit(200),
+    sb.from("parish_editors").select("church_id,user_id,role,display_name,email").eq("role", "parish")]);
+  if (error) { $("#alist").innerHTML = `<p class="msg err">${/access_requests/.test(error.message) ? "Futtasd le a 010-es adatbázis-frissítést (supabase/migrations/010_parish_portal.sql)." : esc(error.message)}</p>`; return; }
+  const when = t => new Date(t).toLocaleString("hu-HU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const pend = (reqs || []).filter(r => r.status === "pending"), done = (reqs || []).filter(r => r.status !== "pending").slice(0, 30);
+  $("#alist").innerHTML = [...pend, ...done].map(r => `<article class="sugg">
+      <div class="meta"><span class="pill st-${esc(r.status)}">${{ pending: "Döntésre vár", approved: "Jóváhagyva", rejected: "Elutasítva" }[r.status]}</span><span>${when(r.created_at)}</span></div>
+      <strong>${esc(r.name)}${r.position ? " – " + esc(r.position) : ""}</strong>
+      <p>${esc(r.churches ? r.churches.name + (r.churches.city ? " (" + r.churches.city + ")" : "") : "#" + r.church_id)}</p>
+      <p class="muted">${[r.email, r.phone].filter(Boolean).map(esc).join(" · ")}</p>
+      ${r.message ? `<p>${esc(r.message)}</p>` : ""}
+      <div class="actions">${r.churches ? `<button class="btn" data-open="${r.churches.id}">Templom megnyitása</button>` : ""}
+        ${r.status === "pending" ? `<button class="btn primary" data-approve="${r.id}">Jóváhagyás</button><button class="btn" data-reject="${r.id}">Elutasítás</button>` : ""}</div></article>`).join("") || `<p class="muted">Nincs kérés.</p>`;
+  const names = new Map((await sb.from("churches").select("id,name,city").in("id", [...new Set((eds || []).map(e => e.church_id))].slice(0, 300))).data?.map(c => [c.id, c]) || []);
+  $("#elist").innerHTML = (eds || []).map(e => { const c = names.get(e.church_id); return `<article class="sugg"><strong>${esc(e.display_name || e.email || e.user_id)}</strong>
+      <p>${esc(c ? c.name + (c.city ? " (" + c.city + ")" : "") : "#" + e.church_id)}${e.email ? ` <span class="muted">${esc(e.email)}</span>` : ""}</p>
+      <div class="actions"><button class="btn" data-open="${e.church_id}">Templom megnyitása</button><button class="btn danger" data-revoke="${e.user_id}" data-c="${e.church_id}">Hozzáférés megvonása</button></div></article>`; }).join("") || `<p class="muted">Még nincs plébániai szerkesztő.</p>`;
+  main.querySelectorAll("[data-open]").forEach(b => b.addEventListener("click", () => { setTab("churches"); openChurch(+b.dataset.open); }));
+  main.querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", async () => { b.disabled = true;
+    const { error } = await sb.rpc("approve_access", { req: +b.dataset.approve }); if (error) { b.disabled = false; b.textContent = "Nem sikerült: " + error.message; return; } refreshSuggCount(); renderAccess(); }));
+  main.querySelectorAll("[data-reject]").forEach(b => b.addEventListener("click", async () => { b.disabled = true;
+    const { error } = await sb.from("access_requests").update({ status: "rejected", decided_at: new Date().toISOString() }).eq("id", b.dataset.reject); if (error) { b.disabled = false; return; } refreshSuggCount(); renderAccess(); }));
+  main.querySelectorAll("[data-revoke]").forEach(b => b.addEventListener("click", async () => {
+    if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Biztosan megvonod?"; return; }
+    const { error } = await sb.from("staff_churches").delete().eq("user_id", b.dataset.revoke).eq("church_id", b.dataset.c); if (error) { b.textContent = "Nem sikerült"; return; } renderAccess(); }));
+}
+// In the church editor: who may edit it on the parish page, and the last saves.
+async function fillParishBlock(cid) {
+  const box = $("#parish-block"); if (!box) return;
+  if (A.pbFor === cid && A.pbHtml) { box.innerHTML = A.pbHtml; return; }
+  const [{ data: eds }, { data: log }] = await Promise.all([
+    sb.from("parish_editors").select("user_id,display_name,email,role").eq("church_id", cid).eq("role", "parish"),
+    sb.from("church_edits").select("who,at").eq("church_id", cid).order("at", { ascending: false }).limit(5)]);
+  box.innerHTML = `<p style="margin:0">${(eds || []).length ? "Szerkesztheti: " + eds.map(e => esc(e.display_name || e.email)).join(", ") : "Ehhez a templomhoz még nincs plébániai szerkesztő."}
+    <a class="btn" href="plebania.html?templom=${cid}" target="_blank" rel="noopener">Megnyitás a plébániai felületen</a></p>
+    ${(log || []).length ? `<p class="muted" style="margin:0">Utolsó mentések: ${log.map(l => `${esc(l.who || "ismeretlen")} (${new Date(l.at).toLocaleString("hu-HU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })})`).join(", ")}</p>` : ""}`;
+  A.pbFor = cid; A.pbHtml = box.innerHTML;
 }
 async function renderSuggestions() {
   main.innerHTML = `<div class="suglist">
