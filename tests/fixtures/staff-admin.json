@@ -1,0 +1,14 @@
+{
+  "user": {
+    "id": "00000000-0000-4000-8000-0000000000a1",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "admin@harangszo.example",
+    "email_confirmed_at": "2025-01-01T10:00:00Z",
+    "app_metadata": { "provider": "email", "providers": ["email"] },
+    "user_metadata": { "name": "Bálint" },
+    "created_at": "2025-01-01T10:00:00Z"
+  },
+  "staff": { "user_id": "00000000-0000-4000-8000-0000000000a1", "role": "admin", "display_name": "Bálint", "email": "admin@harangszo.example" },
+  "staff_churches": []
+}

@@ -627,11 +627,11 @@ const pillSVG = (fill, ink, ring, label, sel) => {
   return { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     ${sel ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="${H / 2 - 1}" fill="none" stroke="#c9971c" stroke-width="3"/>` : ""}
     <rect x="4" y="4" width="${w}" height="${h}" rx="${h / 2}" fill="${fill}" stroke="${ring}" stroke-width="2"/>
-    <text x="${W / 2}" y="${H / 2 + 4}" text-anchor="middle" font-family="IBM Plex Mono,Menlo,monospace" font-size="11" font-weight="600" fill="${ink}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text></svg>`), w: W, h: H };
+    <text x="${W / 2}" y="${H / 2 + 4}" text-anchor="middle" font-family="'Source Sans 3',system-ui,sans-serif" font-size="11" font-weight="600" fill="${ink}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text></svg>`), w: W, h: H };
 };
 const cluSVG = (fill, ink, ring, label, d) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}" viewBox="0 0 ${d} ${d}">
   <circle cx="${d / 2}" cy="${d / 2}" r="${d / 2 - 1}" fill="${fill}" opacity=".28"/><circle cx="${d / 2}" cy="${d / 2}" r="${d / 2 - 4}" fill="${fill}" stroke="${ring}" stroke-width="2"/>
-  <text x="${d / 2}" y="${d / 2 + 4.5}" text-anchor="middle" font-family="IBM Plex Mono,Menlo,monospace" font-size="${d > 50 ? 13 : 12}" font-weight="700" fill="${ink}">${label}</text></svg>`);
+  <text x="${d / 2}" y="${d / 2 + 4.5}" text-anchor="middle" font-family="'Source Sans 3',system-ui,sans-serif" font-size="${d > 50 ? 13 : 12}" font-weight="700" fill="${ink}">${label}</text></svg>`);
 const dotSVG = (fill, ring, sel) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">${sel ? '<circle cx="10" cy="10" r="9" fill="none" stroke="#c9971c" stroke-width="3"/>' : ""}<circle cx="10" cy="10" r="6" fill="${fill}" stroke="${ring}" stroke-width="2"/></svg>`);
 function googleView() {
   let gmap = null, pendingFocus = null, draw = null, meMk = null, moved = false;
