@@ -182,7 +182,7 @@ select.sel{background:var(--surface);border:1px solid var(--line);border-radius:
 .nx .tt-mass{background:var(--accent);color:var(--on-accent)}
 .nx .tt-conf{background:var(--penance);color:var(--on-penance)}
 .nx .nt{flex:1;min-width:0;display:grid;gap:1px}
-.nx strong{font:600 17px/1.2 var(--f-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nx strong{font:600 17px/1.2 var(--f-display);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere;hyphens:auto}
 .nx small{font-size:12.5px;line-height:1.3;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .nearest .nempty{margin:0;padding:4px 0 6px;color:var(--ink-3);font-size:14px}
 
@@ -228,7 +228,7 @@ select.sel{background:var(--surface);border:1px solid var(--line);border-radius:
 .lcard[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 @media (hover:hover){.lcard:hover{border-color:var(--border)}}
 .lc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.lc-name{min-width:0;font:600 18.5px/1.2 var(--f-display);text-wrap:balance}
+.lc-name{min-width:0;font:600 18.5px/1.2 var(--f-display);text-wrap:balance;overflow-wrap:anywhere;hyphens:auto}
 .lc-dist{flex:none;padding-top:3px;font:600 12px/1.3 var(--f-body);color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
 .lc-where{font-size:13px;color:var(--ink-3)}
 .lc-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
@@ -248,7 +248,7 @@ select.sel{background:var(--surface);border:1px solid var(--line);border-radius:
 .savebtn[aria-pressed="true"] svg{fill:currentColor}
 @media (hover:hover){.d-ib:hover{border-color:var(--border)}}
 .d-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:-6px}
-.d-name{margin:0;min-width:0;font:600 29px/1.12 var(--f-display);color:var(--ink);text-wrap:balance;overflow-wrap:break-word;hyphens:auto}
+.d-name{margin:0;min-width:0;font:600 29px/1.12 var(--f-display);color:var(--ink);text-wrap:balance;overflow-wrap:anywhere;hyphens:auto}
 .d-where{margin:-10px 0 0;font-size:13.5px;line-height:1.4;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .d-approx{justify-self:start;margin:-6px 0 0;padding:6px 10px;border-radius:12px;background:var(--gold-soft);color:var(--gold);font-size:13px;line-height:1.4}
 .d-nomore{margin:0;color:var(--ink-3);font-size:14px}
