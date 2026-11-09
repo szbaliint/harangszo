@@ -250,7 +250,7 @@ $("#locate-btn").addEventListener("click", () => locateMe());
 $("#menu-btn").addEventListener("click", () => { const m = $("#menu"), open = m.hidden; m.hidden = !open; $("#menu-btn").setAttribute("aria-expanded", String(open)); });
 document.addEventListener("click", e => { const m = $("#menu"); if (!m.hidden && !e.target.closest("#menu,#menu-btn")) { m.hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); } });
 document.addEventListener("keydown", e => {
-  if (e.key !== "Escape" || $("#filters").open || $("#suggest").open) return; // the sheets close themselves
+  if (e.key !== "Escape" || $("#filters").open || $("#suggest").open || $("#install").open) return; // the sheets close themselves
   if (!$("#menu").hidden) { $("#menu").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); return; }
   if (!isDesktop() && S.sheet !== "closed") { S.sel = null; S.tab = "map"; setSheet("closed"); render(); }
 });
@@ -382,7 +382,7 @@ function cardHTML(r) {
 }
 function bindCards() { panel.querySelector(".list")?.addEventListener("click", e => { const b = e.target.closest(".lcard"); if (b) select(+b.dataset.id); }); }
 function renderList() {
-  if (S.loading || S.error) { panel.innerHTML = `<div class="ui-empty">${S.error ? esc(S.error) : "Templomok betöltése…"}</div>`; renderNearest([]); return; }
+  if (S.loading || S.error) { panel.innerHTML = `<div class="ui-empty"><p>${S.error ? esc(S.error) : "Templomok betöltése…"}</p></div>`; renderNearest([]); return; }
   const ctx = dayContext(selDate()), rows = filtered(), shown = rows.slice(0, LIST_LIMIT), more = rows.length - shown.length;
   const feastNames = ctx.feasts.map(k => C.FEAST_BY_KEY[k].name).join(", ");
   panel.innerHTML = `<div class="lhead pad"><h2>${S.q.trim() ? "Találatok" : "A közelben"}</h2><p class="summary" id="summary"></p>
@@ -395,7 +395,7 @@ function renderList() {
 }
 // Mentett: the saved churches, nearest first, whatever the filters say.
 function renderSaved() {
-  if (S.loading || S.error) { panel.innerHTML = `<div class="ui-empty">${S.error ? esc(S.error) : "Templomok betöltése…"}</div>`; renderNearest([]); return; }
+  if (S.loading || S.error) { panel.innerHTML = `<div class="ui-empty"><p>${S.error ? esc(S.error) : "Templomok betöltése…"}</p></div>`; renderNearest([]); return; }
   const ctx = dayContext(selDate()), rows = filtered();
   const saved = Saved.ids().map(id => BY_ID.get(id)).filter(Boolean).map(c => ({ c, di: dayInfoCached(c, ctx), dist: distOf(c), os: null })).sort((a, b) => a.dist - b.dist);
   panel.innerHTML = `<div class="lhead pad"><h2>Mentett</h2>${saved.length ? `<p class="summary">${saved.length} templom · távolság: ${esc(S.origin)}</p>` : ""}</div>`
@@ -694,6 +694,62 @@ function bindSuggest(c) {
   });
 }
 
+/* ---------- Installable app: offline note, new version, install ---------- */
+// "Nincs internet · a lista működik" while the device is offline or the map library could not load.
+const Offline = (() => {
+  const note = $("#offnote"); let failed = false, retry = null;
+  const show = () => { note.hidden = navigator.onLine && !failed; };
+  window.addEventListener("offline", show);
+  window.addEventListener("online", () => { if (retry) { const r = retry; retry = null; failed = false; r(); } show(); });
+  show();
+  // reload: how to try loading the map again once back online (Google Maps); without it the note stays.
+  return { mapFailed(reload) { failed = true; retry = reload || null; show(); } };
+})();
+const NO_DATA = "Nincs internetkapcsolat, és még nincs elmentett templomlista ezen az eszközön. Csatlakozz az internethez, és frissítsd az oldalt.";
+
+// Service worker (sw.js): not on a local server unless ?sw=1, so development always sees fresh files.
+(function serviceWorker() {
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  if (!("serviceWorker" in navigator) || (local && !/[?&]sw=1(&|$)/.test(location.search))) return;
+  const el = $("#update"); let reloading = false;
+  const offer = worker => {
+    el.classList.add("on");
+    $("#update-btn").onclick = () => { reloading = true; el.classList.remove("on"); worker.postMessage("skipWaiting"); };
+  };
+  $("#update-x").addEventListener("click", () => el.classList.remove("on"));
+  // Only reload when the visitor asked for the new version (the very first install also changes the controller).
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (reloading) location.reload(); });
+  navigator.serviceWorker.register("sw.js", { scope: "./" }).then(reg => {
+    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+    reg.addEventListener("updatefound", () => {
+      const w = reg.installing; if (!w) return;
+      w.addEventListener("statechange", () => { if (w.state === "installed" && navigator.serviceWorker.controller) offer(w); });
+    });
+    // An installed app can stay open for days: look for a new version whenever it comes back to the front.
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => { }); });
+  }).catch(() => { }); // without a service worker the site still works as a normal page
+})();
+
+// "Telepítés a kezdőképernyőre": the browser's own prompt (Android, Chrome), or the steps on an iPhone.
+(function install() {
+  const btn = $("#install-btn"), sheet = $("#install");
+  const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const ios = (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) && navigator.standalone === false;
+  let prompt = null;
+  const update = () => { btn.hidden = standalone() || !(prompt || ios); };
+  const closeMenu = () => { $("#menu").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); };
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); prompt = e; update(); });
+  window.addEventListener("appinstalled", () => { prompt = null; update(); });
+  btn.addEventListener("click", async () => {
+    closeMenu();
+    if (prompt) { const p = prompt; prompt = null; try { await p.prompt(); await p.userChoice; } catch (_) { } update(); return; }
+    if (ios && !sheet.open) sheet.showModal();
+  });
+  $("#install-done").addEventListener("click", () => sheet.close());
+  sheet.addEventListener("click", e => { if (e.target === sheet) sheet.close(); }); // tap on the backdrop
+  update();
+})();
+
 /* ---------- Map ---------- */
 /* The map never draws every church one by one. Below street level, churches that are close together on screen
    are merged into one round marker with their number ("37"); tapping it zooms in on them. A church that stands
@@ -834,9 +890,12 @@ function googleView() {
   };
   $("#zoom-in").addEventListener("click", () => gmap && gmap.setZoom(gmap.getZoom() + 1)); $("#zoom-out").addEventListener("click", () => gmap && gmap.setZoom(gmap.getZoom() - 1));
   window.gm_authFailure = () => { $("#notice").innerHTML = "<b>Térképhiba.</b> A Google Maps kulcs nem érvényes ehhez a címhez. Ellenőrizd a kulcs webhely-korlátozását."; };
-  const s = document.createElement("script");
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(MAPS_KEY)}&callback=__initGoogle&language=hu&region=HU&loading=async`;
-  s.async = true; document.head.appendChild(s);
+  const load = () => {
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(MAPS_KEY)}&callback=__initGoogle&language=hu&region=HU&loading=async`;
+    s.async = true; s.onerror = () => { s.remove(); Offline.mapFailed(load); }; document.head.appendChild(s);
+  };
+  load();
   const api = {
     draw: list => draw && draw(list), ready: () => !!(draw && gmap.getBounds()),
     view() { const b = gmap.getBounds(), ne = b.getNorthEast(), sw = b.getSouthWest(), dy = (ne.lat() - sw.lat()) * .05, dx = (ne.lng() - sw.lng()) * .05;
@@ -852,7 +911,7 @@ function googleView() {
   return api;
 }
 const MapView = MAPS_KEY ? googleView() : (typeof L !== "undefined" ? leafletView() : { draw() { }, ready: () => false, view() { }, focus() { }, zoomTo() { } });
-if (!MAPS_KEY && typeof L === "undefined") $("#map").innerHTML = '<p style="padding:16px;color:var(--ink-3)">A térkép nem töltődött be. A lista ettől még használható.</p>';
+if (!MAPS_KEY && typeof L === "undefined") Offline.mapFailed();
 
 let mapRows = [], markerJob = null;
 function drawMarkers(rows) { mapRows = rows; queueMarkers(); }
@@ -927,7 +986,13 @@ function boot() {
     S.loading = false; S.error = "";
     if (!typing()) render();
     openDeepLink();
-  }).catch(() => { if (S.loading) { S.loading = false; S.error = "Nem sikerült betölteni a templomokat. Frissítsd az oldalt egy kicsit később."; render(); } });
+  }).catch(e => {
+    if (!S.loading) return; // the cached list stays
+    S.loading = false;
+    // No connection (fetch's TypeError) and nothing saved on this device yet: say so instead of a server error.
+    S.error = e instanceof TypeError || !navigator.onLine ? NO_DATA : "Nem sikerült betölteni a templomokat. Frissítsd az oldalt egy kicsit később.";
+    render();
+  });
 }
 // A link like ./#t=123 (e.g. from the parish page) opens that church once the data is there.
 let deepLink = +((location.hash.match(/t=(\d+)/) || [])[1] || 0);

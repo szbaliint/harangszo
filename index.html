@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Harangszó</title>
 <meta name="description" content="Katolikus templomok térképe Magyarországon: misék, gyóntatás, nyitvatartás, események.">
-<meta name="theme-color" content="#23408e">
+<meta name="theme-color" content="#233f8c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/bell.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
@@ -35,8 +38,10 @@ body{margin:0}
     <p class="menu-sub">templomok · misék · gyóntatás</p>
     <div class="notice" id="notice"></div>
     <div class="legend"><span><i class="mk mk-mass">18:00</i>mise</span><span><i class="mk mk-conf">17:30</i>gyóntatás</span><span><i class="mk mk-none">–</i>aznap nincs ismert alkalom</span></div>
+    <button class="ui-btn secondary" id="install-btn" type="button" hidden>Telepítés a kezdőképernyőre</button>
     <a class="btn" href="plebania.html">Plébániáknak: miserend feltöltése</a>
   </div>
+  <div class="offnote" id="offnote" role="status" hidden>Nincs internet · a lista működik</div>
 
   <div class="ctrls" aria-label="Térkép vezérlői">
     <button class="cbtn" id="locate-btn" aria-label="Saját helyzetem"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
@@ -67,7 +72,17 @@ body{margin:0}
   <header><h2 id="suggest-h">Pontosítás vagy új időpont</h2><button class="ui-btn quiet" id="suggest-done" type="button">Bezárás</button></header>
   <div class="body" id="suggest-body"></div>
 </dialog>
+<dialog class="ui-sheet" id="install" aria-labelledby="install-h">
+  <header><h2 id="install-h">Telepítés iPhone-ra</h2><button class="ui-btn quiet" id="install-done" type="button">Bezárás</button></header>
+  <div class="body">
+    <ol class="steps">
+      <li><span class="n" aria-hidden="true">1</span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg><p>Koppints a <b>Megosztás</b> gombra a Safari alsó sávjában.</p></li>
+      <li><span class="n" aria-hidden="true">2</span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg><p>Válaszd: <b>Főképernyőhöz adás</b>.</p></li>
+    </ol>
+  </div>
+</dialog>
 <div class="ui-toast" id="toast" role="status" aria-live="polite"></div>
+<div class="ui-toast action" id="update" role="status" aria-live="polite"><span>Új verzió érhető el ·</span><button class="ui-btn quiet" id="update-btn" type="button">Frissítés</button><button class="x" id="update-x" type="button" aria-label="Bezárás">×</button></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="config.js"></script>
 <script src="data.js"></script>

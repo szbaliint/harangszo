@@ -20,6 +20,8 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   ("Hozzáférések"), per-church editors and edit history. Parish accounts opening it are sent to `plebania.html`.
 - `plebania.html` + `plebania.js` – the parish portal: sign up → request access to a church → admin approves →
   week board editor in plain words, feasts, events, details, live 7-day preview. Saves through `save_church`.
+- PWA (map only): `manifest.webmanifest`, `sw.js` (precaches the map's shell; `__BUILD__` is stamped with the commit
+  by pages.yml, so each deploy offers "Frissítés"), `icons/` (PNGs rendered from `bell.svg` by `icons/render.mjs`).
 - `styles.css` – shared tokens (light/dark). `replica/` holds design notes from the map-layout redesign (clean-room:
   never copy the reference app's assets, brand or copy).
 

@@ -30,7 +30,8 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           mkdir -p _site
-          cp index.html admin.html plebania.html styles.css app.js admin.js plebania.js calendar.js schedule-editor.js data.js config.js _site/
+          cp index.html admin.html plebania.html styles.css app.js admin.js plebania.js calendar.js schedule-editor.js data.js config.js sw.js manifest.webmanifest _site/
+          cp -r icons _site/
           fill() {  # fill <placeholder> <value> <label>
             if [ -n "$2" ]; then
               python3 -c 'import sys; p="_site/config.js"; s=open(p).read(); open(p,"w").write(s.replace(sys.argv[1], sys.argv[2]))' "$1" "$2"
@@ -42,6 +43,8 @@ jobs:
           fill __GOOGLE_MAPS_KEY__   "$GOOGLE_MAPS_KEY"   "Google Maps key (otherwise OpenStreetMap)"
           fill __SUPABASE_URL__      "$SUPABASE_URL"      "Supabase URL (otherwise sample data)"
           fill __SUPABASE_ANON_KEY__ "$SUPABASE_PUBLISHABLE_KEY" "Supabase publishable key"
+          # A new build id makes browsers install the new service worker (and offer "Frissítés").
+          python3 -c 'import sys; p="_site/sw.js"; s=open(p).read(); open(p,"w").write(s.replace("__BUILD__", sys.argv[1]))' "$GITHUB_SHA"
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
