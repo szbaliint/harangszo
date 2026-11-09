@@ -25,7 +25,9 @@ async function open(view, { init } = {}) {
   return { page, errors, close: () => context.close() };
 }
 const fold = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const cardNames = page => page.$$eval("#panel .lcard .lc-name", els => els.map(e => e.textContent));
+// The panel re-renders inside a view transition (Task 10), a moment after the click: wait for it to finish.
+const settled = page => page.waitForFunction(() => !/\bvt-/.test(document.documentElement.className));
+const cardNames = async page => { await settled(page); return page.$$eval("#panel .lcard .lc-name", els => els.map(e => e.textContent)); };
 
 for (const view of Object.keys(VIEWS)) {
   test(`tabs (${view})`, async () => {

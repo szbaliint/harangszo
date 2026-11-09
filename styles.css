@@ -350,6 +350,34 @@ form.suggest .muted{margin:0;font-size:13px}
   .app:has(.sheet[data-state="full"]) .nearest,.app:has(.sheet[data-state="peek"]) .nearest{opacity:1;transform:none;pointer-events:auto}
 }
 @media (prefers-reduced-motion:reduce){.sheet,.nearest,.ctrls,.qbar,.lcard,.d-ib,.d-act,.d-days button{transition:none}.d-act:active{transform:none}}
+
+/* Motion (app.js withTransition): only the panel's content takes part in a view transition; the map stays live
+   underneath (the root is not captured) and keeps taking taps. The dock is captured too so the tab bar stays on top
+   of the sliding panel. Open: detail in from 24px below (phone) / right (desktop), 240ms; back: the list in from the
+   opposite side, 200ms; tabs: 180ms crossfade. */
+:root{view-transition-name:none;--vt-dx:0px;--vt-dy:24px}
+@media (min-width:900px){:root{--vt-dx:24px;--vt-dy:0px}}
+.panel{view-transition-name:panel}
+.dock{view-transition-name:dock}
+::view-transition{pointer-events:none}
+::view-transition-group(panel),::view-transition-group(dock),::view-transition-new(dock){animation:none}
+::view-transition-old(dock){display:none}
+.vt-open::view-transition-old(panel),.vt-back::view-transition-old(panel),.vt-cold::view-transition-old(panel){display:none}
+.vt-open::view-transition-new(panel){animation:vt-in-fwd 240ms var(--ease) both}
+.vt-back::view-transition-new(panel){animation:vt-in-back 200ms var(--ease) both}
+.vt-tab::view-transition-old(panel){animation:vt-fade-out 180ms var(--ease) both}
+.vt-tab::view-transition-new(panel){animation:vt-fade-in 180ms var(--ease) both}
+@keyframes vt-in-fwd{from{opacity:0;transform:translate(var(--vt-dx),var(--vt-dy))}}
+@keyframes vt-in-back{from{opacity:0;transform:translate(calc(-1 * var(--vt-dx)),calc(-1 * var(--vt-dy)))}}
+@keyframes vt-fade-in{from{opacity:0}}
+@keyframes vt-fade-out{to{opacity:0}}
+/* Without View Transitions: the same motion as keyframes on the panel. */
+.panel.p-open{animation:vt-in-fwd 240ms var(--ease) both}
+.panel.p-back{animation:vt-in-back 200ms var(--ease) both}
+.panel.p-tab{animation:vt-fade-in 180ms var(--ease) both}
+@media (prefers-reduced-motion:reduce){
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*),::view-transition-image-pair(*){animation:none!important}
+  .panel.p-open,.panel.p-back,.panel.p-tab{animation:none!important}}
 .leaflet-control-attribution{margin-bottom:calc(var(--dock-h,230px) + 4px)!important;border-radius:6px 0 0 6px}
 @media (min-width:900px){.leaflet-control-attribution{margin-bottom:0!important}}
 .btn.primary{border-radius:999px;color:var(--on-accent)}

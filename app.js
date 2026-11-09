@@ -240,10 +240,33 @@ function setSheet(state) {
   S.sheet = state; sheetEl.dataset.state = state;
   document.querySelectorAll(".ui-tab").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === (state === "closed" ? "map" : S.tab))));
 }
+/* Motion: the panel's content changes through a view transition (styles.css "Motion"); the map and the sheet's own
+   slide never take part. kind: "open" (a church), "back" (to the list), "tab" (crossfade). Reduced motion: no animation. */
+const motionOk = () => !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let vtSeq = 0;
+function withTransition(update, kind = "tab") {
+  if (!motionOk()) return update();
+  const root = document.documentElement, cls = ["vt-" + kind], cold = S.sheet === "closed";
+  if (cold) cls.push("vt-cold"); // the old content was off screen: don't fade a ghost of it
+  if (document.startViewTransition) {
+    let ran = false;
+    const run = () => { ran = true; update(); };
+    try {
+      root.classList.remove("vt-open", "vt-back", "vt-tab", "vt-cold"); root.classList.add(...cls);
+      const seq = ++vtSeq, t = document.startViewTransition(run);
+      t.ready.catch(() => { }); t.updateCallbackDone.catch(() => { });
+      t.finished.catch(() => { }).finally(() => { if (seq === vtSeq) root.classList.remove(...cls); });
+      return;
+    } catch (e) { root.classList.remove(...cls); if (!ran) update(); return; }
+  }
+  // No View Transitions: the same motion as a keyframe animation on the panel itself.
+  update();
+  panel.classList.remove("p-open", "p-back", "p-tab"); void panel.offsetWidth; panel.classList.add("p-" + kind);
+}
 function openTab(tab) {
   S.tab = tab; S.sel = null;
   if (tab === "map") { setSheet("closed"); render(); return; }
-  render(); setSheet("full");
+  withTransition(render, "tab"); setSheet("full");
 }
 document.querySelectorAll(".ui-tab").forEach(b => b.addEventListener("click", () => openTab(b.dataset.tab)));
 $("#locate-btn").addEventListener("click", () => locateMe());
@@ -302,6 +325,7 @@ const kmText = d => d < 1 ? Math.round(d * 1000 / 10) * 10 + " m" : (d < 10 ? d.
 
 /* ---------- Rendering: list ---------- */
 const panel = $("#panel");
+panel.addEventListener("animationend", e => { if (e.target === panel) panel.classList.remove("p-open", "p-back", "p-tab"); });
 function dayLabel(off) { const d = new Date(); d.setDate(d.getDate() + off); return off === 0 ? "Ma" : off === 1 ? "Holnap" : DAYN[d.getDay()] + ", " + shortDate(d); }
 function dayShort(off) { const d = new Date(); d.setDate(d.getDate() + off); return off === 0 ? "Ma" : off === 1 ? "Holnap" : DAY_SHORT[d.getDay()] + ", " + shortDate(d); }
 
@@ -633,7 +657,10 @@ function renderDetail() {
     ${showDays ? `<div class="d-days" role="group" aria-label="Nap">${days}</div>${dayBoxHTML(c, di)}` : ""}
     ${folds ? `<div class="ui-glist d-folds">${folds}</div>` : ""}
   </div>`;
-  $("#back").addEventListener("click", () => { S.sel = null; if (S.tab === "map" && !isDesktop()) setSheet("closed"); render(); });
+  $("#back").addEventListener("click", () => {
+    S.sel = null;
+    if (S.tab === "map" && !isDesktop()) { setSheet("closed"); render(); } else withTransition(render, "back");
+  });
   $("#save-church").addEventListener("click", e => setSaveBtn(e.currentTarget, Saved.toggle(c.id)));
   $("#share").addEventListener("click", () => shareChurch(c));
   $("#go-suggest").addEventListener("click", () => openSuggest(c));
@@ -964,7 +991,7 @@ function select(id) {
   S.sel = id;
   const c = BY_ID.get(id);
   if (c) MapView.focus(c.lat, c.lon, 15);
-  render();
+  withTransition(render, "open");
   if (S.sheet === "closed" || isDesktop()) setSheet(isDesktop() ? "full" : "peek");
 }
 
