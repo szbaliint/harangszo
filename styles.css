@@ -311,9 +311,11 @@ form.suggest input[type=text]{background:var(--bg);border:1px solid var(--line);
   .ui-btn.primary:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 88%,var(--ink));border-color:color-mix(in srgb,var(--accent) 88%,var(--ink))}}
 
 /* Filter chip with a colour dot; pressed via aria-pressed="true" */
-.ui-chip{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink-2);
+.ui-chip{position:relative;display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 13px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink-2);
   font:400 14px/1.2 var(--f-body);font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent;
   transition:background-color .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease)}
+/* Drawn at 34px like the mockups; the invisible ::before keeps the tap area 44px tall. */
+.ui-chip::before{content:"";position:absolute;inset:-5px 0}
 .ui-chip .dot{flex:none;width:8px;height:8px;border-radius:50%}
 .ui-chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
 

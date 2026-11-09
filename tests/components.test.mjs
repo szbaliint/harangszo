@@ -24,7 +24,8 @@ for (const theme of ["light", "dark"]) {
       const sel = ".ui-btn, .ui-chip, .ui-tab, .ui-daypick button, .ui-field input, .ui-seg button";
       const small = await page.$$eval(sel, els => els
         .filter(e => e.checkVisibility({ visibilityProperty: true }))
-        .map(e => ({ h: e.getBoundingClientRect().height, what: e.className || e.tagName + " " + e.textContent.trim() }))
+        // A chip is drawn smaller; its ::before extends the tap area (inset -5px top and bottom).
+        .map(e => ({ h: e.getBoundingClientRect().height + (e.matches(".ui-chip") && getComputedStyle(e, "::before").content !== "none" ? -2 * parseFloat(getComputedStyle(e, "::before").top) : 0), what: e.className || e.tagName + " " + e.textContent.trim() }))
         .filter(x => x.h < 44));
       const count = await page.locator(sel).count();
       assert.ok(count >= 20, `fixture shows the components (${count})`);
