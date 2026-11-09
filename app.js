@@ -313,7 +313,7 @@ function cardHTML(r) {
   const rite = r.c.rite === "gk" ? `<span class="pill p-rite">görögkatolikus</span>` : "";
   const where = [r.c.city, r.c.addr].filter(Boolean).join(", ");
   return `<li><button class="card" data-id="${r.c.id}" aria-current="${S.sel === r.c.id}">
-    <div class="card-top"><div><h3>${esc(r.c.name)}</h3><div class="where">${esc(where)}</div></div><span class="dist">${r.dist < 1 ? "<1" : Math.round(r.dist)} km</span></div>
+    <div class="card-top"><div><h3>${esc(r.c.name)}</h3><div class="where">${esc(where)}</div></div><span class="dist">${kmText(r.dist)}</span></div>
     <div class="next">${osPill}${feast}${rite}${pills}</div></button></li>`;
 }
 function renderList() {
@@ -536,12 +536,26 @@ function bindSuggest(c) {
    alone keeps its own marker: a dot when zoomed out, a pill with the next time when zoomed in. From SHOW_ALL_ZOOM
    on, every church has its own marker. */
 const HU_BOUNDS = { s: 45.7, w: 16.1, n: 48.6, e: 22.9 };
+// How far the map may pan. Wider than Hungary on purpose: if the screen shows more than this, the map is pinned
+// to its middle and cannot shift Hungary out from under the side panel.
+const PAN_BOUNDS = { s: 43.5, w: 11.5, n: 50.5, e: 27.5 };
 const SHOW_ALL_ZOOM = 14, LABEL_ZOOM = 12.5, CLUSTER_PX = 72;
 // Web Mercator world pixels at a zoom level (both map libraries use 256px tiles).
 const worldPx = (lat, lon, z) => { const k = 256 * 2 ** z, sn = Math.sin(lat * Math.PI / 180);
   return [(lon + 180) / 360 * k, (0.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * k]; };
 const clusterSize = n => n < 10 ? 30 : n < 100 ? 36 : n < 1000 ? 42 : 50;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+// Room the floating UI takes on each side of the map, so the first view of Hungary is not hidden under the
+// side panel (desktop), the brand chip, the zoom buttons or the bottom dock.
+function fitPadding() {
+  const W = innerWidth, H = innerHeight, sheet = $("#sheet"), ctrls = $(".ctrls"), top = $(".topbar"), dock = $(".dock");
+  const desk = isDesktop(), gap = desk ? 24 : 8;
+  return {
+    top: top.offsetTop + top.offsetHeight + gap,
+    bottom: Math.max(0, H - dock.getBoundingClientRect().top) + gap,
+    left: (desk && S.sheet !== "closed" ? sheet.offsetLeft + sheet.offsetWidth : 0) + gap,
+    right: (desk ? W - ctrls.offsetLeft : 0) + gap };
+}
 const OSM_DATA_CREDIT = 'Templomhelyek: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 // Church markers are created once per church on first show; each draw only adds/removes the ones whose visibility
@@ -568,7 +582,7 @@ function makeDiffer(create, restyle, addMany, removeMany) {
 // Tapping a number zooms in until its churches spread out.
 const openCluster = p => MapView.zoomTo(p.b);
 function leafletView() {
-  const map = L.map("map", { minZoom: 6, maxZoom: 18, zoomSnap: .25, zoomControl: false, maxBounds: [[44.9, 15.3], [49.4, 23.8]] });
+  const map = L.map("map", { minZoom: 6, maxZoom: 18, zoomSnap: .25, zoomControl: false, maxBounds: [[PAN_BOUNDS.s, PAN_BOUNDS.w], [PAN_BOUNDS.n, PAN_BOUNDS.e]] });
   // Light or dark base map with the site's theme (CARTO basemaps on OpenStreetMap data).
   const dark = window.matchMedia("(prefers-color-scheme: dark)");
   const tiles = () => L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark.matches ? "dark_all" : "rastertiles/voyager"}/{z}/{x}/{y}{r}.png`, { maxZoom: 19, subdomains: "abcd",
@@ -577,7 +591,7 @@ function leafletView() {
   dark.addEventListener?.("change", () => { map.removeLayer(base); base = tiles().addTo(map); });
   $("#zoom-in").addEventListener("click", () => map.zoomIn()); $("#zoom-out").addEventListener("click", () => map.zoomOut());
   let meMk = null;
-  map.fitBounds([[HU_BOUNDS.s, HU_BOUNDS.w], [HU_BOUNDS.n, HU_BOUNDS.e]]);
+  { const p = fitPadding(); map.fitBounds([[HU_BOUNDS.s, HU_BOUNDS.w], [HU_BOUNDS.n, HU_BOUNDS.e]], { paddingTopLeft: [p.left, p.top], paddingBottomRight: [p.right, p.bottom] }); }
   const layer = L.layerGroup().addTo(map);
   const icons = {};
   const icon = p => { const k = p.cls + p.label + p.dot + p.sel + (p.n || ""); return icons[k] || (icons[k] = L.divIcon({ className: "mkicon", iconSize: [0, 0],
@@ -620,7 +634,7 @@ const cluSVG = (fill, ink, ring, label, d) => "data:image/svg+xml;charset=UTF-8,
   <text x="${d / 2}" y="${d / 2 + 4.5}" text-anchor="middle" font-family="IBM Plex Mono,Menlo,monospace" font-size="${d > 50 ? 13 : 12}" font-weight="700" fill="${ink}">${label}</text></svg>`);
 const dotSVG = (fill, ring, sel) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">${sel ? '<circle cx="10" cy="10" r="9" fill="none" stroke="#c9971c" stroke-width="3"/>' : ""}<circle cx="10" cy="10" r="6" fill="${fill}" stroke="${ring}" stroke-width="2"/></svg>`);
 function googleView() {
-  let gmap = null, pendingFocus = null, draw = null, meMk = null;
+  let gmap = null, pendingFocus = null, draw = null, meMk = null, moved = false;
   const dark = window.matchMedia("(prefers-color-scheme: dark)");
   const pal = () => ({ mass: [css("--accent"), css("--on-accent")], conf: [css("--penance"), css("--on-penance")], none: [css("--mk-none-bg"), css("--mk-none-ink")], ring: css("--surface"), border: css("--border") });
   let colors = null, iconCache = {};
@@ -634,10 +648,13 @@ function googleView() {
   };
   window.__initGoogle = () => {
     colors = pal();
-    gmap = new google.maps.Map(document.getElementById("map"), { center: { lat: 47.16, lng: 19.5 }, zoom: 7, disableDefaultUI: true, keyboardShortcuts: false,
+    gmap = new google.maps.Map(document.getElementById("map"), { center: { lat: 47.16, lng: 19.5 }, zoom: 7, isFractionalZoomEnabled: true, disableDefaultUI: true, keyboardShortcuts: false,
       gestureHandling: "greedy", clickableIcons: false, backgroundColor: css("--land"), styles: dark.matches ? GM_DARK : GM_LIGHT,
-      restriction: { latLngBounds: { north: 49.4, south: 44.9, west: 15.3, east: 23.8 } } });
-    gmap.fitBounds({ north: HU_BOUNDS.n, south: HU_BOUNDS.s, west: HU_BOUNDS.w, east: HU_BOUNDS.e });
+      restriction: { latLngBounds: { north: PAN_BOUNDS.n, south: PAN_BOUNDS.s, west: PAN_BOUNDS.w, east: PAN_BOUNDS.e } } });
+    // Fit twice: on the first call the map has no size yet and its pan limit keeps it centred; once it has
+    // drawn, the padding can shift Hungary out from under the side panel.
+    const fitHU = () => gmap.fitBounds({ north: HU_BOUNDS.n, south: HU_BOUNDS.s, west: HU_BOUNDS.w, east: HU_BOUNDS.e }, fitPadding());
+    fitHU(); google.maps.event.addListenerOnce(gmap, "idle", () => { if (!pendingFocus && !moved) fitHU(); });
     dark.addEventListener?.("change", () => { gmap.setOptions({ styles: dark.matches ? GM_DARK : GM_LIGHT }); colors = pal(); iconCache = {}; queueMarkers(); });
     draw = makeDiffer(
       p => { const mk = new google.maps.Marker({ position: { lat: p.lat, lng: p.lon }, title: p.n ? `${p.n} templom – nagyíts rá` : p.c.name, optimized: true });
@@ -657,8 +674,8 @@ function googleView() {
     draw: list => draw && draw(list), ready: () => !!(draw && gmap.getBounds()),
     view() { const b = gmap.getBounds(), ne = b.getNorthEast(), sw = b.getSouthWest(), dy = (ne.lat() - sw.lat()) * .05, dx = (ne.lng() - sw.lng()) * .05;
       return { s: sw.lat() - dy, w: sw.lng() - dx, n: ne.lat() + dy, e: ne.lng() + dx, zoom: gmap.getZoom() }; },
-    focus(lat, lon, z) { if (!gmap) { pendingFocus = [lat, lon, z]; return; } gmap.panTo({ lat, lng: lon }); if (gmap.getZoom() < z) gmap.setZoom(z); },
-    zoomTo(b) { if (!gmap) return; const z = gmap.getZoom();
+    focus(lat, lon, z) { moved = true; if (!gmap) { pendingFocus = [lat, lon, z]; return; } gmap.panTo({ lat, lng: lon }); if (gmap.getZoom() < z) gmap.setZoom(z); },
+    zoomTo(b) { if (!gmap) return; moved = true; const z = gmap.getZoom();
       if (b.n - b.s < 1e-4 && b.e - b.w < 1e-4) { gmap.panTo({ lat: b.s, lng: b.w }); gmap.setZoom(Math.max(z + 2, SHOW_ALL_ZOOM)); return; }
       gmap.fitBounds({ north: b.n, south: b.s, east: b.e, west: b.w }, 60);
       google.maps.event.addListenerOnce(gmap, "idle", () => { if (gmap.getZoom() <= z) gmap.setZoom(z + 1); else if (gmap.getZoom() > 17) gmap.setZoom(17); }); },
@@ -695,7 +712,16 @@ function updateMarkers() {
       const [x, y] = worldPx(r.c.lat, r.c.lon, z), k = Math.floor(x / CLUSTER_PX) + ":" + Math.floor(y / CLUSTER_PX);
       const g = cells.get(k); if (g) g.push(r); else cells.set(k, [r]);
     }
-    for (const [k, g] of cells) {
+    // Neighbouring cells can put two markers on top of each other; merge any pair whose circles would touch
+    // (biggest first, so small groups fold into big ones).
+    const groups = [...cells].map(([k, g]) => { const [x, y] = worldPx(g.reduce((a, r) => a + r.c.lat, 0) / g.length, g.reduce((a, r) => a + r.c.lon, 0) / g.length, z); return { k, g, x, y }; })
+      .sort((a, b) => b.g.length - a.g.length), kept = [];
+    for (const q of groups) {
+      const t = kept.find(o => Math.hypot(o.x - q.x, o.y - q.y) < (clusterSize(o.g.length) + clusterSize(q.g.length)) / 2 + 16);
+      if (!t) { kept.push(q); continue; }
+      const n = t.g.length + q.g.length; t.x = (t.x * t.g.length + q.x * q.g.length) / n; t.y = (t.y * t.g.length + q.y * q.g.length) / n; t.g = t.g.concat(q.g);
+    }
+    for (const { k, g } of kept) {
       if (g.length === 1) { list.push(one(g[0], false)); continue; }
       let la = 0, lo = 0, s = 90, w = 180, n = -90, e = -180, mass = false, conf = false;
       for (const r of g) { const c = r.c; la += c.lat; lo += c.lon; s = Math.min(s, c.lat); n = Math.max(n, c.lat); w = Math.min(w, c.lon); e = Math.max(e, c.lon);

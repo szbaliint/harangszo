@@ -105,11 +105,11 @@ select.sel{background:var(--surface);border:1px solid var(--line);border-radius:
 .week tr.today th,.week tr.today td{background:var(--accent-soft)}
 .week .c{color:var(--penance)}
 .ev-list{display:grid;gap:8px}
-.ev{display:grid;grid-template-columns:3.4rem minmax(0,1fr);gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
-.ev .date{text-align:center;font-family:var(--f-display);line-height:1}
-.ev .date b{display:block;font-size:1.5rem;font-weight:700;color:var(--gold)}
-.ev .date small{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-family:var(--f-body)}
-.ev h5{margin:0;font-size:.95rem;font-weight:600}
+.ev-list > .ev{display:grid;grid-template-columns:3.4rem minmax(0,1fr);gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+.ev-list > .ev .date{text-align:center;font-family:var(--f-display);line-height:1}
+.ev-list > .ev .date b{display:block;font-size:1.5rem;font-weight:700;color:var(--gold)}
+.ev-list > .ev .date small{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-family:var(--f-body)}
+.ev-list > .ev h5{margin:0;font-size:.95rem;font-weight:600}
 .muted{color:var(--ink-3);font-size:.86rem}
 
 /* Suggestion form */
