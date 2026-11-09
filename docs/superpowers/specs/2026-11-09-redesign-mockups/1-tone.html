@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="hu"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#d9dbe0;font-family:"IBM Plex Sans",system-ui,sans-serif;padding:32px;color:#141a26}
+h1{font:600 22px/1.2 "IBM Plex Sans";margin:0 0 4px}
+.sub{color:#4a5468;margin:0 0 24px;font-size:14px}
+.row{display:flex;gap:40px;align-items:flex-start}
+.col h2{font:600 15px "IBM Plex Sans";margin:0 0 10px}
+.col p.n{font-size:13px;color:#4a5468;margin:8px 0 0;max-width:360px}
+.phone{width:360px;height:720px;border-radius:44px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgb(0 0 0/.25),0 0 0 10px #111}
+/* tone tokens */
+.A{--bg:#f6f3ec;--surface:#fffdf8;--line:#e6dfd0;--ink:#1d1a16;--ink2:#5b5447;--ink3:#857c6c;--accent:#233f8c;--accent-soft:#e6e9f4;--gold:#9a6b10;--gold-soft:#f5ead2;--violet:#6a2e8c;--violet-soft:#f0e6f4;--open:#1d7a4c}
+.B{--bg:#f3f5f9;--surface:#ffffff;--line:#e2e6ee;--ink:#121826;--ink2:#4a5468;--ink3:#7a8396;--accent:#23408e;--accent-soft:#e7ecf8;--gold:#8a5f0c;--gold-soft:#f6edd9;--violet:#6a2e8c;--violet-soft:#f1e8f6;--open:#1d7a4c}
+.screen{height:100%;background:var(--bg);color:var(--ink);display:flex;flex-direction:column}
+.status{height:44px}
+.hdr{padding:6px 20px 0;display:flex;align-items:center;gap:10px}
+.hdr .back{width:36px;height:36px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;color:var(--ink2)}
+.hdr .sp{flex:1}
+.title{padding:14px 20px 4px;font:700 28px/1.12 "Spectral",serif;letter-spacing:-.01em}
+.where{padding:0 20px;color:var(--ink3);font-size:14px}
+.hero{margin:18px 16px 0;background:var(--accent);color:#fff;border-radius:22px;padding:18px 18px 16px;position:relative;overflow:hidden}
+.hero small{opacity:.8;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.hero .t{font:600 44px/1 "IBM Plex Mono",monospace;margin:6px 0 4px;letter-spacing:-.02em}
+.hero .w{font-size:14px;opacity:.9}
+.hero .in{position:absolute;right:16px;top:18px;background:rgb(255 255 255/.16);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600}
+.sec{margin:20px 16px 0}
+.sec h3{font:600 12px "IBM Plex Sans";letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin:0 0 8px 4px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line)}
+.li:first-child{border-top:0}
+.li .tm{font:600 15px "IBM Plex Mono",monospace;width:52px}
+.li .k{font-size:15px;flex:1}
+.li .k small{display:block;color:var(--ink3);font-size:12.5px}
+.tag{font-size:12px;font-weight:600;border-radius:999px;padding:3px 9px}
+.tag.m{background:var(--accent-soft);color:var(--accent)}
+.tag.c{background:var(--violet-soft);color:var(--violet)}
+.tag.a{background:var(--gold-soft);color:var(--gold)}
+.past{opacity:.45}
+.btns{display:flex;gap:8px;margin:18px 16px 0}
+.b{flex:1;height:46px;border-radius:999px;display:grid;place-items:center;font-weight:600;font-size:15px}
+.b.p{background:var(--accent);color:#fff}
+.b.s{background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.chips{display:flex;gap:6px;margin:14px 16px 0;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink2)}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.sw{display:flex;gap:6px;margin-top:12px}
+.sw i{width:34px;height:34px;border-radius:10px;border:1px solid rgb(0 0 0/.08)}
+</style></head><body>
+<h1>1 · Base tone: which one feels right?</h1>
+<p class="sub">Same church page, same blue and gold, same fonts (Spectral titles, IBM Plex text, Plex Mono times). Only the background tone differs.</p>
+<div class="row">
+<div class="col"><h2>A · Warm parchment</h2>
+<div class="phone A"><div class="screen">
+ <div class="status"></div>
+ <div class="hdr"><div class="back">‹</div><div class="sp"></div><div class="back">♡</div><div class="back">↗</div></div>
+ <div class="title">Budavári Nagy&shy;boldogasszony-templom</div>
+ <div class="where">Szentháromság tér 2 · 640 m</div>
+ <div class="hero"><small>Következő mise</small><div class="t">18:00</div><div class="w">ma · magyar nyelvű</div><span class="in">1 óra 20 perc múlva</span></div>
+ <div class="chips"><span class="chip on">Ma</span><span class="chip">Holnap</span><span class="chip">Vasárnap</span><span class="chip">Egész hét</span></div>
+ <div class="sec"><h3>Ma, november 9.</h3><div class="card">
+  <div class="li past"><span class="tm">07:00</span><span class="k">Szentmise</span><span class="tag m">mise</span></div>
+  <div class="li"><span class="tm">17:00</span><span class="k">Gyóntatás<small>a sekrestyénél</small></span><span class="tag c">gyónás</span></div>
+  <div class="li"><span class="tm">18:00</span><span class="k">Szentmise</span><span class="tag m">mise</span></div>
+ </div></div>
+ <div class="btns"><div class="b p">Útvonal</div><div class="b s">Hívás</div></div>
+</div></div>
+<div class="sw"><i style="background:#f6f3ec"></i><i style="background:#fffdf8"></i><i style="background:#233f8c"></i><i style="background:#9a6b10"></i><i style="background:#6a2e8c"></i></div>
+<p class="n">Cream background, off-white cards, warm greys. Softer, more "printed bulletin"; feels traditional and calm.</p>
+</div>
+<div class="col"><h2>B · Cool clean</h2>
+<div class="phone B"><div class="screen">
+ <div class="status"></div>
+ <div class="hdr"><div class="back">‹</div><div class="sp"></div><div class="back">♡</div><div class="back">↗</div></div>
+ <div class="title">Budavári Nagy&shy;boldogasszony-templom</div>
+ <div class="where">Szentháromság tér 2 · 640 m</div>
+ <div class="hero"><small>Következő mise</small><div class="t">18:00</div><div class="w">ma · magyar nyelvű</div><span class="in">1 óra 20 perc múlva</span></div>
+ <div class="chips"><span class="chip on">Ma</span><span class="chip">Holnap</span><span class="chip">Vasárnap</span><span class="chip">Egész hét</span></div>
+ <div class="sec"><h3>Ma, november 9.</h3><div class="card">
+  <div class="li past"><span class="tm">07:00</span><span class="k">Szentmise</span><span class="tag m">mise</span></div>
+  <div class="li"><span class="tm">17:00</span><span class="k">Gyóntatás<small>a sekrestyénél</small></span><span class="tag c">gyónás</span></div>
+  <div class="li"><span class="tm">18:00</span><span class="k">Szentmise</span><span class="tag m">mise</span></div>
+ </div></div>
+ <div class="btns"><div class="b p">Útvonal</div><div class="b s">Hívás</div></div>
+</div></div>
+<div class="sw"><i style="background:#f3f5f9"></i><i style="background:#ffffff"></i><i style="background:#23408e"></i><i style="background:#8a5f0c"></i><i style="background:#6a2e8c"></i></div>
+<p class="n">Blue-grey background, pure white cards, cool greys. Closer to today's look and to iOS; crisper, more "app".</p>
+</div>
+</div>
+</body></html>
