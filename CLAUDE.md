@@ -56,4 +56,6 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
 - Parish editors must never be able to change admin-only fields (published, importance, import keys): the
   `churches_guard` trigger enforces it — keep it in mind when adding columns.
 - Test UI changes with Playwright against a local `python3 -m http.server`, mocking Supabase; test SQL with PGlite.
+  `npm test` runs `tests/` (node:test + the globally installed Playwright, no dependencies; `tests/helpers/` has the
+  server and the Supabase mock). Tests need network for the supabase-js and Google Fonts CDNs.
 - Commit and push only when asked.
