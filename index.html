@@ -63,6 +63,11 @@ body{margin:0}
   <header><h2 id="filters-h">Szűrők</h2><button class="ui-btn quiet" id="filters-done" type="button">Kész</button></header>
   <div class="body" id="filters-body"></div>
 </dialog>
+<dialog class="ui-sheet" id="suggest" aria-labelledby="suggest-h">
+  <header><h2 id="suggest-h">Pontosítás vagy új időpont</h2><button class="ui-btn quiet" id="suggest-done" type="button">Bezárás</button></header>
+  <div class="body" id="suggest-body"></div>
+</dialog>
+<div class="ui-toast" id="toast" role="status" aria-live="polite"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="config.js"></script>
 <script src="data.js"></script>

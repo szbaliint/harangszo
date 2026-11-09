@@ -61,7 +61,8 @@ function fromSample(c) {
     ...Object.entries(c.feasts || {}).flatMap(([key, rows]) => rows.map(m => ({ k: m.k, d: [], t: m.t, u: m.u || null, n: m.n, p: "all", feast: key }))),
   ];
   return { id: c.id, name: c.name, city: c.city, addr: c.addr, rite: c.rite, lat: c.lat, lon: c.lon,
-    onlyServices: !c.hours, hours: c.hours || [], svc, feastSunday: c.feastSunday || [], ev: c.ev, imp: c.imp ?? 60 };
+    onlyServices: !c.hours, hours: c.hours || [], svc, feastSunday: c.feastSunday || [], ev: c.ev || [], imp: c.imp ?? 60,
+    web: c.web, phone: c.phone, note: c.note || "", approx: !!c.approx };
 }
 function fromDb(c) {
   return { id: c.id, name: c.name, city: c.city || "", addr: c.address || "", rite: c.rite, lat: c.lat, lon: c.lon,
@@ -249,7 +250,7 @@ $("#locate-btn").addEventListener("click", () => locateMe());
 $("#menu-btn").addEventListener("click", () => { const m = $("#menu"), open = m.hidden; m.hidden = !open; $("#menu-btn").setAttribute("aria-expanded", String(open)); });
 document.addEventListener("click", e => { const m = $("#menu"); if (!m.hidden && !e.target.closest("#menu,#menu-btn")) { m.hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); } });
 document.addEventListener("keydown", e => {
-  if (e.key !== "Escape" || $("#filters").open) return; // the filter sheet closes itself
+  if (e.key !== "Escape" || $("#filters").open || $("#suggest").open) return; // the sheets close themselves
   if (!$("#menu").hidden) { $("#menu").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); return; }
   if (!isDesktop() && S.sheet !== "closed") { S.sel = null; S.tab = "map"; setSheet("closed"); render(); }
 });
@@ -336,7 +337,7 @@ filtersEl.addEventListener("click", e => {
 });
 filtersEl.addEventListener("change", e => {
   const t = e.target;
-  if (t.id === "day") { S.dayOffset = +t.value; if (!isToday()) S.f.open = false; if (!C.inAdvent(selDate())) S.f.rorate = false; }
+  if (t.id === "day") setDayOffset(+t.value);
   else if (t.id === "origin") {
     if (t.value === "__me") { filtersEl.close(); return locateMe(); }
     S.origin = t.value; try { localStorage.setItem("harangszo", JSON.stringify({ origin: S.origin })); } catch (_) { }
@@ -463,43 +464,56 @@ function seasonNote(c, ctx) {
   const az = w => /^[aáeéiíoóöőuúüű]/i.test(w) ? "az" : "a";
   return `<p class="muted season">${active.length ? `Most ${az(names(nowKey))} <b>${names(nowKey)}</b> miserend érvényes.` : ""}${change ? ` Következő váltás: ${change.getFullYear() !== ctx.date.getFullYear() ? change.getFullYear() + ". " : ""}${shortDate(change)} (${names(activeOn(change))} rend).` : ""}<br>${esc(list)}</p>`;
 }
-// The coming days from the parish's own weekly schedule, day by day.
-function datedWeekHTML(c) {
+// The coming days (from today, a week ahead) that have times from the parish's own weekly schedule.
+function datedDays(c) {
   const today = ymd(now()), until = ymd(C.addDays(now(), 7));
-  const days = [...new Set((c.dated || []).map(d => d.date))].filter(d => d >= today && d < until).sort();
+  return [...new Set((c.dated || []).map(d => d.date))].filter(d => d >= today && d < until).sort();
+}
+// Those days, day by day, with the source link.
+function datedWeekHTML(c, days = datedDays(c)) {
   if (!days.length) return "";
-  const url = c.dated.find(d => d.url)?.url;
+  const today = ymd(now()), url = c.dated.find(d => d.url)?.url;
   const rows = days.map(day => {
     const dt = new Date(day + "T12:00"), list = c.dated.filter(d => d.date === day).sort((a, b) => mins(a.t) - mins(b.t));
     const ms = list.filter(i => i.k === "mass" || i.k === "rorate").map(i => showT(i.t)).join(" · ");
     const cs = list.filter(i => i.k === "conf").map(i => range(i.t, i.u)).join(" · ");
     const other = list.filter(i => i.k === "prayer" || i.k === "ador").map(i => `${showT(i.t)} ${i.n || (i.k === "ador" ? "szentségimádás" : "")}`).join(" · ");
-    return `<tr class="${day === today ? "today" : ""}"><th scope="row">${DAYN[dt.getDay()].slice(0, 3)}.<br><small>${shortDate(dt)}</small></th><td><span class="wt"><span class="t">${ms || "–"}</span></span>${cs ? `<span class="wt"><small>gyónás: ${esc(cs)}</small></span>` : ""}${other ? `<span class="wt"><small>${esc(other)}</small></span>` : ""}</td></tr>`;
+    return `<tr class="${day === today ? "today" : ""}"><th scope="row">${DAYN[dt.getDay()].slice(0, 3)}.<small>${shortDate(dt)}</small></th><td><span class="wt"><span class="t">${ms || "–"}</span></span>${cs ? `<span class="wt"><small>gyónás: ${esc(cs)}</small></span>` : ""}${other ? `<span class="wt"><small>${esc(other)}</small></span>` : ""}</td></tr>`;
   }).join("");
-  return `<div class="sec"><h4>A következő napok · a templom heti miserendje szerint</h4><div class="week"><table><thead><tr><th scope="col">Nap</th><th scope="col">Szentmise</th></tr></thead><tbody>${rows}</tbody></table></div>${url ? `<p class="muted source">Forrás: <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">a templom heti miserendje (PDF)</a></p>` : ""}</div>`;
+  return `<div class="week"><table><thead><tr><th scope="col">Nap</th><th scope="col">Szentmise</th></tr></thead><tbody>${rows}</tbody></table></div>${url ? `<p class="muted source">Forrás: <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">a templom heti miserendje (PDF)</a></p>` : ""}`;
 }
-function rorateHTML(c) {
-  const rr = c.svc.filter(s => isRegular(s) && s.k === "rorate");
+const rorateRules = c => c.svc.filter(s => isRegular(s) && s.k === "rorate").sort((a, b) => mins(a.t) - mins(b.t));
+function rorateHTML(c, rr = rorateRules(c)) {
   if (!rr.length) return "";
   const y = now().getMonth() === 11 && now().getDate() > 24 ? now().getFullYear() + 1 : now().getFullYear();
   const s = C.adventStart(y);
-  return `<div class="sec"><h4>Rorate · advent idején (${shortDate(s)} – dec. 24.)</h4><div class="dayline">${rr.sort((a, b) => mins(a.t) - mins(b.t)).map(r =>
-    `<div class="slot"><span class="t">${showT(r.t)}</span><div><div class="k k-ev">${daysText(r.d)}</div>${r.n ? `<div class="what">${esc(r.n)}</div>` : ""}</div></div>`).join("")}</div></div>`;
+  return `<h4 class="d-sub">Rorate · advent idején (${shortDate(s)} – dec. 24.)</h4><ul class="d-mini">${rr.map(r =>
+    `<li><b class="t">${showT(r.t)}</b><span>${daysText(r.d)}${r.n ? `<small>${esc(r.n)}</small>` : ""}</span></li>`).join("")}</ul>`;
 }
-function feastScheduleHTML(c) {
+// Feasts in the next 120 days that have their own times here (or follow the Sunday order), one per date.
+function feastList(c) {
   const keys = new Set([...c.feastSunday, ...c.svc.filter(s => s.feast).map(s => s.feast)]);
-  if (!keys.size) return "";
-  const from = now(), limit = C.addDays(from, 120);
-  const seen = new Set();
-  const list = [...keys].map(k => ({ k, d: C.nextFeastDate(k, from) })).filter(x => x.d && x.d <= limit).sort((a, b) => a.d - b.d || C.isGroup(a.k) - C.isGroup(b.k))
+  if (!keys.size) return [];
+  const from = now(), limit = C.addDays(from, 120), seen = new Set();
+  return [...keys].map(k => ({ k, d: C.nextFeastDate(k, from) })).filter(x => x.d && x.d <= limit).sort((a, b) => a.d - b.d || C.isGroup(a.k) - C.isGroup(b.k))
     .filter(x => !seen.has(+x.d) && seen.add(+x.d)).map(x => C.isGroup(x.k) ? { k: C.feastsOn(x.d)[0], d: x.d } : x);
+}
+function feastScheduleHTML(c, list = feastList(c)) {
   if (!list.length) return "";
-  return `<div class="sec"><h4>Ünnepi miserend</h4><div class="ev-list">${list.map(({ k, d }) => {
+  return `<h4 class="d-sub">Ünnepi miserend</h4><div class="ev-list">${list.map(({ k, d }) => {
     const di = dayInfo(c, dayContext(d));
     const times = di.items.filter(i => i.k !== "ev").map(i => `${range(showT(i.t), i.end)} ${i.k === "mass" ? "mise" : i.k === "conf" ? "gyónás" : i.k === "ador" ? "szentségimádás" : i.k === "prayer" ? esc(i.what) : "rorate"}${i.n ? " (" + esc(i.n) + ")" : ""}`).join(" · ");
     return `<div class="ev"><div class="date"><b>${d.getDate()}</b><small>${MON[d.getMonth()]}</small></div><div><h5>${esc(C.FEAST_BY_KEY[k].name)}</h5>
       <div class="muted">${DAYN[d.getDay()]}${di.feastMode === "sunday" ? " · vasárnapi rend szerint" : ""}</div><div class="feast-times">${times || "–"}</div></div></div>`;
-  }).join("")}</div></div>`;
+  }).join("")}</div>`;
+}
+const upcomingEvents = c => c.ev.filter(e => e.date >= ymd(now())).sort((a, b) => a.date.localeCompare(b.date));
+function eventsHTML(list) {
+  if (!list.length) return "";
+  return `<div class="ev-list">${list.map(e => {
+    const dt = new Date(e.date + "T12:00");
+    return `<div class="ev"><div class="date"><b>${dt.getDate()}</b><small>${MON[dt.getMonth()]}</small></div><div><h5>${esc(e.title)}</h5><div class="muted">${DAYN[dt.getDay()]}${e.t ? ", " + e.t : ""}${e.n ? " · " + esc(e.n) : ""}</div></div></div>`;
+  }).join("")}</div>`;
 }
 function noteHTML(c) {
   const lines = (c.note || "").split("\n").filter(Boolean);
@@ -507,70 +521,152 @@ function noteHTML(c) {
   if (!lines.length && !src) return "";
   // Lines ending in ":" are headings of the list that follows them.
   const body = lines.map(l => /:$/.test(l) ? `<p class="note-h">${linkify(l)}</p>` : `<p>${linkify(l)}</p>`).join("");
-  return `<div class="sec"><h4>Megjegyzés a miserendhez</h4>${body ? `<div class="schednote">${body}</div>` : ""}${src}</div>`;
+  return `${body ? `<div class="schednote">${body}</div>` : ""}${src}`;
 }
-// ♡ in the detail header: saves the church to Mentett.
-const HEART = `<svg width="22" height="22" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>`;
+// Top bar of the detail: ‹ back, ♡ save to Mentett, ↗ share.
+const HEART = `<svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>`;
 const saveLabel = on => on ? "Eltávolítás a kedvencek közül" : "Mentés a kedvencek közé";
-const saveBtnHTML = c => { const on = Saved.has(c.id); return `<button class="savebtn" id="save-church" type="button" aria-pressed="${on}" aria-label="${saveLabel(on)}" title="${saveLabel(on)}">${HEART}</button>`; };
+const saveBtnHTML = c => { const on = Saved.has(c.id); return `<button class="d-ib savebtn" id="save-church" type="button" aria-pressed="${on}" aria-label="${saveLabel(on)}" title="${saveLabel(on)}">${HEART}</button>`; };
 function setSaveBtn(b, on) { b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", saveLabel(on)); b.title = saveLabel(on); }
+const svgI = d => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICONS = {
+  route: svgI('<path d="M5 19 19 5"/><path d="M9 5h10v10"/>'),
+  call: svgI('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>'),
+  web: svgI('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+  fix: svgI('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/>'),
+};
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast"); if (!t) return;
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
+}
+// Share sheet where the device has one; otherwise copy the church's link.
+async function shareChurch(c) {
+  const url = location.origin + location.pathname + "#t=" + c.id;
+  if (navigator.share) { try { await navigator.share({ title: c.name, url }); } catch (e) { } return; }
+  let ok = false;
+  try { await navigator.clipboard.writeText(url); ok = true; }
+  catch (e) {
+    const ta = document.createElement("textarea"); ta.value = url; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand("copy"); } catch (_) { }
+    ta.remove();
+  }
+  toast(ok ? "Link másolva" : "A link másolása nem sikerült");
+}
+const noSchedule = c => !c.svc.length && !(c.dated || []).length;
+const dayAt = off => { const d = now(); d.setDate(d.getDate() + off); return d; };
+// Same effect as the day select in the filter sheet.
+function setDayOffset(off) { S.dayOffset = off; if (!isToday()) S.f.open = false; if (!C.inAdvent(selDate())) S.f.rorate = false; }
+const KIND_TAG = { mass: ["t-mass", "mise"], rorate: ["t-mass", "rorate"], conf: ["t-conf", "gyónás"], ador: ["t-ador", "imádás"], prayer: ["t-ador", "ima"], ev: ["t-ador", "esemény"] };
+const NEXT_WORD = { conf: "gyóntatás", ador: "szentségimádás", prayer: "ájtatosság", ev: "esemény" };
+const inText = d => d < 60 ? `${d} perc múlva` : `${Math.floor(d / 60)} ó${d % 60 ? ` ${d % 60} p` : ""} múlva`;
+const kindLabel = (c, k) => k === "mass" ? massWord(c) : k === "conf" ? "Gyóntatás" : k === "ador" ? "Szentségimádás" : k === "rorate" ? "Rorate" : k === "prayer" ? "Imaóra, ájtatosság" : "Esemény";
+// The hero: the next Mass of the selected day (from now on, today), else its next time of any kind.
+function nextHTML(c, di) {
+  const m = now().getHours() * 60 + now().getMinutes();
+  const up = di.items.filter(i => i.t && !i.away && (!isToday() || mins(i.end || i.t) >= m));
+  const i = up.find(x => x.k === "mass" || x.k === "rorate") || up[0];
+  if (!i) {
+    if (noSchedule(c)) return `<div class="ui-empty d-empty" id="d-next"><p>Ehhez a templomhoz még nincs feltöltött időpont. Ha tudod a miserendet, küldd be a Javítás gombbal.</p></div>`;
+    return `<p class="d-nomore" id="d-next">${isToday() ? "Ma már nincs több alkalom" : "Nincs alkalom ezen a napon"}</p>`;
+  }
+  const what = i.k === "mass" || i.k === "rorate" ? (c.rite === "gk" ? "liturgia" : "mise") : NEXT_WORD[i.k];
+  const label = "Következő " + what + (isToday() ? "" : " · " + DAYN[selDate().getDay()].toLowerCase());
+  const word = S.dayOffset === 0 ? "ma" : S.dayOffset === 1 ? "holnap" : shortDate(selDate());
+  const extra = i.g.length ? C.tagLabel(i.g[0]) : i.k === "ev" || i.k === "prayer" ? i.what : i.n;
+  const diff = mins(i.t) - m;
+  return `<div class="ui-hero" id="d-next"><small>${esc(label)}</small><div class="t">${esc(showT(i.t))}</div><div class="w">${esc(word)}${extra ? " · " + esc(extra) : ""}</div>`
+    + `${isToday() && diff > 0 && diff < 720 ? `<span class="in">${inText(diff)}</span>` : ""}</div>`;
+}
+// The selected day's times: feast line, then one grouped list (past times faded).
+function dayBoxHTML(c, di) {
+  const m = now().getHours() * 60 + now().getMinutes();
+  const feast = di.feastMode === "dated" ? `<p class="d-feast">A templom heti miserendje szerint${di.feast ? " · " + esc(di.feast) : ""}${di.datedUrl ? ` · <a href="${esc(di.datedUrl)}" target="_blank" rel="noopener noreferrer">forrás</a>` : ""}</p>`
+    : di.feast ? `<p class="d-feast">Ünnepi miserend · ${esc(di.feast)}${di.feastMode === "sunday" ? " (vasárnapi rend szerint)" : ""}</p>` : "";
+  const rows = di.items.map(i => {
+    const past = isToday() && i.t && mins(i.end || i.t) < m;
+    const main = i.k === "ev" || i.k === "prayer" ? i.what : kindLabel(c, i.k);
+    const sub = [i.end ? showT(i.end) + "-ig" : "", i.k === "prayer" ? "" : i.n, whoWhere(i)].filter(Boolean).join(" · ");
+    const [cls, tag] = KIND_TAG[i.k] || KIND_TAG.ev;
+    return `<li class="ui-row d-row${past ? " past" : ""}"><span class="d-t">${showT(i.t) || "–"}</span><span class="d-k">${esc(main)}${sub ? `<small>${esc(sub)}</small>` : ""}${tagsHTML(i.g)}</span>`
+      + `<span class="ui-tag ${cls}">${i.k === "mass" && c.rite === "gk" ? "liturgia" : tag}</span></li>`;
+  }).join("") || `<li class="ui-row d-row d-none">Nincs meghirdetett alkalom ezen a napon.</li>`;
+  return `<div class="d-daybox" id="d-daybox">${feast}<ul class="ui-glist" id="d-day" aria-label="${esc(dayLabel(S.dayOffset))}">${rows}</ul></div>`;
+}
+const foldHTML = (id, title, body, count) => body
+  ? `<details class="ui-fold" id="${id}"><summary>${title}${count ? `<span class="count">${count}</span>` : ""}</summary><div class="d-fold">${body}</div></details>` : "";
 function renderDetail() {
   const c = BY_ID.get(S.sel); if (!c) { S.sel = null; return renderList(); }
-  const ctx = dayContext(selDate()), di = dayInfoCached(c, ctx), m = now().getHours() * 60 + now().getMinutes();
-  const os = openState(c, now());
-  const label = k => k === "mass" ? massWord(c) : k === "conf" ? "Gyóntatás" : k === "ador" ? "Szentségimádás" : k === "rorate" ? "Rorate" : k === "prayer" ? "Imaóra, ájtatosság" : "Esemény";
-  const slots = di.items.map(i => {
-    const past = isToday() && i.t && mins(i.end || i.t) < m;
-    return `<div class="slot ${past ? "past" : ""}"><span class="t">${showT(i.t) || "–"}${i.end ? "–<br>" + i.end : ""}</span><div><div class="k k-${i.k === "rorate" ? "ev" : i.k}">${label(i.k)}</div><div class="what">${i.k === "ev" || i.k === "prayer" ? esc(i.what) : esc(i.n)}${tagsHTML(i.g)}</div>${i.k === "ev" && i.n ? `<div class="note">${esc(i.n)}</div>` : ""}${whoWhere(i) ? `<div class="note who">${esc(whoWhere(i))}</div>` : ""}</div></div>`;
-  }).join("") || `<div class="slot"><span class="t">–</span><div class="what muted">${hasSchedule(c) ? "Nincs meghirdetett alkalom ezen a napon." : "Ehhez a templomhoz még nincs feltöltött időpont. Ha tudod a miserendet, küldd be lent."}</div></div>`;
-  const evs = c.ev.filter(e => e.date >= ymd(now())).sort((a, b) => a.date.localeCompare(b.date)).map(e => {
-    const dt = new Date(e.date + "T12:00");
-    return `<div class="ev"><div class="date"><b>${dt.getDate()}</b><small>${MON[dt.getMonth()]}</small></div><div><h5>${esc(e.title)}</h5><div class="muted">${DAYN[dt.getDay()]}${e.t ? ", " + e.t : ""}${e.n ? " · " + esc(e.n) : ""}</div></div></div>`;
-  }).join("") || `<p class="muted">Nincs meghirdetett esemény. Ha tudsz egyről, küldd be lent.</p>`;
+  const ctx = dayContext(selDate()), di = dayInfoCached(c, ctx), os = openState(c, now());
+  // The minute timer re-renders the page: keep open folds and the scroll position of the same church.
+  const prev = panel.querySelector(".detail"), same = prev && +prev.dataset.id === c.id;
+  const openFolds = same ? [...prev.querySelectorAll(".ui-fold[open]")].map(f => f.id) : [], top = same ? panel.scrollTop : 0;
   const dir = `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}`;
   const where = [c.city, c.addr].filter(Boolean).join(", ");
-  const contact = [c.web ? `<a href="${esc(/^https?:/i.test(c.web) ? c.web : "https://" + c.web)}" target="_blank" rel="noopener noreferrer">Weboldal</a>` : "", c.phone ? `<span>${esc(c.phone)}</span>` : ""].filter(Boolean).join(" · ");
-  const feastBar = di.feastMode === "dated" ? `<div class="feastbar">A templom heti miserendje szerint${di.feast ? " · " + esc(di.feast) : ""}${di.datedUrl ? ` · <a href="${esc(di.datedUrl)}" target="_blank" rel="noopener noreferrer">forrás</a>` : ""}</div>`
-    : di.feast ? `<div class="feastbar">Ünnepi miserend · ${esc(di.feast)}${di.feastMode === "sunday" ? " (vasárnapi rend szerint)" : ""}</div>` : "";
-  panel.innerHTML = `<div class="detail pad">
-    <div class="d-top"><button class="back" id="back">${S.tab === "map" && !isDesktop() ? "✕ Bezárás" : "← Vissza a listához"}</button>${saveBtnHTML(c)}</div>
-    <div class="d-head">
-      <div class="next">${os.label ? `<span class="pill ${os.known && os.open ? "p-open" : "p-closed"}">${os.label}</span>` : ""}<span class="pill p-rite">${riteName(c)}</span></div>
-      <h2>${esc(c.name)}</h2>
-      <div class="where">${esc(where)} · ${kmText(distOf(c))} (${esc(S.origin)})</div>
-      ${(() => { const nm = nextOf({ items: di.items.filter(i => i.k === "mass" || i.k === "rorate") }), n = nm.k ? nm : nextOf(di); return n.k ? `<div class="hero-next"><span class="micro">${n.k === "conf" ? "Következő gyóntatás" : "Következő " + (c.rite === "gk" ? "liturgia" : "mise")}${isToday() ? "" : " · " + esc(dayLabel(S.dayOffset).toLowerCase())}</span><b class="hero-t k-${n.cls === "conf" ? "conf" : "mass"}">${esc(n.t)}</b></div>` : ""; })()}
-      ${contact ? `<div class="where">${contact}</div>` : ""}
-      ${c.approx ? `<div class="approx">A templom helye a térképen hozzávetőleges (a település közepe). Útvonaltervezés előtt ellenőrizd a címet.</div>` : ""}
-    </div>
-    <div class="actions"><a class="btn primary" href="${dir}" target="_blank" rel="noopener noreferrer">Útvonal a Google Térképen</a><button class="btn" id="go-suggest">Javítás beküldése</button></div>
-    <div class="sec"><h4>${dayLabel(S.dayOffset)}</h4>${feastBar}<div class="dayline">${slots}</div></div>
-    ${datedWeekHTML(c)}
-    ${c.svc.some(s => !s.feast) || c.hours.length ? `<div class="sec"><h4>${(c.dated || []).length ? "Általános heti rend" : "Heti rend"}</h4><div class="week"><table>${weekTable(c, ctx)}</table></div>${seasonNote(c, ctx)}</div>` : ""}
-    ${noteHTML(c)}
-    ${feastScheduleHTML(c)}
-    ${rorateHTML(c)}
-    <div class="sec"><h4>Közelgő események</h4><div class="ev-list">${evs}</div></div>
-    <div class="sec" id="suggest-sec"><h4>Pontosítás vagy új időpont</h4>${suggestForm()}</div>
+  const web = c.web ? (/^https?:/i.test(c.web) ? c.web : "https://" + c.web) : "";
+  const acts = [`<a class="d-act" href="${dir}" target="_blank" rel="noopener noreferrer">${ICONS.route}<span>Útvonal</span></a>`,
+    c.phone ? `<a class="d-act" href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}" aria-label="Hívás: ${esc(c.phone)}" title="${esc(c.phone)}">${ICONS.call}<span>Hívás</span></a>` : "",
+    web ? `<a class="d-act" href="${esc(web)}" target="_blank" rel="noopener noreferrer" title="${esc(c.web)}">${ICONS.web}<span>Weboldal</span></a>` : "",
+    `<button class="d-act" type="button" id="go-suggest" aria-haspopup="dialog">${ICONS.fix}<span>Javítás</span></button>`].filter(Boolean);
+  const showDays = !noSchedule(c) || c.ev.length > 0;
+  const days = [...Array(7).keys()].map(i => `<button type="button" data-off="${i}" aria-pressed="${i === S.dayOffset}" aria-label="${esc(dayLabel(i))}"><span>${DAY_SHORT[dayAt(i).getDay()]}</span><b>${dayAt(i).getDate()}</b></button>`).join("");
+  // The week table lists Masses, prayers and confessions; its fold counts those rules.
+  const reg = c.svc.filter(s => isRegular(s) && ["mass", "prayer", "conf"].includes(s.k) && seasonOk(s, ctx));
+  const dDays = datedDays(c), feasts = feastList(c), rr = rorateRules(c), evs = upcomingEvents(c);
+  const folds = [
+    foldHTML("f-week", (c.dated || []).length ? "Általános heti rend" : "Heti rend", c.svc.some(s => !s.feast) || c.hours.length ? `<div class="week"><table>${weekTable(c, ctx)}</table></div>${seasonNote(c, ctx)}` : "", reg.length),
+    foldHTML("f-dated", "A templom heti miserendje", datedWeekHTML(c, dDays), dDays.length),
+    foldHTML("f-feasts", "Ünnepek és advent", feastScheduleHTML(c, feasts) + rorateHTML(c, rr), feasts.length + rr.length),
+    foldHTML("f-events", "Események", eventsHTML(evs), evs.length),
+    foldHTML("f-note", "Megjegyzés", noteHTML(c), 0),
+  ].join("");
+  panel.innerHTML = `<div class="detail pad" data-id="${c.id}">
+    <div class="d-bar"><button class="d-ib" id="back" type="button" aria-label="Vissza" title="Vissza">‹</button><span class="sp"></span>${saveBtnHTML(c)}<button class="d-ib" id="share" type="button" aria-label="Megosztás" title="Megosztás">↗</button></div>
+    <div class="d-tags">${os.label ? `<span class="ui-tag ${os.known && os.open ? "t-open" : "t-muted"}">${esc(os.label)}</span>` : ""}<span class="ui-tag t-muted">${riteName(c)}</span></div>
+    <h2 class="d-name">${esc(c.name)}</h2>
+    <p class="d-where">${esc(where)} · ${kmText(distOf(c))} (${esc(S.origin)})</p>
+    ${c.approx ? `<p class="d-approx">A templom helye a térképen hozzávetőleges (a település közepe). Útvonaltervezés előtt ellenőrizd a címet.</p>` : ""}
+    ${nextHTML(c, di)}
+    <div class="d-actions" style="--n:${acts.length}">${acts.join("")}</div>
+    ${showDays ? `<div class="d-days" role="group" aria-label="Nap">${days}</div>${dayBoxHTML(c, di)}` : ""}
+    ${folds ? `<div class="ui-glist d-folds">${folds}</div>` : ""}
   </div>`;
   $("#back").addEventListener("click", () => { S.sel = null; if (S.tab === "map" && !isDesktop()) setSheet("closed"); render(); });
   $("#save-church").addEventListener("click", e => setSaveBtn(e.currentTarget, Saved.toggle(c.id)));
-  $("#go-suggest").addEventListener("click", () => { $("#suggest-sec").scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => $("#s-text")?.focus(), 300); });
-  bindSuggest(c);
+  $("#share").addEventListener("click", () => shareChurch(c));
+  $("#go-suggest").addEventListener("click", () => openSuggest(c));
+  panel.querySelector(".d-days")?.addEventListener("click", e => {
+    const b = e.target.closest("button[data-off]"); if (!b) return;
+    setDayOffset(+b.dataset.off);
+    panel.querySelectorAll(".d-days button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    const d2 = dayInfoCached(c, dayContext(selDate()));
+    $("#d-next").outerHTML = nextHTML(c, d2);
+    $("#d-daybox").outerHTML = dayBoxHTML(c, d2);
+    renderChips(); drawMarkers(filtered());
+  });
+  for (const id of openFolds) document.getElementById(id)?.setAttribute("open", "");
   drawMarkers(lastRows.length ? lastRows : filtered());
-  panel.scrollTop = 0;
+  panel.scrollTop = top;
 }
 
 /* ---------- Suggestions: database when live, otherwise a pre-filled GitHub issue ---------- */
 const TYPES = { conf: "Gyóntatási időpont", mass: "Mise időpont", hours: "Nyitvatartás", event: "Esemény", place: "Hely vagy egyéb" };
-function suggestForm() {
-  return `<form class="suggest" id="s-form" novalidate>
-    <label for="s-type">Mit javítanál?<select id="s-type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
-    <label for="s-text">Leírás<textarea id="s-text" maxlength="600" placeholder="Pl. Szerdánként 17:00–18:00 között is gyóntatnak, a hirdetőtábla szerint."></textarea></label>
-    ${LIVE ? `<label for="s-contact">E-mail vagy telefon (nem kötelező, csak ha visszakérdeznénk)<input id="s-contact" type="text" maxlength="200" autocomplete="email"></label>` : ""}
-    <div class="row"><button class="btn primary" type="submit" id="s-send">Javaslat beküldése</button><span class="status" id="s-status" role="status"></span></div>
-    <p class="muted" style="margin:0">${LIVE ? "A javaslatot egy szerkesztő ellenőrzi, mielőtt megjelenik." : "A beküldés egy GitHub-hibajegyet nyit meg kitöltve (GitHub-fiók kell hozzá)."}</p>
+function suggestForm(c) {
+  return `<p class="s-church">${esc(c.name)}</p><form class="suggest" id="s-form" novalidate>
+    <label class="ui-field" for="s-type"><span>Mit javítanál?</span><select id="s-type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
+    <label class="ui-field" for="s-text"><span>Leírás</span><textarea id="s-text" maxlength="600" rows="4" placeholder="Pl. Szerdánként 17:00–18:00 között is gyóntatnak, a hirdetőtábla szerint."></textarea></label>
+    ${LIVE ? `<label class="ui-field" for="s-contact"><span>E-mail vagy telefon (nem kötelező, csak ha visszakérdeznénk)</span><input id="s-contact" type="text" maxlength="200" autocomplete="email"></label>` : ""}
+    <div class="s-send"><button class="ui-btn primary" type="submit" id="s-send">Javaslat beküldése</button><span class="status" id="s-status" role="status"></span></div>
+    <p class="muted">${LIVE ? "A javaslatot egy szerkesztő ellenőrzi, mielőtt megjelenik." : "A beküldés egy GitHub-hibajegyet nyit meg kitöltve (GitHub-fiók kell hozzá)."}</p>
   </form>`;
 }
+// "Javítás": the suggestion form in a sheet, filled when it opens (so the minute re-render never wipes a draft).
+const suggestEl = $("#suggest");
+function openSuggest(c) { $("#suggest-body").innerHTML = suggestForm(c); bindSuggest(c); if (!suggestEl.open) suggestEl.showModal(); }
+$("#suggest-done").addEventListener("click", () => suggestEl.close());
+suggestEl.addEventListener("click", e => { if (e.target === suggestEl) suggestEl.close(); }); // tap on the backdrop
 function bindSuggest(c) {
   const st = $("#s-status");
   $("#s-form").addEventListener("submit", async e => {
