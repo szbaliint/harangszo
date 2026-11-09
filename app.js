@@ -180,6 +180,22 @@ const now = () => new Date();
 const selDate = () => { const d = now(); d.setDate(d.getDate() + S.dayOffset); return d; };
 const isToday = () => S.dayOffset === 0;
 let lastRows = [];
+// Saved ("Mentett") churches: ids in localStorage, nothing on the server. Works in memory when storage is blocked.
+const Saved = (() => {
+  const KEY = "harangszo.saved.v1"; let set = null;
+  const load = () => {
+    if (set) return set;
+    let arr = [];
+    try { const v = JSON.parse(localStorage.getItem(KEY) || "[]"); if (Array.isArray(v)) arr = v.map(Number).filter(Number.isFinite); } catch (e) { }
+    return set = new Set(arr);
+  };
+  const store = () => { try { localStorage.setItem(KEY, JSON.stringify([...set])); } catch (e) { } };
+  return {
+    ids: () => [...load()],
+    has: id => load().has(id),
+    toggle(id) { const s = load(); if (s.has(id)) s.delete(id); else s.add(id); store(); return s.has(id); },
+  };
+})();
 
 function filtered() {
   const ctx = dayContext(selDate()), q = fold(S.q.trim()), n = now();
@@ -216,25 +232,27 @@ function nextOf(di) {
   return i ? { t: showT(i.t), cls: i.k === "conf" ? "conf" : "mass", k: i.k } : { t: "–", cls: "none", k: null };
 }
 
-/* ---------- Sheet, tabs, nearest strip ---------- */
+/* ---------- Sheet, tabs, Legközelebb card ---------- */
 const sheetEl = $("#sheet"), isDesktop = () => window.matchMedia("(min-width:900px)").matches;
 function setSheet(state) {
   if (isDesktop() && state === "peek") state = "full";
   S.sheet = state; sheetEl.dataset.state = state;
-  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === (state === "closed" ? "map" : S.tab))));
+  document.querySelectorAll(".ui-tab").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === (state === "closed" ? "map" : S.tab))));
 }
 function openTab(tab) {
-  S.tab = tab;
-  if (tab === "map") { S.sel = null; setSheet("closed"); render(); return; }
-  S.sel = null; render(); setSheet("full");
-  if (tab === "search") setTimeout(() => $("#q")?.focus(), 250);
+  S.tab = tab; S.sel = null;
+  if (tab === "map") { setSheet("closed"); render(); return; }
+  render(); setSheet("full");
 }
-document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => openTab(b.dataset.tab)));
-$("#filter-btn").addEventListener("click", () => { openTab("list"); });
+document.querySelectorAll(".ui-tab").forEach(b => b.addEventListener("click", () => openTab(b.dataset.tab)));
 $("#locate-btn").addEventListener("click", () => locateMe());
 $("#menu-btn").addEventListener("click", () => { const m = $("#menu"), open = m.hidden; m.hidden = !open; $("#menu-btn").setAttribute("aria-expanded", String(open)); });
 document.addEventListener("click", e => { const m = $("#menu"); if (!m.hidden && !e.target.closest("#menu,#menu-btn")) { m.hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); } });
-document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#menu").hidden) { $("#menu").hidden = true; return; } if (!isDesktop() && S.sheet !== "closed") { S.sel = null; S.tab = "map"; setSheet("closed"); render(); } } });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || $("#filters").open) return; // the filter sheet closes itself
+  if (!$("#menu").hidden) { $("#menu").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); return; }
+  if (!isDesktop() && S.sheet !== "closed") { S.sel = null; S.tab = "map"; setSheet("closed"); render(); }
+});
 // Drag the grabber: up opens, down closes; a tap toggles between peek and full.
 (function sheetDrag() {
   const grab = $("#grab"); let y0 = null, t0 = 0, h = 0, base = 0, moved = false;
@@ -251,94 +269,138 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("#m
   });
   grab.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSheet(S.sheet === "full" ? "peek" : "full"); } });
 })();
+// The floating bars' sizes, for the sheet height (phone), the panel header (desktop) and the map controls.
+(function measureBars() {
+  const app = $("#app"), chips = $("#chips"), dock = $("#dock");
+  const set = () => {
+    app.style.setProperty("--top-h", Math.round(chips.getBoundingClientRect().bottom) + "px");
+    app.style.setProperty("--dock-h", Math.round(Math.max(0, innerHeight - dock.getBoundingClientRect().top)) + "px");
+  };
+  set();
+  if (window.ResizeObserver) { const ro = new ResizeObserver(set); ro.observe($("#topbar")); ro.observe(dock); }
+  window.addEventListener("resize", set);
+})();
 const NEAR_KM = 25;
+const walkText = d => d < 3 ? ` · ${Math.round(d / 5 * 60)} perc gyalog` : "";
+const KIND_WORD = { mass: "mise", rorate: "rorate", conf: "gyónás" };
+// "Legközelebb": the nearest church with a Mass still to come, then the next time of any kind at another church.
 function renderNearest(rows) {
   const el = $("#nearest"); if (!el) return;
   if (S.loading || S.error) { el.innerHTML = ""; return; }
-  const withNext = rows.filter(r => r.dist <= NEAR_KM).map(r => ({ r, n: nextOf(r.di) })).filter(x => x.n.k);
-  const two = withNext.slice(0, 2);
-  // The central button: the nearest church with a Mass still to come (confession times don't count here).
-  const firstMass = rows.filter(r => r.dist <= NEAR_KM).map(r => ({ r, n: nextOf({ items: r.di.items.filter(i => i.k === "mass" || i.k === "rorate") }) })).find(x => x.n.k);
-  const card = x => { const c = x.r.c, os = isToday() ? openState(c, now()) : null;
-    return `<button class="ncard" data-id="${c.id}"><span class="mk mk-${x.n.cls}">${esc(x.n.t)}</span><span class="nt"><span class="nn">${esc(c.name)}</span><span class="nm">${kmText(x.r.dist)}${os && os.known && os.open ? "<i title=\"Nyitva\"></i>" : ""}</span></span></button>`; };
-  const empty = `<div class="ncard empty">${isToday() ? "Ma már nincs több ismert alkalom a közelben" : "Nincs ismert alkalom a közelben"}</div>`;
-  el.innerHTML = (two[0] ? card(two[0]) : empty)
-    + `<button class="nmain" id="nmain" ${firstMass ? "" : "disabled"} title="Legközelebbi mise${firstMass ? ": " + esc(firstMass.r.c.name) + ", " + firstMass.n.t : ""}" aria-label="Legközelebbi mise${firstMass ? ": " + esc(firstMass.r.c.name) + ", " + firstMass.n.t : " – nincs a közelben"}">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v2M7 17V11a5 5 0 0 1 10 0v6"/><path d="M5 17h14"/><path d="M10.5 20a1.5 1.5 0 0 0 3 0"/></svg></button>`
-    + (two[1] ? card(two[1]) : two[0] ? `<div></div>` : "");
-  el.querySelectorAll(".ncard[data-id]").forEach(b => b.addEventListener("click", () => select(+b.dataset.id)));
-  $("#nmain")?.addEventListener("click", () => firstMass && select(firstMass.r.c.id));
+  const near = rows.filter(r => r.dist <= NEAR_KM);
+  const firstMass = near.map(r => ({ r, n: nextOf({ items: r.di.items.filter(i => i.k === "mass" || i.k === "rorate") }) })).find(x => x.n.k);
+  const other = near.filter(r => !firstMass || r.c.id !== firstMass.r.c.id).map(r => ({ r, n: nextOf(r.di) })).find(x => x.n.k);
+  const row = x => `<button class="nx" data-id="${x.r.c.id}"><b class="tt tt-${x.n.cls}">${esc(x.n.t)}</b><span class="nt"><strong>${esc(x.r.c.name)}</strong>`
+    + `<small>${KIND_WORD[x.n.k] || ""} · ${kmText(x.r.dist)}${walkText(x.r.dist)}</small></span></button>`;
+  const list = [firstMass, other].filter(Boolean);
+  el.innerHTML = `<h2 class="nh">Legközelebb</h2>` + (list.length ? list.map(row).join("")
+    : `<p class="nempty">${isToday() ? "Ma már nincs több ismert alkalom a közelben" : "Nincs ismert alkalom a közelben"}</p>`);
+  el.querySelectorAll(".nx").forEach(b => b.addEventListener("click", () => select(+b.dataset.id)));
 }
 const kmText = d => d < 1 ? Math.round(d * 1000 / 10) * 10 + " m" : (d < 10 ? d.toFixed(1).replace(".", ",") : Math.round(d)) + " km";
-function updateFilterBadge() {
-  const n = ["mass", "conf", "rorate", "open", "ev"].filter(k => S.f[k]).length + (S.f.tag ? 1 : 0) + (S.dayOffset ? 1 : 0);
-  const b = $("#filter-count"); b.hidden = !n; b.textContent = n; $("#filter-btn").classList.toggle("on", n > 0);
-}
 
 /* ---------- Rendering: list ---------- */
 const panel = $("#panel");
 function dayLabel(off) { const d = new Date(); d.setDate(d.getDate() + off); return off === 0 ? "Ma" : off === 1 ? "Holnap" : DAYN[d.getDay()] + ", " + shortDate(d); }
-function controlsHTML(ctx) {
+function dayShort(off) { const d = new Date(); d.setDate(d.getDate() + off); return off === 0 ? "Ma" : off === 1 ? "Holnap" : DAY_SHORT[d.getDay()] + ", " + shortDate(d); }
+
+/* Filters: chips under the search field; the rest (day, place, Mass type, events, Rorate) in the ⋯ sheet. */
+const chipHTML = (k, label, dot) => `<button class="ui-chip" type="button" data-f="${k}" aria-pressed="${S.f[k]}">${dot ? `<span class="dot" style="background:${dot}"></span>` : ""}${label}</button>`;
+const hiddenFilters = () => (S.f.ev ? 1 : 0) + (S.f.rorate ? 1 : 0) + (S.f.tag ? 1 : 0);
+function renderChips() {
+  const n = hiddenFilters();
+  $("#chips").innerHTML = `<button class="ui-chip daychip" type="button" data-sheet aria-haspopup="dialog" aria-label="Nap: ${esc(dayLabel(S.dayOffset))}. Szűrők megnyitása">${esc(dayShort(S.dayOffset))}</button>`
+    + chipHTML("mass", "Mise", "var(--accent)") + chipHTML("conf", "Gyóntatás", "var(--penance)")
+    + (isToday() ? chipHTML("open", "Most nyitva", "var(--open)") : "")
+    + `<button class="ui-chip more" type="button" data-sheet aria-haspopup="dialog" aria-label="További szűrők${n ? ` (${n} bekapcsolva)` : ""}"><span aria-hidden="true">⋯</span>${n ? `<b class="badge" aria-hidden="true">${n}</b>` : ""}</button>`;
+}
+function renderFilters() {
+  const ctx = dayContext(selDate());
   const opts = [...Array(8).keys()].map(i => `<option value="${i}" ${i === S.dayOffset ? "selected" : ""}>${dayLabel(i)}</option>`).join("");
   const ors = Object.keys(ORIGINS).map(k => `<option ${k === S.origin ? "selected" : ""}>${esc(k)}</option>`).join("")
     + (navigator.geolocation && !ORIGINS["Saját helyzetem"] ? `<option value="__me">Saját helyzetem…</option>` : "");
-  const chip = (k, cls, label, dot) => `<button class="chip ${cls}" data-f="${k}" aria-pressed="${S.f[k]}"><span class="dot" style="background:${dot}"></span>${label}</button>`;
-  const feastNames = ctx.feasts.map(k => C.FEAST_BY_KEY[k].name).join(", ");
-  return `<div class="controls pad">
-    <div class="row">
-      <label class="search" for="q"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" placeholder="Templom vagy település" value="${esc(S.q)}" autocomplete="off"></label>
-    </div>
-    <div class="row">
-      <select id="day" class="sel" aria-label="Nap">${opts}</select>
-      <select id="origin" class="sel" aria-label="Távolság innen">${ors}</select>
-    </div>
-    ${TAG_OPTIONS.length ? `<div class="row"><select id="tagf" class="sel" aria-label="A mise jellege"><option value="">Bármilyen mise</option>${TAG_OPTIONS.map(t => `<option value="${esc(t)}" ${S.f.tag === t ? "selected" : ""}>${esc(C.tagLabel(t)[0].toUpperCase() + C.tagLabel(t).slice(1))}</option>`).join("")}</select></div>` : ""}
-    <div class="chips" role="group" aria-label="Szűrők">
-      ${chip("conf", "conf", "Gyóntatás", "var(--penance)")}${chip("mass", "mass", "Mise", "var(--accent)")}${ctx.advent ? chip("rorate", "ev", "Rorate", "var(--gold)") : ""}${isToday() ? chip("open", "open", "Most nyitva", "var(--open)") : ""}${chip("ev", "ev", "Esemény a héten", "var(--gold)")}
-    </div>
-    ${feastNames ? `<div class="feastline">Ünnep: <b>${esc(feastNames)}</b>. Ahol a templom megadta, az ünnepi miserend látszik.</div>` : ""}
-    <div class="summary" id="summary"></div>
-  </div>`;
+  const tagLabel = t => esc(C.tagLabel(t)[0].toUpperCase() + C.tagLabel(t).slice(1));
+  $("#filters-body").innerHTML = `
+    <label class="ui-field"><span>Nap</span><select id="day">${opts}</select></label>
+    <label class="ui-field"><span>Távolság innen</span><select id="origin">${ors}</select></label>
+    ${TAG_OPTIONS.length ? `<label class="ui-field"><span>A mise jellege</span><select id="tagf"><option value="">Bármilyen mise</option>${TAG_OPTIONS.map(t => `<option value="${esc(t)}" ${S.f.tag === t ? "selected" : ""}>${tagLabel(t)}</option>`).join("")}</select></label>` : ""}
+    <div class="fchips" role="group" aria-label="További szűrők">${chipHTML("ev", "Esemény a héten", "var(--gold)")}${ctx.advent ? chipHTML("rorate", "Rorate", "var(--gold)") : ""}</div>`;
 }
+const filtersEl = $("#filters");
+function openFilters() { renderFilters(); if (!filtersEl.open) filtersEl.showModal(); }
+$("#filters-done").addEventListener("click", () => filtersEl.close());
+filtersEl.addEventListener("click", e => {
+  if (e.target === filtersEl) return filtersEl.close(); // tap on the backdrop
+  const b = e.target.closest("[data-f]"); if (!b) return;
+  S.f[b.dataset.f] = !S.f[b.dataset.f]; renderFilters(); render();
+});
+filtersEl.addEventListener("change", e => {
+  const t = e.target;
+  if (t.id === "day") { S.dayOffset = +t.value; if (!isToday()) S.f.open = false; if (!C.inAdvent(selDate())) S.f.rorate = false; }
+  else if (t.id === "origin") {
+    if (t.value === "__me") { filtersEl.close(); return locateMe(); }
+    S.origin = t.value; try { localStorage.setItem("harangszo", JSON.stringify({ origin: S.origin })); } catch (_) { }
+  } else if (t.id === "tagf") S.f.tag = t.value;
+  else return;
+  render(); renderFilters();
+});
+$("#chips").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.hasAttribute("data-sheet")) return openFilters();
+  S.f[b.dataset.f] = !S.f[b.dataset.f]; render();
+});
+let searchTimer;
+$("#q").addEventListener("input", e => {
+  S.q = e.target.value; clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    // With the panel open, typing shows the matching list; with only the map showing, the markers follow.
+    if (S.sheet !== "closed" && (S.sel || S.tab === "saved")) { S.sel = null; S.tab = "list"; setSheet(S.sheet); }
+    render();
+  }, 150);
+});
+
+// A list card: name, address, distance; at most two tags (open state when known today, then the next times).
 function cardHTML(r) {
-  const di = r.di, up = upcoming(di.items).filter(i => i.k !== "ador").slice(0, 3);
+  const di = r.di;
   const lang = i => { const l = i.g.find(t => t.startsWith("lang:")); return l ? " · " + esc(C.LANGS[l.slice(5)] || l.slice(5)) : S.f.tag && i.g.includes(S.f.tag) ? " · " + esc(C.tagLabel(S.f.tag)) : ""; };
-  let pills = up.map(i => `<span class="pill p-${i.k === "rorate" ? "ev" : i.k === "prayer" ? "ador" : i.k}">${i.t ? `<span class="t">${showT(i.t)}</span>` : ""}${i.k === "mass" ? "mise" + lang(i) : i.k === "rorate" ? "rorate" : i.k === "conf" ? "gyónás" : esc(i.what.length > 24 ? i.what.slice(0, 22) + "…" : i.what)}</span>`).join("");
-  if (!pills) pills = !hasSchedule(r.c) && !di.feastMode ? `<span class="pill p-closed">Még nincs feltöltött időpont</span>`
-    : `<span class="pill p-closed">${isToday() ? "Ma már nincs több alkalom" : "Nincs alkalom ezen a napon"}</span>`;
+  // A time the filters ask for comes first (the next confession when "Gyóntatás" is on, and so on).
+  const isMass = i => i.k === "mass" || i.k === "rorate";
+  const wanted = i => (S.f.conf && i.k === "conf") || (S.f.rorate && i.k === "rorate") || (S.f.tag ? isMass(i) && i.g.includes(S.f.tag) : S.f.mass && isMass(i));
+  const up = upcoming(di.items).filter(i => i.k !== "ador").map((i, n) => ({ i, n })).sort((a, b) => wanted(b.i) - wanted(a.i) || a.n - b.n).map(x => x.i);
+  const timeTag = i => `<span class="ui-tag t-${i.k === "mass" || i.k === "rorate" ? "mass" : i.k === "conf" ? "conf" : "ador"}">${i.t ? showT(i.t) + " " : ""}${i.k === "mass" ? "mise" + lang(i) : i.k === "rorate" ? "rorate" : i.k === "conf" ? "gyónás" : esc(i.what.length > 24 ? i.what.slice(0, 22) + "…" : i.what)}</span>`;
   const os = isToday() ? (r.os || openState(r.c, now())) : null;
-  const osPill = os && os.label ? `<span class="pill ${os.known && os.open ? "p-open" : "p-closed"}">${os.label}</span>` : "";
-  const feast = di.feastMode ? `<span class="pill p-ev">ünnepi rend</span>` : "";
-  const rite = r.c.rite === "gk" ? `<span class="pill p-rite">görögkatolikus</span>` : "";
+  const tags = [];
+  if (os && os.known) tags.push(`<span class="ui-tag ${os.open ? "t-open" : "t-muted"}">${esc(os.label)}</span>`);
+  for (const i of up) { if (tags.length >= 2) break; tags.push(timeTag(i)); }
+  if (!up.length) tags.push(`<span class="ui-tag t-muted">${!hasSchedule(r.c) && !di.feastMode ? "Még nincs feltöltött időpont" : isToday() ? "Ma már nincs több alkalom" : "Nincs alkalom ezen a napon"}</span>`);
   const where = [r.c.city, r.c.addr].filter(Boolean).join(", ");
-  return `<li><button class="card" data-id="${r.c.id}" aria-current="${S.sel === r.c.id}">
-    <div class="card-top"><div><h3>${esc(r.c.name)}</h3><div class="where">${esc(where)}</div></div><span class="dist">${kmText(r.dist)}</span></div>
-    <div class="next">${osPill}${feast}${rite}${pills}</div></button></li>`;
+  return `<li><button class="lcard ui-card" data-id="${r.c.id}" aria-current="${S.sel === r.c.id}">
+    <span class="lc-top"><span class="lc-name">${esc(r.c.name)}</span><span class="lc-dist">${kmText(r.dist)}</span></span>
+    <span class="lc-where">${esc(where)}</span>
+    <span class="lc-tags">${tags.slice(0, 2).join("")}</span></button></li>`;
 }
+function bindCards() { panel.querySelector(".list")?.addEventListener("click", e => { const b = e.target.closest(".lcard"); if (b) select(+b.dataset.id); }); }
 function renderList() {
-  if (S.loading || S.error) { panel.innerHTML = `<div class="empty pad">${S.error ? esc(S.error) : "Templomok betöltése…"}</div>`; return; }
+  if (S.loading || S.error) { panel.innerHTML = `<div class="ui-empty">${S.error ? esc(S.error) : "Templomok betöltése…"}</div>`; renderNearest([]); return; }
   const ctx = dayContext(selDate()), rows = filtered(), shown = rows.slice(0, LIST_LIMIT), more = rows.length - shown.length;
-  panel.innerHTML = controlsHTML(ctx) + `<ul class="list pad">${shown.map(cardHTML).join("") || `<li class="empty">Nincs a szűrőknek megfelelő templom. Próbálj másik napot vagy kapcsolj ki egy szűrőt.</li>`}
-    ${more > 0 ? `<li class="empty">További ${more.toLocaleString("hu-HU")} templom. Írj be egy települést, vagy válassz másik kiindulópontot.</li>` : ""}</ul>`;
+  const feastNames = ctx.feasts.map(k => C.FEAST_BY_KEY[k].name).join(", ");
+  panel.innerHTML = `<div class="lhead pad"><h2>${S.q.trim() ? "Találatok" : "A közelben"}</h2><p class="summary" id="summary"></p>
+    ${feastNames ? `<div class="feastline">Ünnep: <b>${esc(feastNames)}</b>. Ahol a templom megadta, az ünnepi miserend látszik.</div>` : ""}</div>
+    <ul class="list pad">${shown.map(cardHTML).join("") || `<li class="ui-empty">Nincs a szűrőknek megfelelő templom. Próbálj másik napot vagy kapcsolj ki egy szűrőt.</li>`}
+    ${more > 0 ? `<li class="ui-empty">További ${more.toLocaleString("hu-HU")} templom. Írj be egy települést, vagy válassz másik kiindulópontot.</li>` : ""}</ul>`;
   let nConf = 0; for (const r of rows) if (r.di.hasConf) nConf++;
   $("#summary").textContent = `${rows.length.toLocaleString("hu-HU")} templom · ${nConf} helyen gyóntatnak ${isToday() ? "ma" : "aznap"} · ${ctx.summer ? "nyári" : "téli"} időszámítás · távolság: ${S.origin}`;
-  bindControls(); drawMarkers(rows); renderNearest(rows); updateFilterBadge();
+  bindCards(); drawMarkers(rows); renderNearest(rows);
 }
-let searchTimer;
-function bindControls() {
-  $("#q").addEventListener("input", e => {
-    S.q = e.target.value; clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { const pos = $("#q").selectionStart; renderList(); const n = $("#q"); n.focus(); try { n.setSelectionRange(pos, pos); } catch (_) { } }, 150);
-  });
-  $("#day").addEventListener("change", e => { S.dayOffset = +e.target.value; if (!isToday()) S.f.open = false; if (!C.inAdvent(selDate())) S.f.rorate = false; render(); });
-  $("#origin").addEventListener("change", e => {
-    if (e.target.value === "__me") return locateMe();
-    S.origin = e.target.value; try { localStorage.setItem("harangszo", JSON.stringify({ origin: S.origin })); } catch (_) { } render();
-  });
-  $("#tagf")?.addEventListener("change", e => { S.f.tag = e.target.value; renderList(); });
-  panel.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => { S.f[b.dataset.f] = !S.f[b.dataset.f]; renderList(); }));
-  panel.querySelector(".list").addEventListener("click", e => { const b = e.target.closest(".card"); if (b) select(+b.dataset.id); });
+// Mentett: the saved churches, nearest first, whatever the filters say.
+function renderSaved() {
+  if (S.loading || S.error) { panel.innerHTML = `<div class="ui-empty">${S.error ? esc(S.error) : "Templomok betöltése…"}</div>`; renderNearest([]); return; }
+  const ctx = dayContext(selDate()), rows = filtered();
+  const saved = Saved.ids().map(id => BY_ID.get(id)).filter(Boolean).map(c => ({ c, di: dayInfoCached(c, ctx), dist: distOf(c), os: null })).sort((a, b) => a.dist - b.dist);
+  panel.innerHTML = `<div class="lhead pad"><h2>Mentett</h2>${saved.length ? `<p class="summary">${saved.length} templom · távolság: ${esc(S.origin)}</p>` : ""}</div>`
+    + (saved.length ? `<ul class="list pad">${saved.map(cardHTML).join("")}</ul>`
+      : `<div class="ui-empty"><p>Még nincs mentett templom. A templom oldalán a ♡ gombbal mentheted.</p></div>`);
+  bindCards(); drawMarkers(rows); renderNearest(rows);
 }
 function locateMe() {
   const sum = $("#summary"); if (sum) sum.textContent = "Helymeghatározás…";
@@ -447,6 +509,11 @@ function noteHTML(c) {
   const body = lines.map(l => /:$/.test(l) ? `<p class="note-h">${linkify(l)}</p>` : `<p>${linkify(l)}</p>`).join("");
   return `<div class="sec"><h4>Megjegyzés a miserendhez</h4>${body ? `<div class="schednote">${body}</div>` : ""}${src}</div>`;
 }
+// ♡ in the detail header: saves the church to Mentett.
+const HEART = `<svg width="22" height="22" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>`;
+const saveLabel = on => on ? "Eltávolítás a kedvencek közül" : "Mentés a kedvencek közé";
+const saveBtnHTML = c => { const on = Saved.has(c.id); return `<button class="savebtn" id="save-church" type="button" aria-pressed="${on}" aria-label="${saveLabel(on)}" title="${saveLabel(on)}">${HEART}</button>`; };
+function setSaveBtn(b, on) { b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", saveLabel(on)); b.title = saveLabel(on); }
 function renderDetail() {
   const c = BY_ID.get(S.sel); if (!c) { S.sel = null; return renderList(); }
   const ctx = dayContext(selDate()), di = dayInfoCached(c, ctx), m = now().getHours() * 60 + now().getMinutes();
@@ -466,7 +533,7 @@ function renderDetail() {
   const feastBar = di.feastMode === "dated" ? `<div class="feastbar">A templom heti miserendje szerint${di.feast ? " · " + esc(di.feast) : ""}${di.datedUrl ? ` · <a href="${esc(di.datedUrl)}" target="_blank" rel="noopener noreferrer">forrás</a>` : ""}</div>`
     : di.feast ? `<div class="feastbar">Ünnepi miserend · ${esc(di.feast)}${di.feastMode === "sunday" ? " (vasárnapi rend szerint)" : ""}</div>` : "";
   panel.innerHTML = `<div class="detail pad">
-    <button class="back" id="back">${S.tab === "map" && !isDesktop() ? "✕ Bezárás" : "← Vissza a listához"}</button>
+    <div class="d-top"><button class="back" id="back">${S.tab === "map" && !isDesktop() ? "✕ Bezárás" : "← Vissza a listához"}</button>${saveBtnHTML(c)}</div>
     <div class="d-head">
       <div class="next">${os.label ? `<span class="pill ${os.known && os.open ? "p-open" : "p-closed"}">${os.label}</span>` : ""}<span class="pill p-rite">${riteName(c)}</span></div>
       <h2>${esc(c.name)}</h2>
@@ -486,6 +553,7 @@ function renderDetail() {
     <div class="sec" id="suggest-sec"><h4>Pontosítás vagy új időpont</h4>${suggestForm()}</div>
   </div>`;
   $("#back").addEventListener("click", () => { S.sel = null; if (S.tab === "map" && !isDesktop()) setSheet("closed"); render(); });
+  $("#save-church").addEventListener("click", e => setSaveBtn(e.currentTarget, Saved.toggle(c.id)));
   $("#go-suggest").addEventListener("click", () => { $("#suggest-sec").scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => $("#s-text")?.focus(), 300); });
   bindSuggest(c);
   drawMarkers(lastRows.length ? lastRows : filtered());
@@ -548,12 +616,14 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 // Room the floating UI takes on each side of the map, so the first view of Hungary is not hidden under the
 // side panel (desktop), the brand chip, the zoom buttons or the bottom dock.
 function fitPadding() {
-  const W = innerWidth, H = innerHeight, sheet = $("#sheet"), ctrls = $(".ctrls"), top = $(".topbar"), dock = $(".dock");
-  const desk = isDesktop(), gap = desk ? 24 : 8;
+  const W = innerWidth, H = innerHeight, sheet = $("#sheet"), ctrls = $(".ctrls"), dock = $(".dock");
+  const desk = isDesktop(), gap = desk ? 24 : 8, panelOpen = desk && S.sheet !== "closed";
+  // Phone: the search row and the chip row float over the top. Desktop: they sit in the side panel (counted on
+  // the left); with the panel closed they float over the map like on a phone.
   return {
-    top: top.offsetTop + top.offsetHeight + gap,
+    top: (panelOpen ? 0 : $("#chips").getBoundingClientRect().bottom) + gap,
     bottom: Math.max(0, H - dock.getBoundingClientRect().top) + gap,
-    left: (desk && S.sheet !== "closed" ? sheet.offsetLeft + sheet.offsetWidth : 0) + gap,
+    left: (panelOpen ? sheet.offsetLeft + sheet.offsetWidth : 0) + gap,
     right: (desk ? W - ctrls.offsetLeft : 0) + gap };
 }
 const OSM_DATA_CREDIT = 'Templomhelyek: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
@@ -615,13 +685,14 @@ function leafletView() {
 }
 // Google Maps in the same look as the Leaflet map: muted light or dark style, no Google buttons, time pills as markers.
 const GM_LIGHT = [{ featureType: "poi", stylers: [{ visibility: "off" }] }, { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { elementType: "geometry", stylers: [{ saturation: -60 }] }, { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9d6e6" }] }, { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f1f0ec" }] }];
+  { elementType: "geometry", stylers: [{ saturation: -60 }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9d6e6" }] }, { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f1ece1" }] }];
 const GM_DARK = [{ featureType: "poi", stylers: [{ visibility: "off" }] }, { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { elementType: "geometry", stylers: [{ color: "#1b1f27" }] }, { elementType: "labels.text.fill", stylers: [{ color: "#8b94a6" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#11141a" }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#2b313d" }] },
-  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] }, { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#363d4b" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0d1520" }] }, { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#3a4253" }] }];
+  { elementType: "geometry", stylers: [{ color: "#1b1814" }] }, { elementType: "labels.text.fill", stylers: [{ color: "#948a79" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#14120f" }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a251f" }] },
+  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] }, { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#332d26" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#1a2230" }] }, { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#4a4339" }] }];
 const pillSVG = (fill, ink, ring, label, sel) => {
   const w = Math.max(40, 12 + label.length * 7.4), h = 24, W = w + 8, H = h + 8;
   return { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
@@ -743,7 +814,7 @@ function select(id) {
 }
 
 /* ---------- Boot ---------- */
-function render() { S.sel ? renderDetail() : renderList(); }
+function render() { renderChips(); S.sel ? renderDetail() : S.tab === "saved" ? renderSaved() : renderList(); }
 $("#notice").innerHTML = LIVE
   ? `<b>Fejlesztés alatt.</b> Az időpontokat a plébániák és a hívek töltik fel, így sok templomnál még hiányoznak. Indulás előtt ellenőrizd a plébánián. ${OSM_DATA_CREDIT}.`
   : `<b>Bemutató.</b> A templomok valósak, de a mise-, gyóntatási és nyitvatartási időpontok kitalált mintaadatok. Indulás előtt mindig ellenőrizd a plébánián.`;
