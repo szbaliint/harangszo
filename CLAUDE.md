@@ -1,7 +1,7 @@
 # Harangszó – notes for Claude
 
 Catholic church map for Hungary: where and when there is Mass, confession and adoration.
-The owner (Bálint) writes in Hungarian; answer him in Hungarian. Code, comments and commit messages are in English.
+Answer the owner (Bálint) in English. The app's UI text is Hungarian; code, comments and commit messages are in English.
 
 Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes) · `admin.html` (admin).
 
