@@ -58,10 +58,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .leaflet-control-zoom a{background:var(--surface)!important;color:var(--ink)!important;border-color:var(--line)!important}
 .leaflet-control-attribution{background:color-mix(in srgb,var(--surface) 80%,transparent)!important;color:var(--ink-3)!important;font-size:10px!important}
 .leaflet-top{top:env(safe-area-inset-top,0px)} .leaflet-right{right:env(safe-area-inset-right,0px)}
-.citylbl{font-size:11px;color:var(--ink-3);white-space:nowrap;font-weight:500;text-shadow:0 0 3px var(--land)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
-.marker-cluster{background:none}
-.leaflet-cluster-anim .leaflet-marker-icon,.leaflet-cluster-anim .leaflet-marker-shadow{transition:transform .3s ease-out,opacity .3s ease-in}
 .feastline{font-size:.82rem;color:var(--ink-2);background:var(--gold-soft);border-radius:8px;padding:6px 10px}
 .feastline b{color:var(--gold)}
 /* What a Mass is like: language, family Mass, guitar… */

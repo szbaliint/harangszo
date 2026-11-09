@@ -12,7 +12,7 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   added to that `cp` line**, or it 404s live.
 - **Backend: Supabase** (project `rlvcwytbengldqgemliu`). Postgres + RLS + RPCs; the browser uses only the publishable key.
 - `index.html` + `app.js` – the public map. Map-first layout (full-screen map, bottom sheet / desktop side panel,
-  nearest strip, tab bar). Google Maps when `GOOGLE_MAPS_KEY` is set (it is, live), otherwise Leaflet + CARTO tiles.
+  search + filter chips on top, "Legközelebb" card, tab bar Térkép/Lista/Mentett; saved churches in localStorage). Google Maps when `GOOGLE_MAPS_KEY` is set (it is, live), otherwise Leaflet + CARTO tiles.
   Zoomed out, nearby churches merge into numbered circles (grid clustering in `updateMarkers`).
 - `calendar.js` (`window.LitCal`) – shared by the site, admin, parish page and the Node imports: movable feasts,
   `FEASTS` (+ `FEAST_GROUPS` holyday/public), `PERIOD_INFO` seasons, `inPeriod`, `weekOk`, `everyOk`, `isHoliday`, tags.
@@ -22,7 +22,10 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   week board editor in plain words, feasts, events, details, live 7-day preview. Saves through `save_church`.
 - PWA (map only): `manifest.webmanifest`, `sw.js` (precaches the map's shell; `__BUILD__` is stamped with the commit
   by pages.yml, so each deploy offers "Frissítés"), `icons/` (PNGs rendered from `bell.svg` by `icons/render.mjs`).
-- `styles.css` – shared tokens (light/dark). `replica/` holds design notes from the map-layout redesign (clean-room:
+- `schedule-editor.js` (`window.ScheduleEditor`) – the week board + question-style time editor shared by the parish
+  portal and admin (`admin: true` adds the raw "Haladó" fields).
+- `styles.css` – shared tokens (light/dark, tone A "warm parchment", EB Garamond + Source Sans 3, no monospace) and
+  the `ui-` components every page uses. Design spec: `docs/superpowers/specs/2026-11-09-redesign-design.md`. `replica/` holds design notes from the map-layout redesign (clean-room:
   never copy the reference app's assets, brand or copy).
 
 ## Data model (see `supabase/schema.sql`, the full current state)
