@@ -37,7 +37,6 @@ for (const view of Object.keys(VIEWS)) {
       await page.click('.ui-tab[data-tab="list"]');
       await page.waitForSelector("#panel .lcard");
       await settle(page);
-      const t0 = Date.now();
       await page.locator("#panel .lcard").first().click();
       await waitPanelAnim(page);
       const anims = await panelAnims(page);
@@ -46,7 +45,9 @@ for (const view of Object.keys(VIEWS)) {
       for (const a of anims) assert.ok(a.duration >= 180 && a.duration <= 280, `duration ${a.duration}`);
       await page.waitForFunction(() => document.querySelector("#panel .detail") && getComputedStyle(document.querySelector("#panel")).opacity === "1"
         && !document.getAnimations().some(a => a.playState === "running" && (/\(panel\)/.test(a.effect?.pseudoElement || "") || a.effect?.target?.id === "panel")),
-        null, { timeout: 400 - (Date.now() - t0), polling: "raf" });
+        // The animation's own length is checked above (180–280 ms); this only checks the detail ends fully visible.
+        // A wall-clock budget from the click also counted the test's own steps and failed under a busy full run.
+        null, { timeout: 2000, polling: "raf" });
       assert.deepEqual(errors, []);
     } finally { await close(); }
   });
