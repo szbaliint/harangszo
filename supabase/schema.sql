@@ -681,13 +681,13 @@ begin
                    coalesce(sum(a.n) filter (where a.event = 'save'), 0)    as save,
                    coalesce(sum(a.n) filter (where a.event = 'share'), 0)   as share,
                    coalesce(sum(a.n) filter (where a.event = 'suggest'), 0) as suggest
-                 from public.analytics_daily a join public.churches c on c.id = a.key::bigint
+                 from public.analytics_daily a join public.churches c on c.id = (case when a.key ~ '^[0-9]{1,18}$' then a.key::bigint end)
                  where a.day >= d0 and a.event in ('view', 'dir', 'call', 'web', 'save', 'share', 'suggest')
                  group by c.id order by 5 desc, c.name limit 40) t),
     -- the most viewed churches that have no times at all: where filling in data helps the most people
     'no_times', (select coalesce(jsonb_agg(to_jsonb(t) order by t.view desc, t.name), '[]'::jsonb) from (
                  select c.id, c.name, c.city, sum(a.n) as view
-                 from public.analytics_daily a join public.churches c on c.id = a.key::bigint
+                 from public.analytics_daily a join public.churches c on c.id = (case when a.key ~ '^[0-9]{1,18}$' then a.key::bigint end)
                  where a.day >= d0 and a.event = 'view'
                    and not exists (select 1 from public.services s where s.church_id = c.id)
                    and not exists (select 1 from public.dated_services ds where ds.church_id = c.id)
