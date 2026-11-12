@@ -464,7 +464,7 @@ function renderFeasts(box) {
       <div class="ad-cardh"><div><h3 id="fh-${k}">${esc(fe.name)}</h3><span class="ad-when">${next.getFullYear()}. ${next.toLocaleDateString("hu-HU", { month: "long", day: "numeric", weekday: "long" })}</span></div>
         <button type="button" class="ui-btn danger" data-delfeast="${k}">Ünnep eltávolítása</button></div>
       <div class="ui-seg" role="group" aria-label="Rend: ${esc(fe.name)}">
-        <button type="button" data-feastmode="${k}" data-v="sunday" aria-pressed="${f.mode === "sunday"}">Vasárnapi miserend szerint</button>
+        <button type="button" data-feastmode="${k}" data-v="sunday" aria-pressed="${f.mode === "sunday"}">Vasárnapi rend</button>
         <button type="button" data-feastmode="${k}" data-v="custom" aria-pressed="${f.mode === "custom"}">Egyedi időpontok</button></div>
       ${f.mode === "custom" ? `<div class="ad-rows">${f.rows.map((r, i) => `<div class="ad-line">
           <label class="ui-field"><span>Fajta</span><select data-feast="${k}" data-i="${i}" data-f="kind">${Object.entries(FEAST_KINDS).map(([kk, v]) => `<option value="${kk}" ${r.kind === kk ? "selected" : ""}>${v}</option>`).join("")}</select></label>
@@ -491,7 +491,7 @@ function renderEvents(box) {
   box.innerHTML = `<div class="ad-stack">
     <p class="ad-lead">Egyszeri alkalmak: búcsú, bérmálás, koncert, lelkigyakorlat. A térképen a templom oldalán, a közelgő események között látszanak.</p>
     ${c.events.map((e, i) => `<div class="ui-card ad-card"><div class="ad-line">
-      <label class="ui-field ad-t"><span>Dátum</span><input type="date" data-l="events" data-i="${i}" data-f="date" value="${esc(e.date)}"></label>
+      <label class="ui-field ad-d"><span>Dátum</span><input type="date" data-l="events" data-i="${i}" data-f="date" value="${esc(e.date)}"></label>
       ${timeField("Időpont", `data-l="events" data-i="${i}" data-f="start"`, e.start)}
       <label class="ui-field wide"><span>Cím</span><input data-l="events" data-i="${i}" data-f="title" value="${esc(e.title)}" placeholder="pl. Búcsúi szentmise"></label>
       <label class="ui-field wide"><span>Megjegyzés</span><input data-l="events" data-i="${i}" data-f="note" value="${esc(e.note)}"></label>
@@ -816,7 +816,7 @@ async function renderAccess() {
 /* ---------- Merging duplicates ---------- */
 // The same church in the database twice (an import put it beside the map's church, or the map has it twice).
 const mkm = (a, b) => { const R = Math.PI / 180, h = Math.sin((b.lat - a.lat) * R / 2) ** 2 + Math.cos(a.lat * R) * Math.cos(b.lat * R) * Math.sin((b.lon - a.lon) * R / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); };
-const distText = d => d < 1 ? Math.round(d * 1000) + " m" : d.toFixed(1).replace(".", ",") + " km";
+const distText = d => !Number.isFinite(d) ? "" : d < 1 ? Math.round(d * 1000) + " m" : d.toFixed(1).replace(".", ",") + " km";
 function renderMergePage() {
   ensureListCol();
   if (!A.list.length) loadList();
@@ -919,6 +919,7 @@ async function renderStats() {
   $("#st-days").addEventListener("click", e => { const b = e.target.closest("[data-days]"); if (b && +b.dataset.days !== A.statDays) { A.statDays = +b.dataset.days; renderStats(); } });
   const { data: r, error } = await sb.rpc("analytics_report", { p_days: A.statDays });
   if (A.page !== "stats" || !$("#st-body")) return;
+  if (!error && (!r || !Array.isArray(r.days))) { $("#st-body").innerHTML = `<p class="ad-msg err">A statisztika most nem érhető el. Próbáld újra később.</p>`; return; }
   if (error) {
     $("#st-body").innerHTML = `<p class="ad-msg err">${/analytics_report/.test(error.message) || error.code === "PGRST202" ? "Futtasd le a 011-es adatbázis-frissítést (supabase/migrations/011_analytics.sql)." : "Nem sikerült betölteni: " + esc(error.message)}</p>`; return;
   }

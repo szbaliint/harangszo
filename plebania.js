@@ -17,7 +17,7 @@ const DAY_NAME = ["Vasárnap", "Hétfő", "Kedd", "Szerda", "Csütörtök", "Pé
 const DAY_SHORT = ["V", "H", "K", "Sze", "Cs", "P", "Szo"];
 const MON = ["jan.", "febr.", "márc.", "ápr.", "máj.", "jún.", "júl.", "aug.", "szept.", "okt.", "nov.", "dec."];
 const FEAST_KIND = { mass: "Szentmise", confession: "Gyóntatás", adoration: "Szentségimádás" };
-const FEAST_MODES = [["", "Szokásos rend"], ["sunday", "Vasárnapi rend"], ["custom", "Saját időpontok"]];
+const FEAST_MODES = [["", "Szokásos rend"], ["sunday", "Vasárnapi rend"], ["custom", "Saját idők"]];
 // The preview's words after the times ("08:00 · 10:00 mise · 17:30 gyónás").
 const PV_WORD = { mass: "mise", rorate: "rorate", confession: "gyónás", adoration: "szentségimádás" };
 const KORDER = { mass: 0, rorate: 1, confession: 2, adoration: 3, prayer: 4 };
@@ -77,11 +77,13 @@ function renderAuth(mode = "login", msg = "", ok = false) {
       <label class="ui-field"><span>Neved</span><input id="a-name" autocomplete="name" required></label>` : ""}
     ${mode !== "reset" ? `<label class="ui-field"><span>E-mail-cím</span><input id="a-em" type="email" autocomplete="username" required></label>` : ""}
     ${mode === "login" || mode === "signup" || mode === "reset" ? `<label class="ui-field"><span>${mode === "reset" ? "Új jelszó" : "Jelszó"}</span><input id="a-pw" type="password" autocomplete="${mode === "login" ? "current-password" : "new-password"}" minlength="8" required>${mode !== "login" ? "<small>Legalább 8 karakter.</small>" : ""}</label>` : ""}
+    ${mode === "signup" ? `<p class="pp-legal">A fiók létrehozásával elfogadod a <a href="jogi.html#feltetelek" target="_blank" rel="noopener">felhasználási feltételeket</a>, és tudomásul veszed az <a href="jogi.html#adatkezeles" target="_blank" rel="noopener">adatkezelési tájékoztatót</a>.</p>` : ""}
     <button class="ui-btn primary" type="submit">${{ login: "Belépés", signup: "Fiók létrehozása", forgot: "Levél küldése", reset: "Jelszó mentése" }[mode]}</button>
     <p class="pp-msg ${ok ? "ok" : "err"}" id="a-msg" role="alert">${esc(msg)}</p>
     <div class="pp-links">
       ${mode === "login" ? `<button type="button" class="ui-btn quiet" data-mode="signup">Még nincs fiókom</button><button type="button" class="ui-btn quiet" data-mode="forgot">Elfelejtettem a jelszót</button>` : `<button type="button" class="ui-btn quiet" data-mode="login">Vissza a belépéshez</button>`}
     </div>
+    <p class="pp-legal"><a href="jogi.html" target="_blank" rel="noopener">Impresszum · Adatkezelés · Feltételek</a></p>
   </form>`;
   main.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => renderAuth(b.dataset.mode)));
   $("#auth").addEventListener("submit", async e => {
@@ -313,7 +315,7 @@ function renderEvents() {
   const t = ymd(today()), d = P.d, up = d.events.filter(e => !e.date || e.date >= t), past = d.events.length - up.length;
   $("#sec").innerHTML = `<p class="pp-lead">Egyszeri alkalmak: búcsú, bérmálás, koncert, lelkigyakorlat. A térképen a templom oldalán, a közelgő események között látszanak.</p>
     <div class="pp-list">${up.map(e => `<div class="ui-card pp-card"><div class="pp-line">
-      <label class="ui-field t"><span>Dátum</span><input type="date" data-ev="${e.uid}" data-f="date" value="${esc(e.date)}" min="${t}"></label>
+      <label class="ui-field d"><span>Dátum</span><input type="date" data-ev="${e.uid}" data-f="date" value="${esc(e.date)}" min="${t}"></label>
       <label class="ui-field t"><span>Kezdés</span><input type="time" data-ev="${e.uid}" data-f="start" value="${esc(e.start)}"></label>
       <label class="ui-field wide"><span>Megnevezés</span><input data-ev="${e.uid}" data-f="title" value="${esc(e.title)}" maxlength="200" placeholder="pl. Búcsúi szentmise"></label>
       <label class="ui-field wide"><span>Megjegyzés</span><input data-ev="${e.uid}" data-f="note" value="${esc(e.note)}"></label>

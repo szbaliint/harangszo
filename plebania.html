@@ -34,6 +34,9 @@ body{overflow:auto;font-size:16px}
 
 /* Page body, section tabs, the phone's edit / preview switch */
 .pp-wrap{max-width:1160px;margin:0 auto;padding:4px 16px calc(176px + env(safe-area-inset-bottom,0px))}
+/* Phones: content scrolls under the floating tab bar; a soft fade below it keeps the bottom edge clean. */
+body:has(.pp-tabs:not([hidden]))::after{content:"";position:fixed;left:0;right:0;bottom:0;z-index:29;height:calc(84px + env(safe-area-inset-bottom,0px));pointer-events:none;background:linear-gradient(to bottom,transparent,var(--bg) 55%)}
+@media (min-width:980px){body::after{display:none}}
 .pp-tabs{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;max-width:620px;margin:0 auto}
 .pp-mode{margin:0 0 16px}
 .pp-cols{display:grid;gap:24px;grid-template-columns:minmax(0,1fr)}
@@ -58,6 +61,7 @@ body{overflow:auto;font-size:16px}
 .pp-line{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
 .pp-line .ui-field{flex:1 1 140px}
 .pp-line .ui-field.t{flex:0 1 128px}
+.pp-line .ui-field.d{flex:0 0 168px}
 .pp-line .ui-field.wide{flex:3 1 220px}
 .pp-rows{display:grid}
 .pp-rows>.pp-line{padding:12px 0;border-top:1px solid var(--line)}
@@ -106,6 +110,8 @@ body{overflow:auto;font-size:16px}
 .pp-err{flex:1 0 100%;order:-1;margin:0 0 4px;color:#f4a38f;font-weight:600;line-height:1.35}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pp-err{color:#a2361f}}
 :root[data-theme="dark"] .pp-err{color:#a2361f}
+.pp-legal{margin:2px 0 0;font-size:13px;line-height:1.45;color:var(--ink-3)}
+.pp-legal a{color:var(--accent)}
 </style>
 </head>
 <body>

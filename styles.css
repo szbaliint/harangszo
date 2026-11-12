@@ -14,21 +14,21 @@
   --f-body:"Source Sans 3", system-ui, sans-serif;
   --r:10px;
   /* Map-first layout (see replica/design): floating glass controls, bottom sheet. */
-  --glass:rgb(255 253 248 / .86); --on-accent:#fff; --on-penance:#fff; --mk-none-bg:#fffdf8; --mk-none-ink:#5b5447;
+  --glass:rgb(255 253 248 / .95); --on-accent:#fff; --on-penance:#fff; --mk-none-bg:#fffdf8; --mk-none-ink:#5b5447;
   --shadow-float:0 6px 24px rgb(0 0 0 / .18),0 1px 3px rgb(0 0 0 / .12); --shadow-sheet:0 -8px 32px rgb(0 0 0 / .22);
   --r-lg:22px; --r-sheet:24px; --ease:cubic-bezier(.2,.8,.2,1); --tabbar:56px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#14120f; --surface:#1e1b17; --sunken:#26221d; --line:#332e27;
   --ink:#efe9de; --ink-2:#bdb3a2; --ink-3:#948a79;
-  --glass:rgb(30 27 23 / .86); --on-accent:#14120f; --on-penance:#14120f; --mk-none-bg:#26221d; --mk-none-ink:#bdb3a2;
+  --glass:rgb(30 27 23 / .95); --on-accent:#14120f; --on-penance:#14120f; --mk-none-bg:#26221d; --mk-none-ink:#bdb3a2;
   --accent:#9db1ee; --accent-soft:#232a40; --penance:#cfa3e6; --penance-soft:#2f2238;
   --gold:#e2b85e; --gold-soft:#352a17; --open:#6fd3a0; --open-soft:#173126; --closed:#f08a70;
   --land:#1b1814; --water:#1a2230; --border:#4a4339; color-scheme:dark;}}
 :root[data-theme="dark"]{
   --bg:#14120f; --surface:#1e1b17; --sunken:#26221d; --line:#332e27;
   --ink:#efe9de; --ink-2:#bdb3a2; --ink-3:#948a79;
-  --glass:rgb(30 27 23 / .86); --on-accent:#14120f; --on-penance:#14120f; --mk-none-bg:#26221d; --mk-none-ink:#bdb3a2;
+  --glass:rgb(30 27 23 / .95); --on-accent:#14120f; --on-penance:#14120f; --mk-none-bg:#26221d; --mk-none-ink:#bdb3a2;
   --accent:#9db1ee; --accent-soft:#232a40; --penance:#cfa3e6; --penance-soft:#2f2238;
   --gold:#e2b85e; --gold-soft:#352a17; --open:#6fd3a0; --open-soft:#173126; --closed:#f08a70;
   --land:#1b1814; --water:#1a2230; --border:#4a4339; color-scheme:dark;}
@@ -108,6 +108,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .menu-name{margin:0 0 -8px;font:600 22px/1.2 var(--f-display);color:var(--ink)}
 .menu-sub{margin:0;color:var(--ink-3);font-size:.82rem}
 .menu-priv{margin:10px 0 0;font-size:12.5px;line-height:1.4;color:var(--ink-3)}
+.menu-priv a{color:var(--accent)}
+.s-legal{margin:4px 0 0;font-size:12.5px;line-height:1.45;color:var(--ink-3)}
+.s-legal a{color:var(--accent)}
 .notice{background:var(--gold-soft);color:var(--ink);font-size:.82rem;border-radius:12px;padding:8px 10px;line-height:1.45}
 .notice b{color:var(--gold)} .notice a{color:inherit}
 .legend{display:grid;gap:6px;font-size:.8rem;color:var(--ink-2)}
@@ -375,7 +378,7 @@ form.suggest .muted{margin:0;font-size:13px}
 
 /* Segmented control: buttons inside, aria-pressed */
 .ui-seg{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--sunken)}
-.ui-seg button{flex:1 1 0;min-width:0;min-height:44px;padding:0 12px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);
+.ui-seg button{flex:1 1 auto;min-width:0;line-height:1.15;text-wrap:balance;min-height:44px;padding:0 12px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);
   font:400 14px/1.2 var(--f-body);font-variant-numeric:tabular-nums;cursor:pointer;-webkit-tap-highlight-color:transparent;
   transition:background-color .18s var(--ease),color .18s var(--ease),box-shadow .18s var(--ease)}
 .ui-seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 3px rgb(40 30 10 / .16)}

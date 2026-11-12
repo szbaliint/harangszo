@@ -599,6 +599,16 @@ alter table public.analytics_daily enable row level security;
 revoke all on public.analytics_daily from anon, authenticated;
 grant all on public.analytics_daily to service_role;
 
+-- Retention (jogi.html): counters older than 2 years and suggestions decided over a year ago are deleted;
+-- track() calls purge_old_data() about once in 200 calls.
+create or replace function public.purge_old_data() returns void
+language sql security definer set search_path = public as $$
+  delete from public.analytics_daily where day < (now() at time zone 'Europe/Budapest')::date - 730;
+  delete from public.suggestions where status <> 'pending' and coalesce(decided_at, created_at) < now() - interval '1 year';
+$$;
+revoke execute on function public.purge_old_data() from public, anon, authenticated;
+grant execute on function public.purge_old_data() to service_role;
+
 create or replace function public.track(p jsonb) returns void
 language plpgsql security definer set search_path = public as $$
 declare
@@ -609,6 +619,7 @@ declare
   cnt int  := 0;
 begin
   if p is null or jsonb_typeof(p) <> 'array' then return; end if;
+  if random() < 0.005 then perform public.purge_old_data(); end if;
   for it in select * from jsonb_array_elements(p) loop
     cnt := cnt + 1;
     exit when cnt > 30;                       -- one call carries a handful of events, never a flood

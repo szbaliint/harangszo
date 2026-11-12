@@ -697,6 +697,7 @@ function suggestForm(c) {
     <label class="ui-field" for="s-type"><span>Mit javítanál?</span><select id="s-type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
     <label class="ui-field" for="s-text"><span>Leírás</span><textarea id="s-text" maxlength="600" rows="4" placeholder="Pl. Szerdánként 17:00–18:00 között is gyóntatnak, a hirdetőtábla szerint."></textarea></label>
     ${LIVE ? `<label class="ui-field" for="s-contact"><span>E-mail vagy telefon (nem kötelező, csak ha visszakérdeznénk)</span><input id="s-contact" type="text" maxlength="200" autocomplete="email"></label>` : ""}
+    <p class="s-legal">A beküldéssel hozzájárulsz, hogy a javaslatot és a megadott elérhetőséget az <a href="jogi.html#adatkezeles" target="_blank" rel="noopener">adatkezelési tájékoztató</a> szerint kezeljük.</p>
     <div class="s-send"><button class="ui-btn primary" type="submit" id="s-send">Javaslat beküldése</button><span class="status" id="s-status" role="status"></span></div>
     <p class="muted">${LIVE ? "A javaslatot egy szerkesztő ellenőrzi, mielőtt megjelenik." : "A beküldés egy GitHub-hibajegyet nyit meg kitöltve (GitHub-fiók kell hozzá)."}</p>
   </form>`;
