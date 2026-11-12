@@ -264,7 +264,7 @@ function withTransition(update, kind = "tab") {
   panel.classList.remove("p-open", "p-back", "p-tab"); void panel.offsetWidth; panel.classList.add("p-" + kind);
 }
 function openTab(tab) {
-  S.tab = tab; S.sel = null;
+  S.tab = tab; S.sel = null; Track.ev("tab", tab);
   if (tab === "map") { setSheet("closed"); render(); return; }
   withTransition(render, "tab"); setSheet("full");
 }
@@ -357,26 +357,35 @@ $("#filters-done").addEventListener("click", () => filtersEl.close());
 filtersEl.addEventListener("click", e => {
   if (e.target === filtersEl) return filtersEl.close(); // tap on the backdrop
   const b = e.target.closest("[data-f]"); if (!b) return;
-  S.f[b.dataset.f] = !S.f[b.dataset.f]; renderFilters(); render();
+  S.f[b.dataset.f] = !S.f[b.dataset.f]; if (S.f[b.dataset.f]) Track.ev("filter", b.dataset.f); renderFilters(); render();
 });
 filtersEl.addEventListener("change", e => {
   const t = e.target;
-  if (t.id === "day") setDayOffset(+t.value);
+  if (t.id === "day") { setDayOffset(+t.value); Track.ev("filter", "day"); }
   else if (t.id === "origin") {
     if (t.value === "__me") { filtersEl.close(); return locateMe(); }
     S.origin = t.value; try { localStorage.setItem("harangszo", JSON.stringify({ origin: S.origin })); } catch (_) { }
-  } else if (t.id === "tagf") S.f.tag = t.value;
+    Track.ev("filter", "origin");
+  } else if (t.id === "tagf") { S.f.tag = t.value; if (t.value) Track.ev("filter", "tag"); }
   else return;
   render(); renderFilters();
 });
 $("#chips").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.hasAttribute("data-sheet")) return openFilters();
-  S.f[b.dataset.f] = !S.f[b.dataset.f]; render();
+  S.f[b.dataset.f] = !S.f[b.dataset.f]; if (S.f[b.dataset.f]) Track.ev("filter", b.dataset.f); render();
 });
-let searchTimer;
+let searchTimer, searchTrackTimer;
+// Statistics: a search is counted once typing has stopped. A word that finds churches is part of their public
+// name, town or address; a word that finds nothing is kept so the missing church or spelling can be added.
+function trackSearch() {
+  const raw = S.q.trim(), q = fold(raw);
+  if (q.length < 3 || S.loading || !CHURCHES.length) return;
+  Track.once(CHURCHES.some(c => c.key.includes(q)) ? "search" : "search_none", raw.toLowerCase().slice(0, 40));
+}
 $("#q").addEventListener("input", e => {
   S.q = e.target.value; clearTimeout(searchTimer);
+  clearTimeout(searchTrackTimer); searchTrackTimer = setTimeout(trackSearch, 2000);
   searchTimer = setTimeout(() => {
     // With the panel open, typing shows the matching list; with only the map showing, the markers follow.
     if (S.sheet !== "closed" && (S.sel || S.tab === "saved")) { S.sel = null; S.tab = "list"; setSheet(S.sheet); }
@@ -431,7 +440,7 @@ function locateMe() {
   const sum = $("#summary"); if (sum) sum.textContent = "Helymeghatározás…";
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(p => {
-    ORIGINS["Saját helyzetem"] = [p.coords.latitude, p.coords.longitude]; S.origin = "Saját helyzetem";
+    ORIGINS["Saját helyzetem"] = [p.coords.latitude, p.coords.longitude]; S.origin = "Saját helyzetem"; Track.once("locate");
     MapView.focus(p.coords.latitude, p.coords.longitude, 13); MapView.me?.(p.coords.latitude, p.coords.longitude); render();
   }, () => { render(); const s2 = $("#summary"); if (s2) s2.textContent = "A helyzeted nem érhető el. Engedélyezd a böngészőben, vagy válassz várost."; else { const h = $("#maphint"); h.hidden = false; h.textContent = "A helyzeted nem érhető el. Engedélyezd a böngészőben."; setTimeout(() => h.hidden = true, 4000); } }, { timeout: 10000, maximumAge: 300000 });
 }
@@ -567,6 +576,7 @@ function toast(msg) {
 }
 // Share sheet where the device has one; otherwise copy the church's link.
 async function shareChurch(c) {
+  Track.once("share", c.id);
   const url = location.origin + location.pathname + "#t=" + c.id;
   if (navigator.share) { try { await navigator.share({ title: c.name, url }); } catch (e) { } return; }
   let ok = false;
@@ -661,7 +671,9 @@ function renderDetail() {
     S.sel = null;
     if (S.tab === "map" && !isDesktop()) { setSheet("closed"); render(); } else withTransition(render, "back");
   });
-  $("#save-church").addEventListener("click", e => setSaveBtn(e.currentTarget, Saved.toggle(c.id)));
+  $("#save-church").addEventListener("click", e => { const on = Saved.toggle(c.id); if (on) Track.once("save", c.id); setSaveBtn(e.currentTarget, on); });
+  // Statistics: taps on Útvonal / Hívás / Weboldal.
+  panel.querySelectorAll("a.d-act").forEach(a => a.addEventListener("click", () => Track.once(a.href.startsWith("tel:") ? "call" : a.href === dir ? "dir" : "web", c.id)));
   $("#share").addEventListener("click", () => shareChurch(c));
   $("#go-suggest").addEventListener("click", () => openSuggest(c));
   panel.querySelector(".d-days")?.addEventListener("click", e => {
@@ -714,7 +726,7 @@ function bindSuggest(c) {
         body: JSON.stringify({ church_id: c.id, type, text, contact }) });
       if (!res.ok) throw new Error("HTTP " + res.status);
       $("#s-text").value = ""; if ($("#s-contact")) $("#s-contact").value = "";
-      st.textContent = "Köszönjük! A javaslat ellenőrzésre vár."; st.className = "status ok";
+      st.textContent = "Köszönjük! A javaslat ellenőrzésre vár."; st.className = "status ok"; Track.ev("suggest", c.id);
     } catch (err) {
       st.textContent = "Nem sikerült elküldeni. Ellenőrizd az internetkapcsolatot, és próbáld újra."; st.className = "status err";
     } finally { $("#s-send").disabled = false; }
@@ -766,7 +778,7 @@ const NO_DATA = "Nincs internetkapcsolat, és még nincs elmentett templomlista 
   const update = () => { btn.hidden = standalone() || !(prompt || ios); };
   const closeMenu = () => { $("#menu").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); };
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); prompt = e; update(); });
-  window.addEventListener("appinstalled", () => { prompt = null; update(); });
+  window.addEventListener("appinstalled", () => { prompt = null; update(); Track.once("install"); });
   btn.addEventListener("click", async () => {
     closeMenu();
     if (prompt) { const p = prompt; prompt = null; try { await p.prompt(); await p.userChoice; } catch (_) { } update(); return; }
@@ -916,7 +928,7 @@ function googleView() {
     if (pendingFocus) api.focus(...pendingFocus);
   };
   $("#zoom-in").addEventListener("click", () => gmap && gmap.setZoom(gmap.getZoom() + 1)); $("#zoom-out").addEventListener("click", () => gmap && gmap.setZoom(gmap.getZoom() - 1));
-  window.gm_authFailure = () => { $("#notice").innerHTML = "<b>Térképhiba.</b> A Google Maps kulcs nem érvényes ehhez a címhez. Ellenőrizd a kulcs webhely-korlátozását."; };
+  window.gm_authFailure = () => { Track.once("error", "map"); $("#notice").innerHTML = "<b>Térképhiba.</b> A Google Maps kulcs nem érvényes ehhez a címhez. Ellenőrizd a kulcs webhely-korlátozását."; };
   const load = () => {
     const s = document.createElement("script");
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(MAPS_KEY)}&callback=__initGoogle&language=hu&region=HU&loading=async`;
@@ -990,6 +1002,7 @@ function updateMarkers() {
 function select(id) {
   S.sel = id;
   const c = BY_ID.get(id);
+  if (c && LIVE) Track.once("view", id);
   if (c) MapView.focus(c.lat, c.lon, 15);
   withTransition(render, "open");
   if (S.sheet === "closed" || isDesktop()) setSheet(isDesktop() ? "full" : "peek");
@@ -1018,6 +1031,7 @@ function boot() {
     S.loading = false;
     // No connection (fetch's TypeError) and nothing saved on this device yet: say so instead of a server error.
     S.error = e instanceof TypeError || !navigator.onLine ? NO_DATA : "Nem sikerült betölteni a templomokat. Frissítsd az oldalt egy kicsit később.";
+    if (S.error !== NO_DATA) Track.once("error", "data");
     render();
   });
 }

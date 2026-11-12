@@ -22,6 +22,9 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   week board editor in plain words, feasts, events, details, live 7-day preview. Saves through `save_church`.
 - PWA (map only): `manifest.webmanifest`, `sw.js` (precaches the map's shell; `__BUILD__` is stamped with the commit
   by pages.yml, so each deploy offers "Frissítés"), `icons/` (PNGs rendered from `bell.svg` by `icons/render.mjs`).
+- `analytics.js` (`window.Track`) – anonymous usage counters from the map (no cookies or ids; off with Do Not Track,
+  in automated browsers unless `?track=1`, and on a device where an admin opened admin.html). Admin shows them under
+  "Statisztika". A new event name must also be allowed in the `track()` SQL function.
 - `schedule-editor.js` (`window.ScheduleEditor`) – the week board + question-style time editor shared by the parish
   portal and admin (`admin: true` adds the raw "Haladó" fields).
 - `styles.css` – shared tokens (light/dark, tone A "warm parchment", EB Garamond + Source Sans 3, no monospace) and
@@ -37,8 +40,10 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   `churches.feast_sunday[]` = feasts that follow the Sunday order.
 - `dated_services` – times for specific dates from a parish's own weekly schedule; on those dates they replace the rules.
 - `opening_hours`, `events`, `suggestions`, `staff` (admin/parish), `staff_churches`, `access_requests`, `church_edits`.
+- `analytics_daily` – anonymous counters per (day, event, key), written only by `track()`, read only by
+  `analytics_report()` (admins). Never add a visitor id, IP address or cookie to it.
 - RPCs: `public_data` (everything the map needs), `save_church`, `insert_services`, `import_church_schedule`,
-  `import_dated_services`, `merge_churches`, `approve_access`.
+  `import_dated_services`, `merge_churches`, `approve_access`, `track`, `analytics_report`.
 - Order of precedence on a day (app.js `dayInfo`, plebania.js `dayList`): dated rows → a feast's own rows → a feast
   group's rows → feast_sunday (Sunday order) → regular rules (season, weeks, every, rorate only in Advent, feast_skip).
 

@@ -69,6 +69,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/008_dated_services.sql` | times for given dates from a parish's own weekly schedule (Ferenciek tere) |
 | `supabase/migrations/009_celebrant_place_feasts.sql` | who celebrates, Masses held elsewhere, "ünnepnapokon nincs", one rule for all holy days / public holidays, calendar summer/winter and Christmas time, the "ünnepi" tag |
 | `supabase/migrations/010_parish_portal.sql` | parish portal: access requests and approval, editors list, edit history, admin-only fields protected, parish edits locked and stamped |
+| `supabase/migrations/011_analytics.sql` | anonymous usage statistics: daily counters, `track()` for the map, `analytics_report()` for the admin's Statisztika page |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 

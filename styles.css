@@ -107,6 +107,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 @media (max-width:899px){.app:has(.sheet[data-state="full"]) .offnote{visibility:hidden}} /* it belongs over the map */
 .menu-name{margin:0 0 -8px;font:600 22px/1.2 var(--f-display);color:var(--ink)}
 .menu-sub{margin:0;color:var(--ink-3);font-size:.82rem}
+.menu-priv{margin:10px 0 0;font-size:12.5px;line-height:1.4;color:var(--ink-3)}
 .notice{background:var(--gold-soft);color:var(--ink);font-size:.82rem;border-radius:12px;padding:8px 10px;line-height:1.45}
 .notice b{color:var(--gold)} .notice a{color:inherit}
 .legend{display:grid;gap:6px;font-size:.8rem;color:var(--ink-2)}

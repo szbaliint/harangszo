@@ -9,7 +9,7 @@
 const BUILD = "__BUILD__";
 const CACHE = "harangszo-" + BUILD;
 const FONT_CACHE = "harangszo-fonts";
-const SHELL = ["./", "index.html", "styles.css", "app.js", "calendar.js", "data.js", "config.js", "manifest.webmanifest",
+const SHELL = ["./", "index.html", "styles.css", "app.js", "analytics.js", "calendar.js", "data.js", "config.js", "manifest.webmanifest",
   "icons/bell.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon-180.png"];
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 const NETWORK_ONLY = /(^|\/)(plebania\.[^/]*|admin\.[^/]*|schedule-editor\.js)$/;

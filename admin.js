@@ -93,6 +93,7 @@ async function afterLogin(user) {
       <a class="ui-btn primary" href="plebania.html">Tovább a plébániai felületre</a><p class="ad-me">${who}</p></div>`;
     return;
   }
+  try { localStorage.setItem("harangszo.notrack", "1"); } catch (e) { } // this device's own map visits stay out of the statistics
   showShell(true);
   refreshSuggCount();
   setTab(A.page);
@@ -101,7 +102,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-logout]"))
 sb.auth.onAuthStateChange((_ev, session) => { session?.user ? (A.user?.id !== session.user.id && afterLogin(session.user)) : (A.user = null, renderLogin()); });
 sb.auth.getSession().then(({ data }) => { if (!data.session) renderLogin(); });
 
-/* ---------- Rail: Templomok · Javaslatok · Hozzáférések · Összevonás ---------- */
+/* ---------- Rail: Templomok · Javaslatok · Hozzáférések · Összevonás · Statisztika ---------- */
 function setTab(t, { render = true } = {}) {
   A.page = t; app.dataset.page = t;
   rail.querySelectorAll("[data-page]").forEach(b => b.setAttribute("aria-pressed", b.dataset.page === t));
@@ -115,7 +116,7 @@ rail.addEventListener("click", e => {
 });
 function renderTab() {
   if (A.page !== "churches") unmountEditor();
-  ({ churches: renderChurches, sugg: renderSuggestions, access: renderAccess, merge: renderMergePage })[A.page]();
+  ({ churches: renderChurches, sugg: renderSuggestions, access: renderAccess, merge: renderMergePage, stats: renderStats })[A.page]();
   main.scrollTop = 0;
 }
 // Phones: back from a church (or the merge panel) to the list, where it was.
@@ -885,3 +886,95 @@ function compare(o) {
     toast("Összevonva. Ez a megmaradt templom.");
   });
 }
+
+/* ---------- Statisztika: anonymous usage counters ---------- */
+// Everything comes from one call, analytics_report(days): daily counters written by the public map (analytics.js →
+// track()), plus parish activity from the edit history. No visitor is ever identified.
+const ST_MEASURES = { visits: "Látogatás", visitors: "Látogató", views: "Megnyitott templomoldal" };
+const nf = n => Number(n || 0).toLocaleString("hu-HU");
+const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "–";
+function statsChart(days, m) {
+  const W = 720, H = 200, L = 34, B = 22, T = 8, n = days.length, max = Math.max(1, ...days.map(d => +d[m] || 0));
+  // a round top for the axis: 1, 2, 5 × 10^k
+  const pow = 10 ** Math.floor(Math.log10(max)), top = [1, 2, 5, 10].map(x => x * pow).find(x => x >= max);
+  const step = (W - L) / n, bw = Math.max(2, Math.min(28, step - 2)), y = v => T + (H - T - B) * (1 - v / top);
+  const every = Math.ceil(n / 8);
+  const day = d => new Date(d + "T12:00").toLocaleDateString("hu-HU", { month: "short", day: "numeric" });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(ST_MEASURES[m])} naponta">
+    ${[0, .5, 1].map(f => `<line class="grid" x1="${L}" x2="${W}" y1="${y(top * f)}" y2="${y(top * f)}"/><text x="${L - 6}" y="${y(top * f) + 4}" text-anchor="end">${nf(top * f)}</text>`).join("")}
+    ${days.map((d, i) => { const v = +d[m] || 0, x = L + i * step + (step - bw) / 2, h = v ? Math.max(2, H - B - y(v)) : 0, r = Math.min(4, bw / 2, h);
+      return `<g><rect class="hit" x="${L + i * step}" y="${T}" width="${step}" height="${H - T - B}" data-tip="${esc(day(d.day))}: ${nf(v)}" data-x="${(L + i * step + step / 2) / W}" data-y="${(H - B - h) / H}"/>`
+        + (h ? `<path class="bar" d="M${x},${H - B}v${-(h - r)}q0,${-r} ${r},${-r}h${bw - 2 * r}q${r},0 ${r},${r}v${h - r}z"/>` : "")
+        + (i % every === 0 ? `<text x="${L + i * step + step / 2}" y="${H - 6}" text-anchor="middle">${esc(day(d.day))}</text>` : "") + `</g>`; }).join("")}
+  </svg><div class="st-tip" hidden></div>`;
+}
+const stRows = (list, name, val, open) => { const max = Math.max(1, ...list.map(val));
+  return list.length ? `<div class="st-rows">${list.map(x => `<${open ? `button type="button" data-open="${x.id}"` : "div"} class="st-row" style="--w:${Math.round(val(x) / max * 100)}%"><span class="nm">${name(x)}</span><b>${nf(val(x))}</b></${open ? "button" : "div"}>`).join("")}</div>` : `<p class="st-note">Ebben az időszakban még nincs adat.</p>`; };
+async function renderStats() {
+  A.statDays ||= 30; A.statMeasure ||= "visits";
+  main.innerHTML = `<div class="ad-page st-page">
+    <div class="st-head"><h1 class="ad-ptitle">Statisztika</h1>
+      <div class="ui-seg ad-seg" id="st-days" role="group" aria-label="Időszak">${[[7, "7 nap"], [30, "30 nap"], [90, "90 nap"]].map(([d, t]) => `<button type="button" data-days="${d}" aria-pressed="${A.statDays === d}">${t}</button>`).join("")}</div></div>
+    <div id="st-body"><p class="ad-muted">Betöltés…</p></div></div>`;
+  $("#st-days").addEventListener("click", e => { const b = e.target.closest("[data-days]"); if (b && +b.dataset.days !== A.statDays) { A.statDays = +b.dataset.days; renderStats(); } });
+  const { data: r, error } = await sb.rpc("analytics_report", { p_days: A.statDays });
+  if (A.page !== "stats" || !$("#st-body")) return;
+  if (error) {
+    $("#st-body").innerHTML = `<p class="ad-msg err">${/analytics_report/.test(error.message) || error.code === "PGRST202" ? "Futtasd le a 011-es adatbázis-frissítést (supabase/migrations/011_analytics.sql)." : "Nem sikerült betölteni: " + esc(error.message)}</p>`; return;
+  }
+  const t = r.totals || {}, a = r.actions || {}, sum = k => r.days.reduce((s, d) => s + (+d[k] || 0), 0);
+  const visits = sum("visits"), visitors = sum("visitors"), fresh = sum("new"), cov = r.coverage || {};
+  const split = (ev, labels) => { const rows = Object.entries(labels).map(([k, l]) => ({ l, n: +t[ev + ":" + k] || 0 })), tot = rows.reduce((s, x) => s + x.n, 0);
+    return stRows(rows.filter(x => x.n || tot === 0).map(x => ({ ...x, l: x.l + (tot ? ` <small>${pct(x.n, tot)}</small>` : "") })), x => x.l, x => x.n); };
+  const church = x => `${esc(x.name)} <small>${esc(x.city || "")}</small>`;
+  const tile = (label, n, sub = "") => `<div class="ui-card st-tile"><small>${label}</small><b>${n}</b>${sub ? `<span>${sub}</span>` : ""}</div>`;
+  const when = x => x ? new Date(x).toLocaleDateString("hu-HU", { year: "numeric", month: "short", day: "numeric" }) : "soha";
+  $("#st-body").innerHTML = `
+    <div class="st-tiles">
+      ${tile("Látogatás", nf(visits), `${nf(Math.round(visits / r.days.length))} naponta`)}
+      ${tile("Látogató (napi)", nf(visitors), fresh ? `ebből új: ${nf(fresh)} (${pct(fresh, visitors)})` : "")}
+      ${tile("Templomoldal", nf(a.view), visits ? `${(a.view / visits || 0).toFixed(1).replace(".", ",")} látogatásonként` : "")}
+      ${tile("Útvonal · hívás · web", nf((+a.dir || 0) + (+a.call || 0) + (+a.web || 0)), `mentés: ${nf(a.save)} · megosztás: ${nf(a.share)}`)}
+      ${tile("Telepítés", nf(t["install:"]), `alkalmazásként: ${pct(+t["mode:app"] || 0, (+t["mode:app"] || 0) + (+t["mode:browser"] || 0))}`)}
+      ${tile("Plébániai mentés", nf(r.parish_saves_count), `${nf(cov.parish_managed)} templomot kezel plébánia`)}
+    </div>
+    <div class="st-grid" style="margin-top:12px">
+      <section class="ui-card st-box st-wide"><div class="st-head"><h2 id="st-ctitle"></h2>
+          <div class="ui-seg ad-seg" id="st-m" role="group" aria-label="Mit mutasson a grafikon">${Object.entries(ST_MEASURES).map(([k, l]) => `<button type="button" data-m="${k}" aria-pressed="${A.statMeasure === k}">${l}</button>`).join("")}</div></div>
+        <div class="st-chart" id="st-chart"></div>
+        <details class="ui-fold"><summary>Táblázat</summary><table class="st-table"><thead><tr><th>Nap</th><th>Látogatás</th><th>Látogató</th><th>Új</th><th>Templomoldal</th></tr></thead>
+          <tbody>${[...r.days].reverse().map(d => `<tr><td>${esc(d.day)}</td><td>${nf(d.visits)}</td><td>${nf(d.visitors)}</td><td>${nf(d.new)}</td><td>${nf(d.views)}</td></tr>`).join("")}</tbody></table></details>
+      </section>
+      <section class="ui-card st-box"><h2>Legnézettebb templomok</h2><p class="st-sub">Megnyitások; koppints a templom megnyitásához.</p>
+        ${stRows(r.churches.filter(x => x.view).slice(0, 15), x => church(x) + ((+x.dir || +x.call || +x.web || +x.save) ? ` <span class="st-acts">· ${[[x.dir, "útvonal"], [x.call, "hívás"], [x.web, "web"], [x.save, "♡"]].filter(y => +y[0]).map(y => nf(y[0]) + " " + y[1]).join(" · ")}</span>` : ""), x => +x.view, true)}</section>
+      <section class="ui-card st-box"><h2>Sokan nézik, de nincs időpontja</h2><p class="st-sub">Itt segít a legtöbbet egy feltöltött miserend. Összesen ${nf((cov.churches || 0) - (cov.with_times || 0))} templomnál nincs időpont (${pct((cov.churches || 0) - (cov.with_times || 0), cov.churches)}).</p>
+        ${stRows(r.no_times.slice(0, 15), church, x => +x.view, true)}</section>
+      <section class="ui-card st-box"><h2>Keresések</h2><p class="st-sub">Találatot adó keresőszavak (${nf(a.search)}).</p>
+        ${stRows(r.searches.slice(0, 15), x => esc(x.q), x => +x.n)}</section>
+      <section class="ui-card st-box"><h2>Keresések találat nélkül</h2><p class="st-sub">Hiányzó templom, település vagy más írásmód lehet (${nf(a.search_none)}).</p>
+        ${stRows(r.searches_none.slice(0, 15), x => esc(x.q), x => +x.n)}</section>
+      <section class="ui-card st-box"><h2>Használat</h2>
+        <h3>Eszköz</h3>${split("device", { phone: "Telefon", tablet: "Táblagép", desktop: "Számítógép" })}
+        <h3>Nézet</h3>${split("tab", { map: "Térkép", list: "Lista", saved: "Mentett" })}
+        <h3>Szűrők</h3>${split("filter", { mass: "Mise", conf: "Gyóntatás", open: "Most nyitva", ev: "Esemény a héten", rorate: "Rorate", tag: "A mise jellege", day: "Másik nap", origin: "Másik hely" })}
+        <p class="st-note">Saját helyzet használata: ${nf(t["locate:"])} · beküldött javítás: ${nf(r.suggestions?.received)} (döntésre vár: ${nf(r.suggestions?.pending)}) · betöltési hiba: ${nf((+t["error:data"] || 0) + (+t["error:map"] || 0))}</p></section>
+      <section class="ui-card st-box"><h2>Plébániák</h2>
+        <h3>Legutóbbi mentések</h3>${r.parish_saves.length ? `<div class="st-rows">${r.parish_saves.slice(0, 10).map(x => `<button type="button" class="st-row" data-open="${x.id}"><span class="nm">${church(x)}</span><span class="st-acts">${esc(x.who || "")} · ${esc(shortWhen(x.at))}</span></button>`).join("")}</div>` : `<p class="st-note">Még egy plébánia sem mentett.</p>`}
+        <h3>Hozzáférést kapott, de még nem mentett</h3>${r.parish_never.length ? `<div class="st-rows">${r.parish_never.map(x => `<button type="button" class="st-row" data-open="${x.id}"><span class="nm">${church(x)}</span><span class="st-acts">${esc(x.who || "")}</span></button>`).join("")}</div>` : `<p class="st-note">Mindenki mentett már.</p>`}
+        <h3>Fél éve nem frissített, plébánia által kezelt</h3>${r.parish_stale.length ? `<div class="st-rows">${r.parish_stale.map(x => `<button type="button" class="st-row" data-open="${x.id}"><span class="nm">${church(x)}</span><span class="st-acts">${esc(when(x.at))}</span></button>`).join("")}</div>` : `<p class="st-note">Nincs ilyen.</p>`}</section>
+    </div>
+    <p class="st-note" style="margin-top:12px">Névtelen számlálók: nincs süti, nincs látogatóazonosító, nincs IP-cím. A „látogató” azt jelenti, hogy egy eszköz aznap először nyitotta meg a térképet; ugyanaz az ember két eszközön kettőnek számít. Aki a böngészőjében letiltotta a követést, és az az eszköz, amelyen ez az admin oldal meg volt nyitva, nem számít bele.</p>`;
+  const draw = () => {
+    $("#st-ctitle").textContent = ST_MEASURES[A.statMeasure] + " naponta";
+    $("#st-chart").innerHTML = statsChart(r.days, A.statMeasure);
+  };
+  draw();
+  $("#st-m").addEventListener("click", e => { const b = e.target.closest("[data-m]"); if (!b) return; A.statMeasure = b.dataset.m; $("#st-m").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); draw(); });
+  const chart = $("#st-chart");
+  chart.addEventListener("pointermove", e => { const h = e.target.closest(".hit"), tip = chart.querySelector(".st-tip"); if (!tip) return;
+    if (!h) { tip.hidden = true; return; }
+    tip.textContent = h.dataset.tip; tip.hidden = false; tip.style.left = h.dataset.x * 100 + "%"; tip.style.top = `calc(${h.dataset.y * 100}% - 6px)`; });
+  chart.addEventListener("pointerleave", () => { const tip = chart.querySelector(".st-tip"); if (tip) tip.hidden = true; });
+  $("#st-body").addEventListener("click", async e => { const b = e.target.closest("[data-open]"); if (!b) return; setTab("churches"); await openChurch(+b.dataset.open); });
+}
+

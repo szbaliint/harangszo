@@ -16,7 +16,7 @@
 body{overflow:auto;font-size:15px}
 .ad{min-height:100dvh;display:grid;grid-template-columns:minmax(0,1fr);align-content:start}
 .ad-main{min-width:0;padding-bottom:110px}
-.ad:is([data-page="sugg"],[data-page="access"]) .ad-list{display:none}
+.ad:is([data-page="sugg"],[data-page="access"],[data-page="stats"]) .ad-list{display:none}
 
 /* Rail: a top bar with a tab bar below 1100px, a column from 1100px */
 .ad-rail{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 16px;background:var(--sunken);border-bottom:1px solid var(--line);min-width:0}
@@ -206,7 +206,7 @@ code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:v
   .ad-rail{grid-column:1/-1}
   .ad-list{grid-column:1;grid-row:2;overflow-y:auto;border-right:1px solid var(--line)}
   .ad:not([data-page="login"]) .ad-main{grid-column:2;grid-row:2;overflow-y:auto}
-  .ad:is([data-page="sugg"],[data-page="access"]) .ad-main{grid-column:1/-1}
+  .ad:is([data-page="sugg"],[data-page="access"],[data-page="stats"]) .ad-main{grid-column:1/-1}
   .ad-bar.ui-savebar,.ad-toast.ui-toast{left:342px}}
 @media (min-width:1100px){
   .ad:not([data-page="login"]){grid-template-columns:200px 330px minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
@@ -219,9 +219,45 @@ code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:v
   .ad-me .ui-btn{margin-left:-10px;min-height:36px;font-size:12.5px}
   .ad-list{grid-column:2;grid-row:1}
   .ad:not([data-page="login"]) .ad-main{grid-column:3;grid-row:1}
-  .ad:is([data-page="sugg"],[data-page="access"]) .ad-main{grid-column:2/-1}
+  .ad:is([data-page="sugg"],[data-page="access"],[data-page="stats"]) .ad-main{grid-column:2/-1}
   .ad-bar.ui-savebar,.ad-toast.ui-toast{left:542px}}
 @media (prefers-reduced-motion:reduce){.ad-it,.ad-tab,.ad-search{transition:none!important}}
+/* Statisztika: anonymous usage counters (analytics_report) */
+.st-page{max-width:1080px}
+.st-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;justify-content:space-between}
+#st-days button{white-space:nowrap}
+.st-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.st-tile{padding:12px 14px}
+.st-tile small{display:block;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.st-tile b{display:block;margin-top:2px;font:700 30px/1.1 var(--f-body);font-variant-numeric:tabular-nums;color:var(--ink)}
+.st-tile span{display:block;margin-top:2px;font-size:13px;color:var(--ink-3)}
+.st-grid{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:900px){.st-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.st-wide{grid-column:1/-1}}
+.st-box{padding:14px 16px;display:grid;gap:10px;align-content:start;min-width:0}
+.st-box h2{margin:0;font:600 19px/1.2 var(--f-display)}
+.st-box h3{margin:6px 0 0;font:700 12px/1.2 var(--f-body);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.st-sub{margin:-6px 0 0;font-size:13px;color:var(--ink-3)}
+.st-chart{position:relative}
+.st-chart svg{display:block;width:100%;height:auto;overflow:visible}
+.st-chart .bar{fill:var(--accent);pointer-events:none}
+.st-chart .hit{fill:transparent}
+.st-chart .hit:hover + .bar,.st-chart .bar.on{fill:color-mix(in srgb,var(--accent) 72%,var(--ink))}
+.st-chart .grid{stroke:var(--line);stroke-width:1}
+.st-chart text{font:400 11px var(--f-body);fill:var(--ink-3);font-variant-numeric:tabular-nums}
+.st-tip{position:absolute;z-index:2;pointer-events:none;transform:translate(-50%,-100%);padding:5px 9px;border-radius:9px;background:var(--ink);color:var(--bg);font-size:12.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.st-rows{display:grid;gap:2px}
+.st-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 8px;border-radius:9px;font-size:14px;font-variant-numeric:tabular-nums;isolation:isolate}
+.st-row::before{content:"";position:absolute;z-index:-1;inset:2px auto 2px 0;width:var(--w,0%);border-radius:7px;background:var(--accent-soft)}
+.st-row .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-row .nm small{color:var(--ink-3)}
+.st-row b{font-weight:600}
+button.st-row{width:100%;border:0;background:none;color:inherit;font:inherit;font-size:14px;text-align:left;cursor:pointer}
+button.st-row:hover .nm{text-decoration:underline}
+.st-acts{font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.st-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.st-table th,.st-table td{padding:4px 8px;text-align:right;border-top:1px solid var(--line)}
+.st-table th:first-child,.st-table td:first-child{text-align:left}
+.st-note{font-size:13px;line-height:1.45;color:var(--ink-3);margin:0}
 </style>
 </head>
 <body>
@@ -233,6 +269,7 @@ code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:v
       <button type="button" class="ui-tab" data-page="sugg" aria-pressed="false"><span>Javaslatok</span><span class="ad-badge" id="sugg-count"></span></button>
       <button type="button" class="ui-tab" data-page="access" aria-pressed="false"><span>Hozzáférések</span><span class="ad-badge" id="access-count"></span></button>
       <button type="button" class="ui-tab" data-page="merge" aria-pressed="false"><span>Összevonás</span></button>
+      <button type="button" class="ui-tab" data-page="stats" aria-pressed="false"><span>Statisztika</span></button>
     </div>
     <div class="ad-me" id="who"></div>
   </nav>

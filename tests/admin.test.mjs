@@ -92,7 +92,7 @@ test("rail: badges and count; list: tags; three columns at 1440", async () => {
     assert.equal((await page.locator("#sugg-count").textContent()).trim(), "2");
     assert.equal((await page.locator("#access-count").textContent()).trim(), "1");
     assert.equal((await page.locator("#n-churches").textContent()).trim(), "3");
-    assert.deepEqual((await page.locator("#rail [data-page] > span:first-child").allTextContents()), ["Templomok", "Javaslatok", "Hozzáférések", "Összevonás"]);
+    assert.deepEqual((await page.locator("#rail [data-page] > span:first-child").allTextContents()), ["Templomok", "Javaslatok", "Hozzáférések", "Összevonás", "Statisztika"]);
     assert.equal(await page.locator("#clist .ad-it").count(), 3);
     assert.equal((await page.locator("#ccount").textContent()).trim(), "3 találat");
     await item(page, "Szent Anna").locator(".ui-tag", { hasText: "plébánia kezeli" }).waitFor();
@@ -396,3 +396,61 @@ test("a parish account opening admin.html is sent to plebania.html", async () =>
     assert.ok(!(await page.locator("#rail").isVisible()));
   } finally { await close(); }
 });
+
+// Statisztika: the report from analytics_report, drawn as tiles, a chart with a table view, and lists.
+const REPORT = { from: "2026-11-03", to: "2026-11-09",
+  days: ["03", "04", "05", "06", "07", "08", "09"].map((d, i) => ({ day: "2026-11-" + d, visits: 100 + i * 20, visitors: 80 + i * 10, new: 20 + i, views: 150 + i * 30 })),
+  totals: { "visit:": 1120, "install:": 12, "locate:": 40, "device:phone": 700, "device:desktop": 300, "mode:app": 100, "mode:browser": 900, "tab:list": 400, "tab:saved": 50, "filter:conf": 220, "filter:mass": 90, "error:data": 3 },
+  actions: { view: 1680, dir: 310, call: 22, web: 60, save: 75, share: 9, suggest: 4, search: 500, search_none: 37 },
+  churches: [{ id: 1043, name: "Szent Anna-templom", city: "Eger", has_times: true, view: 240, dir: 60, call: 3, web: 9, save: 12, share: 1, suggest: 1 },
+    { id: 1050, name: "Budapest-Belvárosi Nagyboldogasszony Főplébánia-templom (Belvárosi templom)", city: "Budapest V.", has_times: false, view: 90, dir: 0, call: 0, web: 0, save: 0, share: 0, suggest: 0 }],
+  no_times: [{ id: 1050, name: "Budapest-Belvárosi Nagyboldogasszony Főplébánia-templom (Belvárosi templom)", city: "Budapest V.", view: 90 }],
+  searches: [{ q: "eger", n: 44 }, { q: "bazilika", n: 31 }], searches_none: [{ q: "<b>szentkút</b>", n: 6 }],
+  parish_saves: [{ id: 1043, name: "Szent Anna-templom", city: "Eger", who: "Szent Anna plébánia", at: "2026-11-08T21:14:00+01:00" }], parish_saves_count: 3,
+  parish_never: [], parish_stale: [{ id: 1043, name: "Szent Anna-templom", city: "Eger", at: null }],
+  suggestions: { received: 4, pending: 2 }, coverage: { churches: 4799, with_times: 3155, parish_managed: 2 } };
+
+test("Statisztika shows the report: tiles, chart with tooltip and table, lists that open a church", async () => {
+  let asked = null;
+  const t = await openAdmin({ rpc: { analytics_report: b => { asked = b; return REPORT; } } });
+  try {
+    await t.page.locator('#rail [data-page="stats"]').click();
+    await t.page.locator(".st-tiles").waitFor();
+    assert.deepEqual(asked, { p_days: 30 });
+    const text = await t.page.locator("#st-body").innerText();
+    // Hungarian formatting groups digits only from five digits up (1120, but 10 000)
+    for (const s of ["1120", "1680", "eger", "bazilika", "<b>szentkút</b>", "Telefon", "70%", "Gyóntatás", "Szent Anna plébánia", "nincs időpont"]) assert.ok(text.includes(s), `"${s}" in the page`);
+    assert.equal(await t.page.locator("#st-body b").count() > 0, true);
+    assert.equal(await t.page.locator("#st-chart .bar").count(), 7);
+    // hover shows the day's value
+    // the pointer is on the bar itself (near the baseline), not on the empty space above it
+    { const bb = await t.page.locator("#st-chart .hit").nth(6).boundingBox(); await t.page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height - 6); }
+    assert.match(await t.page.locator("#st-chart .st-tip").innerText(), /nov\. 9\.: 220/);
+    // another measure redraws the same chart
+    await t.page.locator('#st-m [data-m="views"]').click();
+    assert.equal(await t.page.locator("#st-ctitle").innerText(), "Megnyitott templomoldal naponta");
+    // table view
+    await t.page.locator(".st-box details summary").click();
+    assert.equal(await t.page.locator(".st-table tbody tr").count(), 7);
+    // 7 days asks the database again
+    await t.page.locator('#st-days [data-days="7"]').click(); await t.page.locator(".st-tiles").waitFor();
+    assert.deepEqual(asked, { p_days: 7 });
+    // the long name does not widen the page
+    assert.equal(await t.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    // a row opens the church
+    await t.page.locator(".st-box button.st-row", { hasText: "Szent Anna-templom" }).first().click();
+    await t.page.locator(".ad-name", { hasText: "Szent Anna-templom" }).waitFor();
+    assert.equal(await t.page.evaluate(() => localStorage.getItem("harangszo.notrack")), "1");
+    assert.deepEqual(t.errors, []);
+  } finally { await t.close(); }
+});
+
+test("Statisztika before the migration: says which file to run", async () => {
+  const t = await openAdmin();
+  try {
+    await t.page.locator('#rail [data-page="stats"]').click();
+    await t.page.locator("#st-body .ad-msg.err").waitFor();
+    assert.match(await t.page.locator("#st-body").innerText(), /011_analytics\.sql/);
+  } finally { await t.close(); }
+});
+
