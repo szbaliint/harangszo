@@ -30,7 +30,7 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           mkdir -p _site
-          cp index.html admin.html plebania.html jogi.html styles.css app.js admin.js plebania.js calendar.js schedule-editor.js analytics.js data.js config.js sw.js manifest.webmanifest _site/
+          cp index.html admin.html plebania.html jogi.html styles.css app.js admin.js plebania.js calendar.js schedule-editor.js church-photo.js analytics.js data.js config.js sw.js manifest.webmanifest _site/
           cp -r icons _site/
           fill() {  # fill <placeholder> <value> <label>
             if [ -n "$2" ]; then

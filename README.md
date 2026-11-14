@@ -13,6 +13,8 @@ A map of Catholic churches in Hungary with Mass and confession times, opening ho
 |------|--------------|
 | `index.html`, `app.js`, `styles.css` | Public map and list. Reads everything in one call (`public_data`) and sends corrections to the database. |
 | `admin.html`, `admin.js` | Editor panel: log in, edit churches, opening hours, Masses, confession, adoration, events; approve or reject corrections. |
+| `plebania.html`, `plebania.js` | Parish portal: a parish edits its own church (week board, feasts, events, details, photo). |
+| `schedule-editor.js`, `church-photo.js` | Shared by the portal and the admin: the week board and time editor; the church photo upload. |
 | `supabase/schema.sql` | Database tables, access rules and functions. |
 | `scripts/import-osm.mjs` | Imports Catholic churches in Hungary from OpenStreetMap. |
 | `.github/workflows/pages.yml` | Publishes the site and fills `config.js` from repository secrets. |
@@ -136,6 +138,8 @@ layout changes, the run fails without writing anything. The parser is `scripts/l
 ## Church photos from Wikimedia Commons
 
 **Actions → Import church photos from Wikimedia Commons → Run workflow** (after migration 013; leave "Only look the photos up" ticked the first time). For churches imported from OpenStreetMap, most important first, `scripts/import-photos.mjs` takes the photo the map object names (`wikimedia_commons` / `image`) or its Wikidata item's image (P18), keeps it only under CC0, public domain, CC BY or CC BY-SA, and stores a 1000 px thumbnail with the credit "Fotó: <szerző> · <licenc> · Wikimedia Commons". A parish's own photo is never replaced; a Commons photo whose file is gone or no longer free is removed. Run it again now and then to pick up new photos. `tests/sql/photos.pglite.mjs` checks the database side (see its header for how to run it).
+
+Parishes (and the admin) can also put their own photo on a church: **Adatok → Fotó → Fotó feltöltése** on plebania.html or in the admin's church editor. `church-photo.js` makes it smaller in the browser (at most 1600 px on the long edge, JPEG), stores it in the public `church-photos` bucket as `<church id>/<timestamp>.jpg` and sets it with `set_church_photo()`; the database accepts only that church's folder and credits it "Fotó: a plébánia". It is saved at once, and the previous file is deleted from the bucket. A parish can replace a Commons photo but not remove it; the admin can.
 
 ## Parish editors (plebania.html)
 

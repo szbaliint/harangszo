@@ -6,7 +6,11 @@
 // - tables: rows per table or view. GET returns the rows (simple `col=eq.value` filters are applied to
 //           top-level columns); `.single()` returns the first row, 406 when there is none.
 // - rpc:    handlers per RPC name, called with the parsed JSON body; their return value is the response.
-// Every request to the fake project is recorded in `calls` as { path, query, method, body }.
+// - storage: Storage is always faked. An upload (POST/PUT /storage/v1/object/<bucket>/<path>) is kept, and its public
+//           URL (/storage/v1/object/public/<bucket>/<path>) then serves it; any other public object is a 1×1 PNG.
+//           Removing (DELETE /storage/v1/object/<bucket>, { prefixes }) forgets the files.
+// Every request to the fake project is recorded in `calls` as { path, query, method, body }; a storage upload's body is
+// { type, size } of the uploaded file and the call also carries `file`, its bytes (a Buffer).
 
 export const SUPABASE_URL = "https://test.supabase.co";
 export const ANON_KEY = "test-anon-key";
@@ -41,9 +45,27 @@ function eqFilter(rows, params) {
   return out;
 }
 
+// The file part of a multipart/form-data body (what supabase-js sends for a Blob): { type, bytes }.
+function filePart(buf, ctype) {
+  const m = /boundary=(?:"([^"]+)"|([^;\s]+))/i.exec(ctype || "");
+  if (!m) return { type: (ctype || "").split(";")[0], bytes: buf };
+  const sep = Buffer.from("--" + (m[1] || m[2]));
+  for (let i = buf.indexOf(sep); i !== -1;) {
+    const next = buf.indexOf(sep, i + sep.length);
+    if (next === -1) break;
+    const part = buf.subarray(i + sep.length + 2, next - 2), end = part.indexOf("\r\n\r\n");
+    const type = end === -1 ? null : /content-type:\s*([^\r\n;]+)/i.exec(part.subarray(0, end).toString("latin1"));
+    if (type) return { type: type[1].trim(), bytes: part.subarray(end + 4) };
+    i = next;
+  }
+  return { type: "", bytes: Buffer.alloc(0) };
+}
+const PNG_1PX = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGPYvXs3AARmAjKtwk2xAAAAAElFTkSuQmCC", "base64");
+
 export async function mockSupabase(page, { user = null, staff = null, tables = {}, rpc = {} } = {}) {
   const calls = [];
   const data = { ...(staff ? { staff: [staff] } : {}), ...tables };
+  const objects = new Map(); // "<bucket>/<path>" → { type, bytes }
 
   await page.route(/\/config\.js(\?.*)?$/, route => route.fulfill({
     status: 200,
@@ -62,6 +84,25 @@ export async function mockSupabase(page, { user = null, staff = null, tables = {
     const url = new URL(req.url());
     const method = req.method();
     if (method === "OPTIONS") return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "*" } });
+    if (url.pathname.startsWith("/storage/v1/object/")) {
+      const rest = decodeURIComponent(url.pathname.slice("/storage/v1/object/".length));
+      if (rest.startsWith("public/")) {
+        const o = objects.get(rest.slice("public/".length));
+        return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "content-type": o ? o.type : "image/png" }, body: o ? o.bytes : PNG_1PX });
+      }
+      if (method === "POST" || method === "PUT") {
+        const f = filePart(req.postDataBuffer() || Buffer.alloc(0), req.headers()["content-type"]);
+        calls.push({ path: url.pathname, query: url.search, method, body: { type: f.type, size: f.bytes.length }, file: f.bytes });
+        objects.set(rest, f);
+        return route.fulfill(json(200, { Key: rest, Id: "00000000-0000-4000-8000-" + String(objects.size).padStart(12, "0") }));
+      }
+      if (method === "DELETE") {
+        const body = parseBody(req), bucket = rest.split("/")[0];
+        calls.push({ path: url.pathname, query: url.search, method, body });
+        const gone = (body?.prefixes || []).filter(n => objects.delete(bucket + "/" + n) || true);
+        return route.fulfill(json(200, gone.map(name => ({ name, bucket_id: bucket }))));
+      }
+    }
     const body = parseBody(req);
     calls.push({ path: url.pathname, query: url.search, method, body });
     const p = url.pathname;

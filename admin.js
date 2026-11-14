@@ -519,6 +519,7 @@ function renderData(box) {
       ${osm ? `<a class="ui-btn secondary ad-add" href="${osm}" target="_blank" rel="noopener">Hely ellenőrzése a térképen</a>` : ""}
       <label class="ui-field" for="f-notes"><span>Belső megjegyzés (nem nyilvános)</span><textarea id="f-notes" data-k="notes" rows="3">${esc(c.notes)}</textarea></label>
     </div>
+    <section class="ad-card" aria-labelledby="ph-h"><div><h3 id="ph-h">Fotó</h3><span class="ad-when">A térképen a templom oldalának tetején látszik. A Wikimedia Commons fotókat a fotóimport hozza.</span></div><div id="photo"></div></section>
     <div class="ad-card"><div><h3>Nyitvatartás</h3><span class="ad-when">Mikor lehet bemenni imádkozni</span></div>
       <label class="ad-check" for="f-only"><input type="checkbox" class="ui-toggle" id="f-only" data-k="open_only_services" ${c.open_only_services ? "checked" : ""}><span>Csak a szertartások idején van nyitva</span></label>
       <div class="ad-rows">${c.hours.map((h, i) => `<div class="ad-hours" role="group" aria-label="Nyitvatartás, ${i + 1}. sor">
@@ -534,6 +535,8 @@ function renderData(box) {
       <p class="ad-muted">Ha ez a templom kétszer szerepel, vond össze a másik bejegyzéssel. A törlés az időpontjait és eseményeit is törli.</p>
       <div class="ad-danger"><button type="button" class="ui-btn secondary" id="merge-open">Összevonás egy másik templommal…</button><button type="button" class="ui-btn danger" id="del">Templom törlése</button></div></div>` : ""}
   </div>`;
+  // Saved at once (storage + set_church_photo), not with the save bar.
+  window.ChurchPhoto.mount($("#photo"), { sb, church: c, admin: isAdmin, toast });
 }
 
 /* ---------- Szerkesztők ---------- */

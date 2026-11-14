@@ -331,6 +331,7 @@ function renderEvents() {
 function renderData() {
   const d = P.d, c = P.church;
   $("#sec").innerHTML = `<div class="pp-list">
+    <section class="pp-card" aria-labelledby="ph-h"><div><h3 id="ph-h">Fotó</h3><span class="when">A térképen a templom oldalának tetején látszik</span></div><div id="photo"></div></section>
     <div class="pp-card"><h3>Elérhetőség</h3><div class="pp-line">
       <label class="ui-field"><span>Telefonszám</span><input data-k="phone" type="tel" value="${esc(d.phone)}"></label>
       <label class="ui-field"><span>Weboldal</span><input data-k="website" type="url" value="${esc(d.website)}" placeholder="https://"></label>
@@ -346,6 +347,7 @@ function renderData() {
     <div class="pp-card"><div><h3>Megjegyzés a miserendhez</h3><span class="when">A hívek a miserend alatt látják</span></div>
       <label class="ui-field"><span hidden>Megjegyzés a miserendhez</span><textarea data-k="schedule_note" maxlength="1500" rows="4" placeholder="pl. Nyári szünetben a hétköznapi misék a plébániatemplomban vannak. Gyóntatás előzetes egyeztetéssel is: 06 30 …">${esc(d.schedule_note)}</textarea></label></div></div>`;
   const sec = $("#sec");
+  window.ChurchPhoto.mount($("#photo"), { sb, church: c, admin: P.staff?.role === "admin", toast });
   sec.querySelectorAll("[data-k]").forEach(el => el.addEventListener(el.type === "checkbox" ? "change" : "input", () => { d[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value; changed(el.type === "checkbox" ? null : el); }));
   sec.querySelectorAll("[data-h]").forEach(el => el.addEventListener("input", () => { d.hours.find(h => h.uid === el.dataset.h)[el.dataset.f] = el.value; changed(el); }));
   sec.querySelectorAll("[data-hd]").forEach(b => b.addEventListener("click", () => { const h = d.hours.find(h => h.uid === b.dataset.hd), x = +b.dataset.d; h.days = h.days.includes(x) ? h.days.filter(y => y !== x) : [...h.days, x]; b.setAttribute("aria-pressed", h.days.includes(x)); changed(); }));

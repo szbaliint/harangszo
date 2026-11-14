@@ -564,3 +564,19 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
 .se-msg:empty{display:none}
 @media (prefers-reduced-motion:reduce){
   .se-tile,.se-start,.se-endf{transition:none!important}}
+
+/* Church photo (church-photo.js, portal and admin): the photo as the map shows it, its credit in the corner */
+.cp{display:grid;gap:12px;min-width:0}
+.cp-view{display:grid;gap:8px;min-width:0}
+.cp-fig{position:relative;margin:0;max-width:560px;aspect-ratio:3/2;overflow:hidden;background:var(--sunken)}
+.cp-fig img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 30%;display:block}
+.cp-credit{position:absolute;right:0;bottom:0;max-width:100%;padding:2px 8px;background:rgb(0 0 0 / .5);color:#fff;font-size:var(--fs-1);line-height:1.35;text-align:right}
+.cp-credit a{color:inherit;text-decoration:none}
+.cp-none,.cp-note{margin:0;max-width:62ch;font-size:var(--fs-2);line-height:1.45;color:var(--ink-2)}
+.cp-note{font-size:var(--fs-1)}
+.cp-acts{display:flex;flex-wrap:wrap;gap:8px}
+.cp-acts:empty{display:none}
+.cp-msg{margin:0;font-size:var(--fs-2);color:var(--ink-2)}
+.cp-msg:empty{display:none}
+.cp-msg.err{color:var(--closed)}
+.cp-hint{margin:0;max-width:62ch;font-size:var(--fs-1);line-height:1.45;color:var(--ink-3)}
