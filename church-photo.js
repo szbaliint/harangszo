@@ -67,7 +67,7 @@
       view.innerHTML = url ? `<figure class="cp-fig"><img src="${esc(url)}" alt="${esc("A templom fotója" + (c.name ? ": " + c.name : ""))}" decoding="async">
           ${credit ? `<figcaption class="cp-credit">${c.photo_page ? `<a href="${esc(c.photo_page)}" target="_blank" rel="noopener">${esc(credit)}</a>` : esc(credit)}</figcaption>` : ""}</figure>
           ${commons ? `<p class="cp-note">Ez a fotó a Wikimedia Commonsról való, szabadon felhasználható képek közül.${admin ? "" : " Ha van jobb, saját fotóval lecserélheted."}</p>` : ""}`
-        : `<p class="cp-none">Még nincs fotó a templomról. Ha feltöltesz egyet, a térképen a templom oldalának tetején látszik.</p>`;
+        : `<p class="cp-none">Még nincs fotó a templomról.</p>`;
       const canRemove = url && (admin || !commons);
       acts.innerHTML = `<button type="button" class="ui-btn secondary" data-cp="pick"${busy ? " disabled" : ""}>${busy === "up" ? "Feltöltés…" : "Fotó feltöltése"}</button>
         ${canRemove ? `<button type="button" class="ui-btn danger" data-cp="del"${busy ? " disabled" : ""}>${busy === "del" ? "Törlés…" : "Fotó törlése"}</button>` : ""}`;
