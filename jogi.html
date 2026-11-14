@@ -5,49 +5,53 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Jogi információk – Harangszó</title>
 <meta name="description" content="A Harangszó impresszuma, adatkezelési tájékoztatója és felhasználási feltételei.">
-<meta name="theme-color" content="#233f8c">
+<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icons/bell.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
 <style>*,*::before,*::after{box-sizing:border-box} body{margin:0} [hidden]{display:none!important}</style>
 <link rel="stylesheet" href="styles.css">
 <style>
-/* A plain reading page: one column, the shared tokens and type. */
+/* A plain reading page in the map's world: one white column, ink and greys, hairlines, the platform font. */
 html,body{height:auto}
-body{overflow:auto;font-size:16px;line-height:1.6}
-.lg{max-width:760px;margin:0 auto;padding:20px max(18px,env(safe-area-inset-left,0px)) 80px}
-.lg-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
-.lg-top a{color:var(--accent);font-weight:600;text-decoration:none}
-.lg-brand{font:700 22px var(--f-display);color:var(--ink);text-decoration:none}
-.lg h1{margin:0 0 6px;font:700 34px/1.12 var(--f-display);text-wrap:balance}
-.lg h2{margin:40px 0 8px;font:600 26px/1.2 var(--f-display);scroll-margin-top:16px}
-.lg h3{margin:24px 0 6px;font:700 15px/1.3 var(--f-body);letter-spacing:.02em}
+body{overflow:auto;line-height:1.6}
+.lg{max-width:720px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-left,0px)) 80px}
+.lg-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin-bottom:20px}
+.lg-brand{font:700 var(--fs-3)/1.2 var(--f-body);color:var(--ink);text-decoration:none}
+.lg-back{display:inline-flex;align-items:center;min-height:44px;color:var(--ink);font-weight:600}
+.lg h1{margin:0 0 4px;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;text-wrap:balance}
+.lg h2{margin:44px 0 10px;padding-top:20px;border-top:1px solid var(--line);font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;scroll-margin-top:16px}
+.lg h3{margin:26px 0 6px;font:700 var(--fs-3)/1.3 var(--f-body)}
 .lg p,.lg li{color:var(--ink-2)}
-.lg p{margin:0 0 10px}
-.lg ul{margin:0 0 10px;padding-left:20px}
-.lg li{margin:3px 0}
-.lg a{color:var(--accent)}
+.lg p{margin:0 0 12px}
+.lg ul{margin:0 0 12px;padding-left:20px}
+.lg li{margin:4px 0}
+.lg a{color:var(--ink)}
 .lg strong{color:var(--ink)}
-.lg .lg-toc{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px;padding:0;list-style:none}
-.lg-toc a{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);text-decoration:none;font-weight:600;font-size:14.5px}
-.lg-meta{color:var(--ink-3);font-size:14px}
-.lg-box{margin:12px 0;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.lg-meta{color:var(--ink-3);font-size:var(--fs-1)}
+.lg .lg-toc{margin:18px 0 6px;padding:0;list-style:none;border-top:1px solid var(--line)}
+.lg .lg-toc li{margin:0}
+.lg-toc+h2{margin-top:36px;padding-top:0;border-top:0}
+.lg-toc a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;border-bottom:1px solid var(--line);color:var(--ink);font-weight:600;text-decoration:none}
+.lg-toc a::after{content:"›";color:var(--ink-3);font-weight:400;font-size:var(--fs-3)}
+.lg-box{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r)}
 .lg-box p:last-child{margin-bottom:0}
-.lg-table{width:100%;border-collapse:collapse;margin:8px 0 14px;font-size:14.5px}
-.lg-table th,.lg-table td{padding:8px 10px;border-top:1px solid var(--line);text-align:left;vertical-align:top;color:var(--ink-2)}
+.lg-table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:var(--fs-2)}
+.lg-table th,.lg-table td{padding:9px 10px 9px 0;border-top:1px solid var(--line);text-align:left;vertical-align:top;color:var(--ink-2)}
+.lg-table tr:last-child>*{border-bottom:1px solid var(--line)}
 .lg-table th{color:var(--ink);font-weight:600;width:34%}
-.lg-table code{font-size:13px;overflow-wrap:anywhere}
-@media (max-width:560px){.lg-table,.lg-table tbody,.lg-table tr,.lg-table th,.lg-table td{display:block;width:auto}.lg-table th{border-top:1px solid var(--line);padding-bottom:0}.lg-table td{border-top:0}}
-.lg-todo{background:var(--gold-soft);color:var(--ink);border-radius:6px;padding:0 4px;font-weight:600}
+.lg-table code{font-family:var(--f-body);font-size:var(--fs-1);overflow-wrap:anywhere}
+@media (max-width:560px){.lg-table,.lg-table tbody,.lg-table tr,.lg-table th,.lg-table td{display:block;width:auto}.lg-table th{padding-bottom:0}.lg-table td{border-top:0}.lg-table tr:last-child>*{border-bottom:0}.lg-table tr:last-child>td{border-bottom:1px solid var(--line)}}
+/* Still to be filled in by the operator: marked, not hidden */
+.lg-todo{padding:0 4px;border-radius:4px;background:var(--sunken);color:var(--ink);font-weight:600}
 .lg-opt{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .lg-opt p{flex:1 1 260px}
 </style>
 </head>
 <body>
 <main class="lg">
-  <div class="lg-top"><a class="lg-brand" href="./">Harangszó</a><a href="./">‹ Vissza a térképhez</a></div>
+  <div class="lg-top"><a class="lg-brand" href="./">Harangszó</a><a class="lg-back" href="./">‹ Vissza a térképhez</a></div>
   <h1>Jogi információk</h1>
-  <p class="lg-meta">Hatályos: 2026. november 12-től.</p>
+  <p class="lg-meta">Hatályos: 2026. november 14-től.</p>
   <ul class="lg-toc">
     <li><a href="#impresszum">Impresszum</a></li>
     <li><a href="#adatkezeles">Adatkezelési tájékoztató</a></li>
@@ -82,9 +86,14 @@ body{overflow:auto;font-size:16px;line-height:1.6}
     böngésződ adatait, és saját szabályaik szerint rövid ideig naplózhatják. Ezekhez az adatokhoz mi nem férünk hozzá.</p>
   <ul>
     <li><strong>GitHub Pages</strong> (GitHub, Inc.): az oldal kiszolgálása.</li>
-    <li><strong>Google Maps</strong> és <strong>Google Fonts</strong> (Google Ireland Ltd.): a térkép és a betűtípusok.
+    <li><strong>Google Maps</strong> (Google Ireland Ltd.): a térkép.
       <a href="https://policies.google.com/privacy?hl=hu" rel="noopener">A Google adatvédelmi irányelvei</a>.</li>
-    <li><strong>Supabase</strong> (Supabase, Inc.): a templomok adatai.</li>
+    <li><strong>Supabase</strong> (Supabase, Inc.): a templomok adatai, és a plébániák által feltöltött templomfotók
+      (Supabase Storage, uniós szerveren).</li>
+    <li><strong>Wikimedia Commons</strong> (Wikimedia Foundation, Inc.): a templomfotók egy része közvetlenül a
+      Wikimedia Commonsról töltődik be (<code>upload.wikimedia.org</code>, <code>commons.wikimedia.org</code>). Mint
+      minden képletöltésnél, a Wikimedia szerverei is megkapják az IP-címedet és a böngésződ adatait.
+      <a href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" rel="noopener">A Wikimedia adatvédelmi irányelvei</a>.</li>
     <li>Tartalékként, ha a Google térkép nem elérhető: <strong>CARTO</strong> térképcsempék és az <strong>unpkg</strong> /
       <strong>jsDelivr</strong> tartalomszolgáltatók.</li>
   </ul>
@@ -135,10 +144,14 @@ body{overflow:auto;font-size:16px;line-height:1.6}
     elbírálásához látja. Mentéskor rögzítjük, ki és mikor módosította a templom adatait. Jogalap: a szolgáltatás
     nyújtása a felhasználó kérésére (GDPR 6. cikk (1) b) pont) és jogos érdek a változások nyomon követéséhez
     (f) pont). Megőrzés: a fiók törléséig; a fiók törlését a kapcsolati e-mail címen kérheted.</p>
+  <p>Ha a plébánia fotót tölt fel a templomról, azt a Supabase tárhelyén (Supabase Storage, az Európai Unióban)
+    tároljuk, és a térképen a templom oldalán bárki számára látható, „Fotó: a plébánia” jelöléssel. Kérjük, olyan fotót
+    válassz, amelyen nincsenek felismerhető emberek. A fotót a plébániai felületen bármikor törölheted vagy lecserélheted;
+    ilyenkor a korábbi fájlt is töröljük.</p>
 
   <h3>7. Adatfeldolgozók és adattovábbítás</h3>
-  <p>Adatfeldolgozóként a Supabase, Inc. (adatbázis és bejelentkezés, uniós szerveren) és a GitHub, Inc. (tárhely)
-    működik közre. Egyes szolgáltatók amerikai cégek; az adattovábbítás az EU–USA adatvédelmi keretrendszer, illetve az
+  <p>Adatfeldolgozóként a Supabase, Inc. (adatbázis, bejelentkezés és a feltöltött fotók tárhelye, uniós szerveren) és
+    a GitHub, Inc. (tárhely) működik közre. Egyes szolgáltatók amerikai cégek; az adattovábbítás az EU–USA adatvédelmi keretrendszer, illetve az
     Európai Bizottság általános szerződési feltételei alapján történik. Adatot nem adunk el, és hirdetési célra nem
     használunk.</p>
 
@@ -164,12 +177,17 @@ body{overflow:auto;font-size:16px;line-height:1.6}
   <h3>Plébániai fiókok</h3>
   <p>A plébániai felületet csak a templomot képviselő, arra jogosult személy használhatja. Hozzáférést az
     adminisztrátor jóváhagyása után kapsz, és csak a hozzád rendelt templom adatait szerkesztheted. A fiók
-    adataiért és a feltöltött időpontokért a fiók használója felel. Visszaélés esetén a hozzáférést megvonhatjuk.</p>
+    adataiért és a feltöltött időpontokért a fiók használója felel. Fotót csak az töltsön fel, aki maga készítette, vagy
+    akinek a szerzője engedélyt adott rá; a feltöltéssel hozzájárulsz, hogy a Harangszó a fotót a templom oldalán
+    megjelenítse. Visszaélés esetén a hozzáférést megvonhatjuk.</p>
   <h3>Források és szerzői jog</h3>
   <ul>
     <li>Templomhelyek: © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>-közreműködők, ODbL licenc alatt.</li>
     <li>Miserendek egy része a <a href="https://miserend.hu" rel="noopener">miserend.hu</a> nyilvános adataiból, egyházmegyék és szerzetesrendek honlapjairól és a plébániák saját feltöltéséből származik.</li>
     <li>Térkép: © Google; tartalék térkép: © <a href="https://carto.com/attributions" rel="noopener">CARTO</a>, © OpenStreetMap.</li>
+    <li>Templomfotók: a <a href="https://commons.wikimedia.org" rel="noopener">Wikimedia Commons</a> szabad licencű
+      képei (a szerzőt és a licencet minden fotón feltüntetjük, a felirat a fotó forrásoldalára visz), illetve a
+      plébániák saját feltöltései.</li>
   </ul>
   <p>Ha egy forrás jogosultja kifogásolja az adat felhasználását, írj a kapcsolati címre, és intézkedünk.</p>
   <h3>Változások</h3>

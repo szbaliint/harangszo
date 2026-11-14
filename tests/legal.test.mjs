@@ -19,7 +19,9 @@ test("the legal page has the three sections and fits a phone", async () => {
     await p.goto(server.url + "/jogi.html");
     for (const id of ["impresszum", "adatkezeles", "feltetelek"]) assert.equal(await p.locator("#" + id).count(), 1, id);
     const text = await p.locator("main").innerText();
-    for (const s of ["GDPR", "NAIH", "Supabase", "GitHub", "OpenStreetMap", "sütiket nem használunk", "harangszo.saved.v1"]) assert.ok(text.toLowerCase().includes(s.toLowerCase()), s);
+    for (const s of ["GDPR", "NAIH", "Supabase", "GitHub", "OpenStreetMap", "sütiket nem használunk", "harangszo.saved.v1",
+      "Wikimedia Commons", "upload.wikimedia.org", "commons.wikimedia.org", "Supabase Storage", "Fotó: a plébánia"]) assert.ok(text.toLowerCase().includes(s.toLowerCase()), s);
+    assert.ok(!text.includes("Google Fonts"), "no page loads Google Fonts any more");
     assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
     assert.deepEqual(errors, []);
   } finally { await c.close(); }
