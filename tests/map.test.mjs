@@ -1,4 +1,5 @@
-// Task 3: map shell — search and chips on top, Legközelebb card, Térkép · Lista · Mentett tabs (demo mode, data.js).
+// The map app's shell (demo mode, data.js): Most · Térkép · Mentett, the search panel with its filters, the phone
+// map with its search field and bottom panel, Mentett, blocked storage, fitPadding.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium, devices } from "./helpers/playwright.mjs";
@@ -19,85 +20,83 @@ async function open(view, { init } = {}) {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   if (init) await page.addInitScript(init);
+  await page.route(/commons\.wikimedia\.org/, r => r.abort());
   await page.clock.setFixedTime(NOW);
   await page.goto(`${server.url}/index.html`);
-  await page.waitForSelector("#nearest .nh");
+  await page.waitForSelector("#m-name");
   return { page, errors, close: () => context.close() };
 }
 const fold = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-// The panel re-renders inside a view transition (Task 10), a moment after the click: wait for it to finish.
+// The column re-renders inside a view transition, a moment after the click: wait for it to finish.
 const settled = page => page.waitForFunction(() => !/\bvt-/.test(document.documentElement.className));
-const cardNames = async page => { await settled(page); return page.$$eval("#panel .lcard .lc-name", els => els.map(e => e.textContent)); };
+const rowNames = async (page, scope = "#panel") => { await settled(page); return page.$$eval(`${scope} .row .r-name`, els => els.map(e => e.textContent)); };
+async function openSearch(page) {
+  await page.click("#m-search");
+  await page.waitForSelector('#search[data-open="true"]');
+}
 
 for (const view of Object.keys(VIEWS)) {
   test(`tabs (${view})`, async () => {
     const { page, errors, close } = await open(view);
     try {
-      assert.deepEqual(await page.$$eval(".ui-tab", els => els.map(e => e.textContent.trim())), ["Térkép", "Lista", "Mentett"]);
-      assert.equal(await page.locator("#filter-btn").count(), 0, "the round filter button is gone");
+      assert.deepEqual(await page.$$eval(".tab", els => els.map(e => e.textContent.trim())), ["Most", "Térkép", "Mentett"]);
+      assert.equal(await page.locator('.tab[aria-pressed="true"]').textContent(), "Most", "Most is home");
+      assert.equal(await page.locator("#chips, #filters, #menu-btn").count(), 0, "no chip row, filter dialog or menu button");
+      assert.match(await page.locator("#m-name").textContent(), /Mátyás/, "the nearest church with a Mass to come");
+      assert.equal(await page.locator("#m-when .big").textContent(), "07:00");
+      assert.match(await page.locator("#m-when").textContent(), /30 perc múlva/);
       assert.deepEqual(errors, []);
     } finally { await close(); }
   });
 
-  test(`search on top (${view})`, async () => {
+  test(`search panel (${view})`, async () => {
     const { page, errors, close } = await open(view);
     try {
-      await page.click('.ui-tab[data-tab="map"]');
-      assert.ok(await page.locator("#q").isVisible(), "#q visible with the sheet closed");
+      await openSearch(page);
+      assert.ok(await page.evaluate(() => document.activeElement.id === "q"), "the field has focus");
       await page.fill("#q", "bazilika");
-      await page.click('.ui-tab[data-tab="list"]');
-      await page.waitForFunction(() => document.querySelectorAll("#panel .lcard").length > 0 && document.querySelector("#panel h2")?.textContent === "Találatok");
-      const cards = await page.$$eval("#panel .lcard", els => els.map(e => e.textContent));
-      assert.ok(cards.length >= 1);
-      for (const c of cards) assert.ok(fold(c).includes("bazilika"), `card does not match: ${c}`);
+      await page.waitForFunction(() => document.querySelector("#s-results h2")?.textContent === "Találatok");
+      const names = await rowNames(page, "#s-results");
+      assert.ok(names.length >= 1);
+      for (const n of await page.$$eval("#s-results .row", els => els.map(e => e.textContent))) assert.ok(fold(n).includes("bazilika"), `row does not match: ${n}`);
+      await page.click("#s-results .row");
+      await page.waitForSelector(".detail");
+      assert.equal(await page.locator("#search").getAttribute("data-open"), "false", "choosing a church closes the search");
       assert.deepEqual(errors, []);
     } finally { await close(); }
   });
 
-  test(`chips filter (${view})`, async () => {
+  test(`kind filter (${view})`, async () => {
     const { page, errors, close } = await open(view);
     try {
-      const chip = page.locator("#chips .ui-chip", { hasText: "Gyóntatás" });
-      await chip.click();
-      assert.equal(await page.locator("#chips .ui-chip", { hasText: "Gyóntatás" }).getAttribute("aria-pressed"), "true");
-      await page.click('.ui-tab[data-tab="list"]');
-      const cards = await page.$$eval("#panel .lcard", els => els.map(e => ({ name: e.querySelector(".lc-name").textContent, conf: !!e.querySelector(".ui-tag.t-conf"), tags: e.querySelectorAll(".ui-tag").length })));
-      assert.ok(cards.length >= 3, `some churches confess today (${cards.length})`);
-      for (const c of cards) {
-        assert.ok(c.conf, `${c.name} has no confession tag`);
-        assert.ok(c.tags <= 2, `${c.name} has ${c.tags} tags`);
-      }
+      await openSearch(page);
+      await page.click('#s-filters [data-kind="conf"]');
+      assert.equal(await page.locator('#s-filters [data-kind="conf"]').getAttribute("aria-pressed"), "true");
+      assert.equal(await page.locator('#s-filters [data-kind=""]').getAttribute("aria-pressed"), "false");
+      const rows = await page.$$eval("#s-results .row", els => els.map(e => ({ name: e.querySelector(".r-name").textContent, sub: e.querySelector("small").textContent, t: e.querySelector(".r-t").textContent })));
+      assert.ok(rows.length >= 3, `some churches confess today (${rows.length})`);
+      for (const r of rows) { assert.match(r.sub, /^gyónás · /, `${r.name}: ${r.sub}`); assert.match(r.t, /^\d{2}:\d{2}$/); }
+      await page.click('#s-filters [data-kind=""]');
+      assert.ok((await rowNames(page, "#s-results")).length > rows.length, "Mind shows every church again");
       assert.deepEqual(errors, []);
     } finally { await close(); }
   });
 
-  test(`filter sheet (${view})`, async () => {
+  test(`more filters (${view})`, async () => {
     const { page, errors, close } = await open(view);
     try {
-      await page.click("#chips .ui-chip.more");
-      await page.waitForSelector("dialog#filters[open]");
-      for (const id of ["#day", "#origin"]) assert.ok(await page.locator(`#filters ${id}`).isVisible(), `${id} in the sheet`);
-      await page.locator("#filters .ui-chip", { hasText: "Esemény a héten" }).click();
-      assert.equal(await page.locator("#chips .more .badge").textContent(), "1", "badge counts the hidden filter");
-      await page.selectOption("#filters #day", "1");
-      assert.equal(await page.locator("#chips .daychip").textContent(), "Holnap");
-      assert.equal(await page.locator("#chips .ui-chip", { hasText: "Most nyitva" }).count(), 0, "Most nyitva only for today");
+      await openSearch(page);
+      await page.click("#s-more summary");
+      for (const id of ["#day", "#origin"]) assert.ok(await page.locator(`#s-filters ${id}`).isVisible(), `${id} in the panel`);
+      assert.equal(await page.locator('#s-filters .ui-toggle[data-f="open"]').count(), 1, "Most nyitva today");
+      await page.locator('#s-filters .ui-toggle[data-f="ev"]').check();
+      assert.match(await page.locator("#s-more summary .count").textContent(), /1 bekapcsolva/);
+      await page.selectOption("#s-filters #day", "1");
+      assert.match(await page.locator("#s-more summary .count").textContent(), /^Holnap/);
+      assert.equal(await page.locator('#s-filters .ui-toggle[data-f="open"]').count(), 0, "Most nyitva only for today");
+      assert.equal(await page.locator("#s-more").getAttribute("open"), "", "stays open across re-renders");
       await page.keyboard.press("Escape");
-      await page.waitForFunction(() => !document.querySelector("dialog#filters").open);
-      assert.deepEqual(errors, []);
-    } finally { await close(); }
-  });
-
-  test(`Legközelebb (${view})`, async () => {
-    const { page, errors, close } = await open(view);
-    try {
-      const rows = await page.$$eval("#nearest .nx", els => els.map(e => ({ t: e.querySelector(".tt").textContent, meta: e.querySelector("small").textContent })));
-      assert.equal(rows.length, 2);
-      for (const r of rows) {
-        assert.match(r.t, /^\d{2}:\d{2}$/);
-        assert.match(r.meta, /^(mise|rorate|gyónás) · /);
-      }
-      assert.match(rows[0].meta, /^mise · /, "first row is the nearest Mass");
+      await page.waitForSelector('#search[data-open="false"]', { state: "attached" });
       assert.deepEqual(errors, []);
     } finally { await close(); }
   });
@@ -105,11 +104,13 @@ for (const view of Object.keys(VIEWS)) {
   test(`Mentett (${view})`, async () => {
     const { page, errors, close } = await open(view);
     try {
-      await page.click('.ui-tab[data-tab="saved"]');
+      await page.click('.tab[data-tab="saved"]');
+      await settled(page);
       assert.match(await page.locator("#panel .ui-empty").textContent(), /Még nincs mentett templom/);
-      await page.click('.ui-tab[data-tab="list"]');
-      const name = (await cardNames(page))[0];
-      await page.locator("#panel .lcard").first().click();
+      await page.click('.tab[data-tab="most"]');
+      await settled(page);
+      const name = (await rowNames(page))[0];
+      await page.locator("#panel .most .row").first().click();
       const heart = page.locator("#save-church");
       assert.equal(await heart.getAttribute("aria-pressed"), "false");
       await heart.click();
@@ -117,16 +118,16 @@ for (const view of Object.keys(VIEWS)) {
       assert.equal(await heart.getAttribute("aria-label"), "Eltávolítás a kedvencek közül");
 
       await page.reload();
-      await page.waitForSelector("#nearest .nh");
-      await page.click('.ui-tab[data-tab="saved"]');
-      assert.deepEqual(await cardNames(page), [name]);
+      await page.waitForSelector("#m-name");
+      await page.click('.tab[data-tab="saved"]');
+      assert.deepEqual(await rowNames(page), [name]);
 
-      await page.locator("#panel .lcard").first().click();
+      await page.locator("#panel .row").first().click();
       assert.equal(await page.locator("#save-church").getAttribute("aria-pressed"), "true");
       await page.click("#save-church");
       assert.equal(await page.locator("#save-church").getAttribute("aria-pressed"), "false");
       await page.click("#back");
-      assert.deepEqual(await cardNames(page), []);
+      assert.deepEqual(await rowNames(page), []);
       assert.match(await page.locator("#panel .ui-empty").textContent(), /Még nincs mentett templom/);
       assert.deepEqual(errors, []);
     } finally { await close(); }
@@ -140,33 +141,65 @@ for (const view of Object.keys(VIEWS)) {
       },
     });
     try {
-      await page.click('.ui-tab[data-tab="list"]');
-      assert.ok((await cardNames(page)).length > 0, "list renders");
-      await page.locator("#panel .lcard").first().click();
-      await page.click("#save-church");
-      assert.equal(await page.locator("#save-church").getAttribute("aria-pressed"), "true");
-      await page.click('.ui-tab[data-tab="saved"]');
-      assert.equal((await cardNames(page)).length, 1, "saved for this session");
+      assert.ok((await rowNames(page)).length > 0, "Most renders");
+      await page.click("#m-save");
+      assert.equal(await page.locator("#m-save").getAttribute("aria-pressed"), "true");
+      await page.click('.tab[data-tab="saved"]');
+      assert.equal((await rowNames(page)).length, 1, "saved for this session");
       assert.deepEqual(errors, []);
     } finally { await close(); }
   });
 }
 
-test("fitPadding counts the search and chip rows (iPhone 13)", async () => {
+test("Térkép (phone): the map with its search field and the bottom panel", async () => {
   const { page, errors, close } = await open("iPhone 13");
   try {
-    const r = await page.evaluate(() => ({ top: fitPadding().top, chips: document.querySelector("#chips").getBoundingClientRect().bottom }));
-    assert.ok(r.top >= r.chips, `fitPadding().top ${r.top} < #chips bottom ${r.chips}`);
+    assert.equal(await page.locator("#map-search").isVisible(), false, "the map's UI waits under Most");
+    await page.click('.tab[data-tab="map"]');
+    await settled(page);
+    assert.ok(await page.locator("#map-search").isVisible());
+    assert.equal(await page.locator("#col").isVisible(), false, "the column steps aside");
+    assert.equal(await page.locator("#mapcard .mc-main .mid").textContent(), "07:00");
+    assert.match(await page.locator("#mapcard .mc-main strong").textContent(), /Mátyás/);
+    assert.ok(await page.locator("#mapcard .mc-row").isVisible(), "the next time after it");
+    const c = await page.evaluate(() => ({ card: document.querySelector("#mapcard").getBoundingClientRect().bottom, tabs: document.querySelector("#tabs").getBoundingClientRect().top }));
+    assert.ok(Math.abs(c.card - c.tabs) <= 1, "the panel sits on the tab bar");
+    // Its search field opens the search panel; the tapped church's page opens from the panel.
+    await page.click("#map-search");
+    await page.waitForSelector('#search[data-open="true"]');
+    await page.click("#search-done");
+    await page.click("#mapcard .mc-main");
+    await page.waitForSelector(".detail");
+    await page.click("#back");
+    await settled(page);
+    assert.ok(await page.locator("#map-search").isVisible(), "back to the map");
     assert.deepEqual(errors, []);
   } finally { await close(); }
 });
 
-test("phone: the full sheet leaves the search and chips visible", async () => {
-  const { page, close } = await open("iPhone 13");
+test("fitPadding counts the search field and the bottom panel (iPhone 13)", async () => {
+  const { page, errors, close } = await open("iPhone 13");
   try {
-    await page.click('.ui-tab[data-tab="list"]');
-    await page.waitForTimeout(450);
-    const r = await page.evaluate(() => ({ sheet: document.querySelector("#sheet").getBoundingClientRect().top, chips: document.querySelector("#chips").getBoundingClientRect().bottom }));
-    assert.ok(r.sheet >= r.chips, `sheet top ${r.sheet} under the chips (${r.chips})`);
+    const r = await page.evaluate(() => ({ p: fitPadding(), top: document.querySelector("#map-search").getBoundingClientRect().bottom,
+      bottom: innerHeight - document.querySelector("#mapcard").getBoundingClientRect().top }));
+    assert.ok(r.top > 40 && r.p.top >= r.top, `fitPadding().top ${r.p.top} < search bottom ${r.top}`);
+    assert.ok(r.bottom > 100 && r.p.bottom >= r.bottom, `fitPadding().bottom ${r.p.bottom} < ${r.bottom}`);
+    assert.deepEqual(errors, []);
+  } finally { await close(); }
+});
+
+test("desktop: a 420px column beside the map, tabs as a segmented row on top", async () => {
+  const { page, errors, close } = await open("1440x900");
+  try {
+    const r = await page.evaluate(() => ({ col: document.querySelector("#col").getBoundingClientRect().toJSON(), map: document.querySelector("#map").getBoundingClientRect().toJSON(),
+      tabs: document.querySelector("#tabs").getBoundingClientRect().toJSON() }));
+    assert.equal(r.col.left, 0); assert.equal(r.col.width, 420);
+    assert.equal(r.map.left, 420); assert.equal(r.map.right, 1440);
+    assert.equal(r.tabs.top, 0); assert.ok(r.tabs.bottom <= r.col.top + 1, "tabs above the column");
+    await page.click('.tab[data-tab="map"]');
+    await settled(page);
+    assert.ok(await page.locator("#col").isVisible(), "the column stays");
+    assert.ok((await rowNames(page)).length > 5, "it lists the churches near the map");
+    assert.deepEqual(errors, []);
   } finally { await close(); }
 });

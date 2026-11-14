@@ -38,7 +38,7 @@ async function open({ view = IPHONE, init, url = "/index.html?sw=1", data = CHUR
   return { context, page, errors, calls, close: () => context.close() };
 }
 const controlled = page => page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
-const cardNames = page => page.$$eval("#panel .lcard .lc-name", els => els.map(e => e.textContent));
+const resultNames = page => page.$$eval("#s-results .row .r-name", els => els.map(e => e.textContent));
 const pngSize = buf => ({ w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) });
 
 test("manifest and icons", async () => {
@@ -53,8 +53,8 @@ test("manifest and icons", async () => {
     assert.equal(m.display, "standalone");
     assert.equal(m.start_url, "./");
     assert.equal(m.scope, "./");
-    assert.equal(m.background_color, "#f6f3ec");
-    assert.equal(m.theme_color, "#233f8c");
+    assert.equal(m.background_color, "#ffffff");
+    assert.equal(m.theme_color, "#ffffff");
     assert.equal(m.icons.length, 4);
     assert.equal(m.icons.filter(i => i.purpose === "maskable").length, 1, "one maskable icon");
     for (const icon of m.icons) {
@@ -64,7 +64,8 @@ test("manifest and icons", async () => {
       const { w, h } = pngSize(await r.body());
       assert.equal(`${w}x${h}`, icon.sizes, icon.src);
     }
-    assert.equal(await page.$eval('meta[name="theme-color"]', m => m.content), "#233f8c");
+    assert.equal(await page.$eval('meta[name="theme-color"]', m => m.content), "#ffffff");
+    assert.equal(await page.$eval('meta[name="theme-color"][media]', m => m.content), "#0e0e0e");
     const apple = await page.$eval('link[rel="apple-touch-icon"]', l => l.href);
     assert.equal((await page.request.get(apple)).status(), 200);
   } finally { await close(); }
@@ -78,7 +79,7 @@ test("service worker controls the map", async () => {
     await controlled(page);
     assert.equal(await page.evaluate(() => navigator.serviceWorker.controller.scriptURL), server.url + "/sw.js");
     // Supabase is left to the network: the page's own mock still answers it under the worker.
-    await page.waitForFunction(() => document.querySelectorAll("#nearest .nx").length > 0);
+    await page.waitForSelector("#m-name");
     assert.ok(calls.filter(c => c.path === "/rest/v1/rpc/public_data").length >= 2, "public_data fetched on both loads");
     assert.deepEqual(errors, []);
   } finally { await close(); }
@@ -99,12 +100,12 @@ test("offline: the map comes from the worker, the list from the data cache", asy
     await context.setOffline(true);
     const res = await page.reload();
     assert.ok(res.fromServiceWorker(), "index.html served by the service worker");
-    await page.waitForSelector("#nearest .nx");
-    assert.ok(await page.locator("#offnote").isVisible(), "offline note shown over the map");
+    await page.waitForSelector("#m-name");
+    assert.ok(await page.locator("#offnote").isVisible(), "offline note shown");
     assert.equal(await page.locator("#offnote").textContent(), "Nincs internet · a lista működik");
-    await page.click('.ui-tab[data-tab="list"]');
-    await page.waitForFunction(() => document.querySelectorAll("#panel .lcard").length === 2);
-    assert.deepEqual((await cardNames(page)).sort(), CHURCHES.map(c => c.name).sort());
+    await page.click("#m-search");
+    await page.waitForFunction(() => document.querySelectorAll("#s-results .row").length === 2);
+    assert.deepEqual((await resultNames(page)).sort(), CHURCHES.map(c => c.name).sort());
     // The scope root works offline too.
     const root = await page.goto(server.url + "/?sw=1");
     assert.ok(root.fromServiceWorker());
@@ -146,12 +147,12 @@ test("no data yet", async () => {
   // Review Focus 5: nothing cached and public_data unreachable (as when offline).
   const { page, errors, close } = await open({ abortData: true });
   try {
-    await page.click('.ui-tab[data-tab="list"]');
     await page.waitForFunction(() => /internet/.test(document.querySelector("#panel .ui-empty")?.textContent || ""), null, { timeout: 5000 });
     assert.equal(await page.locator("#panel .ui-empty").textContent(),
       "Nincs internetkapcsolat, és még nincs elmentett templomlista ezen az eszközön. Csatlakozz az internethez, és frissítsd az oldalt.");
     assert.doesNotMatch(await page.locator("#panel").textContent(), /betöltése/, "no loading text left");
-    assert.equal(await page.locator("#nearest").innerHTML(), "", "Legközelebb shows nothing");
+    assert.equal(await page.locator("#m-name, #panel .row").count(), 0, "Most shows no church");
+    assert.match(await page.locator("#mapcard").textContent(), /internet/, "the map's panel says the same");
     assert.deepEqual(errors, []);
   } finally { await close(); }
 });
@@ -161,7 +162,6 @@ test("first visit offline: note and explanation, no spinner", async () => {
   const { page, close } = await open({ abortData: true, init: offline, url: "/index.html" });
   try {
     await page.waitForSelector("#offnote:not([hidden])", { timeout: 5000 });
-    await page.click('.ui-tab[data-tab="list"]');
     await page.waitForFunction(() => /internet/.test(document.querySelector("#panel .ui-empty")?.textContent || ""), null, { timeout: 5000 });
   } finally { await close(); }
 });
@@ -169,7 +169,6 @@ test("first visit offline: note and explanation, no spinner", async () => {
 test("a server error is not reported as no internet", async () => {
   const { page, close } = await open({ routes: page => page.route("**/rest/v1/rpc/public_data", r => r.fulfill({ status: 500, contentType: "application/json", body: "{}" })) });
   try {
-    await page.click('.ui-tab[data-tab="list"]');
     await page.waitForFunction(() => /Nem sikerült/.test(document.querySelector("#panel .ui-empty")?.textContent || ""), null, { timeout: 5000 });
   } finally { await close(); }
 });
@@ -210,8 +209,8 @@ test("update toast can be dismissed", async () => {
 test("install: iPhone Safari gets the how-to sheet", async () => {
   const { page, errors, close } = await open({ init: () => Object.defineProperty(Navigator.prototype, "standalone", { get: () => false, configurable: true }) });
   try {
-    await page.click("#menu-btn");
     const btn = page.locator("#install-btn");
+    await btn.scrollIntoViewIfNeeded();
     assert.ok(await btn.isVisible());
     assert.equal(await btn.textContent(), "Telepítés a kezdőképernyőre");
     await btn.click();
@@ -228,12 +227,10 @@ test("install: iPhone Safari gets the how-to sheet", async () => {
 test("install: hidden when installed, and on desktop without a prompt", async () => {
   const standalone = await open({ init: () => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true, configurable: true }) });
   try {
-    await standalone.page.click("#menu-btn");
     assert.ok(await standalone.page.locator("#install-btn").isHidden(), "hidden on a home-screen app");
   } finally { await standalone.close(); }
   const desktop = await open({ view: { viewport: { width: 1440, height: 900 } } });
   try {
-    await desktop.page.click("#menu-btn");
     assert.ok(await desktop.page.locator("#install-btn").isHidden(), "hidden without beforeinstallprompt");
   } finally { await desktop.close(); }
 });
@@ -247,7 +244,7 @@ test("install: Android uses the browser's prompt", async () => {
       e.userChoice = Promise.resolve({ outcome: "accepted" });
       window.dispatchEvent(e);
     });
-    await page.click("#menu-btn");
+    await page.locator("#install-btn").scrollIntoViewIfNeeded();
     await page.click("#install-btn");
     assert.equal(await page.evaluate(() => window.__prompted), 1);
     assert.ok(await page.locator("dialog#install").evaluate(d => !d.open), "no iPhone sheet on Android");

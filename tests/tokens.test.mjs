@@ -1,4 +1,4 @@
-// Task 1: tone A tokens, WCAG AA contrast, the new fonts, and the test harness itself.
+// "The church first" tokens, WCAG AA contrast, the platform font, and the test harness itself.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -36,21 +36,21 @@ const lum = c => {
 };
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-test("tone A tokens", () => {
-  assert.equal(light["--bg"], "#f6f3ec");
-  assert.equal(light["--surface"], "#fffdf8");
-  assert.equal(light["--accent"], "#233f8c");
-  for (const [name, t] of [["media query", darkMedia], ["[data-theme=dark]", darkAttr]]) {
-    assert.equal(t["--bg"], "#14120f", `dark --bg (${name})`);
-    assert.equal(t["--accent"], "#9db1ee", `dark --accent (${name})`);
-  }
-  assert.equal(light["--f-display"], '"eb garamond", georgia, serif');
-  assert.equal(light["--f-body"], '"source sans 3", system-ui, sans-serif');
+const STACK = '-apple-system, "sf pro text", roboto, system-ui, sans-serif';
+test("church-first tokens", () => {
+  assert.deepEqual([light["--bg"], light["--ink"], light["--ink-2"], light["--line"], light["--red"]], ["#ffffff", "#111111", "#555555", "#e6e6e6", "#b4232a"]);
+  assert.equal(light["--accent"], light["--ink"], "controls are ink, not a colour");
+  for (const [name, t] of [["media query", darkMedia], ["[data-theme=dark]", darkAttr]])
+    assert.deepEqual([t["--bg"], t["--ink"], t["--ink-2"], t["--ink-3"], t["--line"], t["--red"]], ["#0e0e0e", "#f1f1f1", "#a3a3a3", "#7d7d7d", "#262626", "#ff5a5f"], `dark (${name})`);
+  assert.equal(light["--f-display"], STACK);
+  assert.equal(light["--f-body"], STACK);
+  assert.deepEqual(["--fs-1", "--fs-2", "--fs-3", "--fs-4", "--fs-mid", "--fs-big"].map(k => light[k]), ["13px", "15px", "17px", "22px", "40px", "64px"]);
+  assert.equal(light["--r"], "10px");
   assert.ok(!("--f-mono" in light), "--f-mono is removed");
 });
 
 test("contrast AA", () => {
-  const pairs = [["--ink", "--bg"], ["--ink-2", "--surface"], ["--ink-3", "--surface"], ["--ink-3", "--bg"],
+  const pairs = [["--ink", "--bg"], ["--ink-2", "--surface"], ["--ink-3", "--surface"], ["--ink-3", "--bg"], ["--red", "--bg"],
     ["--accent", "--accent-soft"], ["--penance", "--penance-soft"], ["--gold", "--gold-soft"], ["--open", "--open-soft"], ["--on-accent", "--accent"]];
   for (const [mode, t] of Object.entries(MODES))
     for (const [fg, bg] of pairs) {
@@ -73,15 +73,17 @@ let server, browser;
 before(async () => { server = await startServer(); browser = await chromium.launch(); });
 after(async () => { await browser?.close(); await server?.stop(); });
 
-test("pages load the new fonts", async () => {
+test("pages use the platform font; the map loads no web font", async () => {
   for (const file of ["index.html", "plebania.html", "admin.html"]) {
     const page = await browser.newPage();
     try {
       await page.goto(`${server.url}/${file}`, { waitUntil: "domcontentloaded" });
-      const links = await page.$$eval('link[rel="stylesheet"]', ls => ls.map(l => l.href));
-      assert.ok(links.some(h => h.includes("EB+Garamond") && h.includes("Source+Sans+3") && h.includes("display=swap")), `${file}: font link missing`);
+      if (file === "index.html") {
+        const links = await page.$$eval('link[rel="stylesheet"]', ls => ls.map(l => l.href));
+        assert.ok(!links.some(h => h.includes("fonts.googleapis.com")), "index.html: no Google Fonts stylesheet");
+      }
       const family = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-      assert.match(family, /^"Source Sans 3"/, `${file}: body font is ${family}`);
+      assert.match(family, /^-apple-system, "SF Pro Text", Roboto, system-ui, sans-serif$/, `${file}: body font is ${family}`);
     } finally { await page.close(); }
   }
 });

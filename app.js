@@ -51,6 +51,9 @@ function daysText(days) {
 let CHURCHES = [], BY_ID = new Map();
 // Internal shape: {id,name,city,addr,rite,lat,lon,web,phone,onlyServices,hours:[{days,o,c}],
 //   svc:[{k:'mass'|'conf'|'ador'|'rorate', d:[], t, u, n, p:'all'|'summer'|'winter', feast:null|key}], feastSunday:[], ev:[{date,t,title,n}]}
+// A church photograph (Wikimedia Commons or the parish's own), with its credit line and, for Commons, its file page.
+const httpsUrl = v => typeof v === "string" && /^https:\/\//.test(v) ? v : "";
+const photoOf = c => httpsUrl(c.photo_url) ? { src: c.photo_url, credit: c.photo_credit || "", page: httpsUrl(c.photo_page) } : null;
 const KIND = { mass: "mass", confession: "conf", adoration: "ador", rorate: "rorate", prayer: "prayer" };
 function fromSample(c) {
   const svc = [
@@ -62,10 +65,10 @@ function fromSample(c) {
   ];
   return { id: c.id, name: c.name, city: c.city, addr: c.addr, rite: c.rite, lat: c.lat, lon: c.lon,
     onlyServices: !c.hours, hours: c.hours || [], svc, feastSunday: c.feastSunday || [], ev: c.ev || [], imp: c.imp ?? 60,
-    web: c.web, phone: c.phone, note: c.note || "", approx: !!c.approx };
+    web: c.web, phone: c.phone, note: c.note || "", approx: !!c.approx, photo: photoOf(c) };
 }
 function fromDb(c) {
-  return { id: c.id, name: c.name, city: c.city || "", addr: c.address || "", rite: c.rite, lat: c.lat, lon: c.lon,
+  return { id: c.id, photo: photoOf(c), name: c.name, city: c.city || "", addr: c.address || "", rite: c.rite, lat: c.lat, lon: c.lon,
     web: c.website, phone: c.phone, onlyServices: !!c.open_only_services,
     hours: (c.hours || []).map(h => ({ days: h.days, o: h.opens, c: h.closes })),
     svc: (c.services || []).map(s => ({ k: KIND[s.kind] || "mass", d: s.days || [], t: s.start, u: s.end || null, n: s.note, p: s.period || "all", feast: s.feast || null,
@@ -94,7 +97,7 @@ function setChurches(list) {
   TAG_OPTIONS = [...n].filter(([t, k]) => k >= 2 && !["irregular", "word", "confession", "organ", "choir"].includes(t))
     .sort((a, b) => a[0].startsWith("lang:") - b[0].startsWith("lang:") || b[1] - a[1]).map(([t]) => t);
   if (S.f.tag && !TAG_OPTIONS.includes(S.f.tag)) S.f.tag = "";
-  dayCache.clear(); distCache.origin = null;
+  dayCache.clear(); distCache.origin = null; nearCache.key = "";
 }
 let TAG_OPTIONS = [];
 const readCache = () => { try { return localStorage.getItem(CACHE_KEY); } catch (e) { return null; } };
@@ -175,7 +178,10 @@ function hoursText(c, dow) {
 }
 
 /* ---------- State ---------- */
-const S = { q: "", dayOffset: 0, origin: "Budapest", f: { open: false, mass: false, conf: false, ev: false, rorate: false, tag: "" }, sel: null, loading: true, error: "", tab: "map", sheet: window.matchMedia("(min-width:900px)").matches ? "full" : "closed" };
+// tab: "most" (home: the nearest church with a Mass to come), "map", "saved". sel: the open church page.
+// pick: the church tapped on the phone map (shown in its bottom panel). search: the search panel is open.
+const S = { q: "", dayOffset: 0, origin: "Budapest", f: { open: false, mass: false, conf: false, ev: false, rorate: false, tag: "" },
+  sel: null, pick: null, loading: true, error: "", tab: "most", search: false, moreOpen: false, weekOpen: false };
 try { const saved = JSON.parse(localStorage.getItem("harangszo") || "{}"); if (saved.origin && ORIGINS[saved.origin]) S.origin = saved.origin; } catch (e) { }
 const now = () => new Date();
 const selDate = () => { const d = now(); d.setDate(d.getDate() + S.dayOffset); return d; };
@@ -233,148 +239,261 @@ function nextOf(di) {
   return i ? { t: showT(i.t), cls: i.k === "conf" ? "conf" : "mass", k: i.k } : { t: "–", cls: "none", k: null };
 }
 
-/* ---------- Sheet, tabs, Legközelebb card ---------- */
-const sheetEl = $("#sheet"), isDesktop = () => window.matchMedia("(min-width:900px)").matches;
-function setSheet(state) {
-  if (isDesktop() && state === "peek") state = "full";
-  S.sheet = state; sheetEl.dataset.state = state;
-  document.querySelectorAll(".ui-tab").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === (state === "closed" ? "map" : S.tab))));
+/* ---------- Words, numbers, the church year ---------- */
+const MONTHS = ["január", "február", "március", "április", "május", "június", "július", "augusztus", "szeptember", "október", "november", "december"];
+const NEAR_KM = 25;
+const kmText = d => d < 1 ? Math.round(d * 1000 / 10) * 10 + " m" : (d < 10 ? d.toFixed(1).replace(".", ",") : Math.round(d)) + " km";
+// Walking time at 5 km/h, only where walking makes sense.
+const distText = d => kmText(d) + (d < 3 ? `, ${Math.max(1, Math.round(d / 5 * 60))} perc gyalog` : "");
+const KIND_WORD = { mass: "mise", rorate: "rorate", conf: "gyónás", ador: "szentségimádás", prayer: "ájtatosság", ev: "esemény" };
+const nowMin = () => { const n = now(); return n.getHours() * 60 + n.getMinutes(); };
+const daysBetween = (a, b) => Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 864e5);
+// The liturgical week of a date: "Évközi 32. hét", "Advent 2. hete", "Nagyböjt 3. hete", "Nagyhét", "Húsvéti idő 4. hete"…
+function litWeek(date) {
+  const y = date.getFullYear(), d = C.addDays(date, 0), E = C.easter(y), adv = C.adventStart(y), ash = C.addDays(E, -46), palm = C.addDays(E, -7);
+  const nth = from => Math.floor(daysBetween(from, d) / 7) + 1;
+  if (d >= adv && d <= new Date(y, 11, 24)) return `Advent ${nth(adv)}. hete`;
+  if (C.inChristmas(d)) return "Karácsonyi idő";
+  if (d >= ash && d < palm) return d < C.addDays(E, -42) ? "Nagyböjt" : `Nagyböjt ${nth(C.addDays(E, -42))}. hete`;
+  if (d >= palm && d < E) return "Nagyhét";
+  if (d >= E && d <= C.addDays(E, 49)) return d < C.addDays(E, 7) ? "Húsvét nyolcada" : `Húsvéti idő ${nth(E)}. hete`;
+  if (d < ash) { const ep = new Date(y, 0, 6), bapt = C.addDays(ep, 7 - ep.getDay()); return `Évközi ${nth(bapt)}. hét`; }
+  // After Pentecost: counted back from Christ the King, the 34th week.
+  const king = C.addDays(adv, -7), sunday = C.addDays(d, -d.getDay());
+  return `Évközi ${34 - Math.round(daysBetween(sunday, king) / 7)}. hét`;
 }
-/* Motion: the panel's content changes through a view transition (styles.css "Motion"); the map and the sheet's own
-   slide never take part. kind: "open" (a church), "back" (to the list), "tab" (crossfade). Reduced motion: no animation. */
+const dayLine = d => `${DAYN[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}. · ${litWeek(d)}`;
+const inLong = d => d < 60 ? `${d} perc múlva` : `${Math.floor(d / 60)} óra${d % 60 ? ` ${d % 60} perc` : ""} múlva`;
+function kindName(c, i) {
+  if (i.k === "mass") return c.rite === "gk" ? "Szent Liturgia" : i.g.includes("vigil") ? "Előesti szentmise" : "Szentmise";
+  if (i.k === "rorate") return "Rorate szentmise";
+  if (i.k === "conf") return "Gyóntatás";
+  if (i.k === "ador") return "Szentségimádás";
+  return i.what;
+}
+// What else to know about a time: until when, "vasárnapra érvényes", the parish's note, the kind of Mass, who and where.
+const noteOf = i => [i.end ? showT(i.end) + "-ig" : "", i.g.includes("vigil") ? "vasárnapra érvényes" : "", i.k === "prayer" || i.k === "ev" ? "" : i.n,
+  ...i.g.filter(t => t !== "vigil").map(C.tagLabel), whoWhere(i)].filter(Boolean);
+// The big time: 64px light, the kind beside it (red only when it is the next one, today), its notes and "N perc múlva".
+function whenHTML(c, i, today, id) {
+  const m = nowMin(), diff = mins(i.t) - m, running = today && i.end && diff <= 0 && mins(i.end) > m;
+  const extra = [...noteOf(i), today && diff > 0 && diff < 180 ? inLong(diff) : "", running ? "most tart" : ""].filter(Boolean).join(" · ");
+  return `<div class="when" id="${id}"><b class="big">${esc(showT(i.t))}</b><span class="when-side"><em${today ? ' class="now"' : ""}>${esc(kindName(c, i))}</em>`
+    + `${extra ? `<span>${esc(extra)}</span>` : ""}</span></div>`;
+}
+const dirOf = c => `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}`;
+const webOf = c => c.web ? (/^https?:/i.test(c.web) ? c.web : "https://" + c.web) : "";
+const whereOf = c => [c.city, c.addr].filter(Boolean).join(", ");
+
+/* ---------- Nearby now: the church for Most, the times after it ---------- */
+const MASSK = ["mass", "rorate"], ALLK = ["mass", "rorate", "conf", "ador", "prayer"];
+const upcomingOf = (di, kinds) => { const m = nowMin(); return di.items.filter(i => i.t && !i.away && kinds.includes(i.k) && mins(i.end || i.t) >= m); };
+let nearCache = { key: "", v: null };
+function nearby() {
+  const ctx = dayContext(now()), o = ORIGINS[S.origin], key = [ctx.key, nowMin(), S.origin, o.join(), CHURCHES.length].join("|");
+  if (nearCache.key === key) return nearCache.v;
+  const rows = [];
+  for (const c of CHURCHES) { const dist = distOf(c); if (dist <= NEAR_KM) rows.push({ c, dist }); }
+  rows.sort((a, b) => a.dist - b.dist);
+  let hero = null; const times = [];
+  rows.forEach((r, n) => {
+    if (hero && n >= 40) return;
+    r.di = dayInfoCached(r.c, ctx);
+    if (!hero) { const i = upcomingOf(r.di, MASSK)[0]; if (i) hero = { r, i }; }
+    if (n < 40) for (const i of upcomingOf(r.di, ALLK)) times.push({ r, i });
+  });
+  const next = times.filter(x => !(hero && x.i === hero.i)).sort((a, b) => mins(a.i.t) - mins(b.i.t) || a.r.dist - b.r.dist).slice(0, 30);
+  return (nearCache = { key, v: { hero, next, any: rows.length > 0 } }).v;
+}
+const nextId = () => S.loading || S.error ? null : nearby().hero?.r.c.id ?? null;
+
+/* ---------- Shared pieces: photo, buttons, rows ---------- */
+const svgI = (d, w = 22) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICONS = {
+  heart: svgI('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', 20),
+  back: svgI('<path d="M15 5l-7 7 7 7"/>'),
+  share: svgI('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/>', 20),
+};
+const saveLabel = on => on ? "Eltávolítás a kedvencek közül" : "Mentés a kedvencek közé";
+const saveBtnHTML = (c, id) => { const on = Saved.has(c.id); return `<button class="pill round savebtn" id="${id}" type="button" data-save="${c.id}" aria-pressed="${on}" aria-label="${saveLabel(on)}" title="${saveLabel(on)}">${ICONS.heart}</button>`; };
+function setSaveBtn(b, on) { b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", saveLabel(on)); b.title = saveLabel(on); }
+// A church photograph edge to edge, with the buttons over it and its credit in the corner. One <img> per photo is kept,
+// so the minute re-render never reloads or flashes it. A photo that fails to load is dropped: the page shows no image.
+const hasPhoto = c => !!(c && c.photo && c.photo.src && !c.photo.failed);
+const imgs = new Map();
+const photoHTML = (c, top, cls = "") => `<div class="ph" data-photo="${c.id}"><div class="ph-top ${cls}">${top}</div>`
+  + `${!c.photo.credit ? "" : c.photo.page ? `<a class="ph-credit" href="${esc(c.photo.page)}" target="_blank" rel="noopener noreferrer">${esc(c.photo.credit)}</a>`
+    : `<span class="ph-credit">${esc(c.photo.credit)}</span>`}</div>`;
+const plainTop = (top, cls = "") => `<div class="top-plain ${cls}">${top}</div>`;
+function fillPhotos(root) {
+  root.querySelectorAll(".ph[data-photo]").forEach(slot => {
+    const c = BY_ID.get(+slot.dataset.photo); if (!hasPhoto(c)) return;
+    let img = imgs.get(c.photo.src);
+    if (!img) {
+      img = document.createElement("img");
+      img.className = "ph-img"; img.setAttribute("loading", "eager"); img.decoding = "async"; img.width = 1000; img.height = 750;
+      img.addEventListener("error", () => { c.photo.failed = true; imgs.delete(c.photo.src); render(); });
+      img.src = c.photo.src; imgs.set(c.photo.src, img);
+    }
+    img.alt = c.name; slot.prepend(img);
+  });
+}
+// One row style everywhere: time | church, street | distance.
+const rowHTML = (id, t, name, sub, dist, cur) => `<li><button class="row" type="button" data-id="${id}"${cur ? ' aria-current="true"' : ""}>`
+  + `<span class="r-t">${esc(t)}</span><span class="r-n"><span class="r-name">${esc(name)}</span>${sub ? `<small>${esc(sub)}</small>` : ""}</span>`
+  + `<span class="r-d">${esc(dist)}</span></button></li>`;
+const timeWord = (c, i) => i.k === "prayer" ? i.what : i.k === "mass" && c.rite === "gk" ? "liturgia" : KIND_WORD[i.k];
+// In a list: the next time of the selected day (a time the filters ask for first), else why there is none.
+function rowNext(r) {
+  const isMass = i => i.k === "mass" || i.k === "rorate", any = S.f.conf || S.f.rorate || S.f.tag || S.f.mass;
+  const wanted = i => (S.f.conf && i.k === "conf") || (S.f.rorate && i.k === "rorate") || (S.f.tag ? isMass(i) && i.g.includes(S.f.tag) : S.f.mass && isMass(i));
+  const i = upcoming(r.di.items).find(i => i.t && !i.away && i.k !== "ev" && (!any || wanted(i)));
+  if (i) return { t: showT(i.t), word: timeWord(r.c, i) };
+  return { t: "–", word: !hasSchedule(r.c) && !r.di.feastMode ? "még nincs időpont" : isToday() ? "ma már nincs" : "nincs alkalom" };
+}
+function listRowHTML(r) {
+  const n = rowNext(r), os = S.f.open && isToday() ? (r.os || openState(r.c, now())) : null;
+  return rowHTML(r.c.id, n.t, r.c.name, [n.word, os && os.label, whereOf(r.c)].filter(Boolean).join(" · "), kmText(r.dist), S.sel === r.c.id);
+}
+const stateHTML = () => `<div class="ui-empty"><p>${S.error ? esc(S.error) : "Templomok betöltése…"}</p></div>`;
+
+/* ---------- Views and motion ---------- */
+const app = $("#app"), col = $("#col"), panel = $("#panel"), isDesktop = () => window.matchMedia("(min-width:900px)").matches;
 const motionOk = () => !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function setView() {
+  const view = S.sel ? "church" : S.tab;
+  app.dataset.view = view; app.dataset.tab = S.tab;
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === S.tab)));
+  $("#mapui").inert = !isDesktop() && view !== "map";
+}
+/* The column's content changes inside a view transition (styles.css "Motion"); the map underneath never takes part.
+   open: the church page slides in from the right; back: it leaves along the same path; tab: 150ms cross-fade.
+   Reduced motion: every one of them is a 150ms cross-fade. */
 let vtSeq = 0;
 function withTransition(update, kind = "tab") {
-  if (!motionOk()) return update();
-  const root = document.documentElement, cls = ["vt-" + kind], cold = S.sheet === "closed";
-  if (cold) cls.push("vt-cold"); // the old content was off screen: don't fade a ghost of it
+  const root = document.documentElement, cls = "vt-" + kind;
   if (document.startViewTransition) {
     let ran = false;
     const run = () => { ran = true; update(); };
     try {
-      root.classList.remove("vt-open", "vt-back", "vt-tab", "vt-cold"); root.classList.add(...cls);
+      root.classList.remove("vt-open", "vt-back", "vt-tab"); root.classList.add(cls);
       const seq = ++vtSeq, t = document.startViewTransition(run);
       t.ready.catch(() => { }); t.updateCallbackDone.catch(() => { });
-      t.finished.catch(() => { }).finally(() => { if (seq === vtSeq) root.classList.remove(...cls); });
+      t.finished.catch(() => { }).finally(() => { if (seq === vtSeq) root.classList.remove(cls); });
       return;
-    } catch (e) { root.classList.remove(...cls); if (!ran) update(); return; }
+    } catch (e) { root.classList.remove(cls); if (!ran) update(); return; }
   }
-  // No View Transitions: the same motion as a keyframe animation on the panel itself.
+  // No View Transitions: the new content comes in with the same motion as a keyframe animation.
   update();
-  panel.classList.remove("p-open", "p-back", "p-tab"); void panel.offsetWidth; panel.classList.add("p-" + kind);
+  col.classList.remove("c-open", "c-back", "c-tab"); void col.offsetWidth; col.classList.add("c-" + kind);
 }
+col.addEventListener("animationend", e => { if (e.target === col) col.classList.remove("c-open", "c-back", "c-tab"); });
 function openTab(tab) {
-  S.tab = tab; S.sel = null; Track.ev("tab", tab);
-  if (tab === "map") { setSheet("closed"); render(); return; }
-  withTransition(render, "tab"); setSheet("full");
+  if (S.search) closeSearch(false);
+  if (tab === S.tab && !S.sel) { col.scrollTo({ top: 0, behavior: motionOk() ? "smooth" : "auto" }); return; }
+  S.tab = tab; S.sel = null; S.pick = null; S.weekOpen = false;
+  if (tab !== "most") Track.ev("tab", tab);
+  withTransition(render, "tab");
 }
-document.querySelectorAll(".ui-tab").forEach(b => b.addEventListener("click", () => openTab(b.dataset.tab)));
-$("#locate-btn").addEventListener("click", () => locateMe());
-$("#menu-btn").addEventListener("click", () => { const m = $("#menu"), open = m.hidden; m.hidden = !open; $("#menu-btn").setAttribute("aria-expanded", String(open)); });
-document.addEventListener("click", e => { const m = $("#menu"); if (!m.hidden && !e.target.closest("#menu,#menu-btn")) { m.hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); } });
-document.addEventListener("keydown", e => {
-  if (e.key !== "Escape" || $("#filters").open || $("#suggest").open || $("#install").open) return; // the sheets close themselves
-  if (!$("#menu").hidden) { $("#menu").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); return; }
-  if (!isDesktop() && S.sheet !== "closed") { S.sel = null; S.tab = "map"; setSheet("closed"); render(); }
-});
-// Drag the grabber: up opens, down closes; a tap toggles between peek and full.
-(function sheetDrag() {
-  const grab = $("#grab"); let y0 = null, t0 = 0, h = 0, base = 0, moved = false;
-  const pos = () => S.sheet === "full" ? 0 : S.sheet === "peek" ? h * .54 : h;
-  grab.addEventListener("pointerdown", e => { y0 = e.clientY; t0 = Date.now(); h = sheetEl.offsetHeight; base = pos(); moved = false; grab.setPointerCapture(e.pointerId); sheetEl.classList.add("dragging"); });
-  grab.addEventListener("pointermove", e => { if (y0 === null) return; const dy = e.clientY - y0; if (Math.abs(dy) > 4) moved = true; sheetEl.style.transform = `translateY(${Math.max(0, Math.min(h, base + dy))}px)`; });
-  grab.addEventListener("pointerup", e => {
-    if (y0 === null) return; sheetEl.classList.remove("dragging"); sheetEl.style.transform = "";
-    const dy = e.clientY - y0, v = dy / Math.max(1, Date.now() - t0), at = base + dy; y0 = null;
-    if (!moved) return setSheet(S.sheet === "full" ? "peek" : "full");
-    const next = v > .6 ? (S.sheet === "full" ? "peek" : "closed") : v < -.6 ? "full" : at < h * .27 ? "full" : at < h * .75 ? "peek" : "closed";
-    if (next === "closed") { S.sel = null; S.tab = "map"; render(); }
-    setSheet(next);
+// Tabs answer on pointer-down, like a native tab bar; the click that follows is ignored (keyboard clicks still work).
+(function tabs() {
+  let downOn = null, t = null;
+  $("#tabs").addEventListener("pointerdown", e => {
+    const b = e.target.closest(".tab"); if (!b || e.button) return;
+    downOn = b.dataset.tab; clearTimeout(t); t = setTimeout(() => downOn = null, 800); openTab(b.dataset.tab);
   });
-  grab.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSheet(S.sheet === "full" ? "peek" : "full"); } });
+  $("#tabs").addEventListener("click", e => {
+    const b = e.target.closest(".tab"); if (!b) return;
+    if (downOn === b.dataset.tab) { downOn = null; return; }
+    openTab(b.dataset.tab);
+  });
 })();
-// The floating bars' sizes, for the sheet height (phone), the panel header (desktop) and the map controls.
-(function measureBars() {
-  const app = $("#app"), chips = $("#chips"), dock = $("#dock");
-  const set = () => {
-    app.style.setProperty("--top-h", Math.round(chips.getBoundingClientRect().bottom) + "px");
-    app.style.setProperty("--dock-h", Math.round(Math.max(0, innerHeight - dock.getBoundingClientRect().top)) + "px");
-  };
-  set();
-  if (window.ResizeObserver) { const ro = new ResizeObserver(set); ro.observe($("#topbar")); ro.observe(dock); }
-  window.addEventListener("resize", set);
-})();
-const NEAR_KM = 25;
-const walkText = d => d < 3 ? ` · ${Math.round(d / 5 * 60)} perc gyalog` : "";
-const KIND_WORD = { mass: "mise", rorate: "rorate", conf: "gyónás" };
-// "Legközelebb": the nearest church with a Mass still to come, then the next time of any kind at another church.
-function renderNearest(rows) {
-  const el = $("#nearest"); if (!el) return;
-  if (S.loading || S.error) { el.innerHTML = ""; return; }
-  const near = rows.filter(r => r.dist <= NEAR_KM);
-  const firstMass = near.map(r => ({ r, n: nextOf({ items: r.di.items.filter(i => i.k === "mass" || i.k === "rorate") }) })).find(x => x.n.k);
-  const other = near.filter(r => !firstMass || r.c.id !== firstMass.r.c.id).map(r => ({ r, n: nextOf(r.di) })).find(x => x.n.k);
-  const row = x => `<button class="nx" data-id="${x.r.c.id}"><b class="tt tt-${x.n.cls}">${esc(x.n.t)}</b><span class="nt"><strong>${esc(x.r.c.name)}</strong>`
-    + `<small>${KIND_WORD[x.n.k] || ""} · ${kmText(x.r.dist)}${walkText(x.r.dist)}</small></span></button>`;
-  const list = [firstMass, other].filter(Boolean);
-  el.innerHTML = `<h2 class="nh">Legközelebb</h2>` + (list.length ? list.map(row).join("")
-    : `<p class="nempty">${isToday() ? "Ma már nincs több ismert alkalom a közelben" : "Nincs ismert alkalom a közelben"}</p>`);
-  el.querySelectorAll(".nx").forEach(b => b.addEventListener("click", () => select(+b.dataset.id)));
+function select(id, { week = false } = {}) {
+  const c = BY_ID.get(id); if (!c) return;
+  if (S.search) closeSearch(false);
+  S.sel = id; S.pick = null; S.weekOpen = week;
+  if (LIVE) Track.once("view", id);
+  MapView.focus(c.lat, c.lon, 15);
+  withTransition(render, "open");
 }
-const kmText = d => d < 1 ? Math.round(d * 1000 / 10) * 10 + " m" : (d < 10 ? d.toFixed(1).replace(".", ",") : Math.round(d)) + " km";
+function back() { S.sel = null; S.weekOpen = false; withTransition(render, "back"); }
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || $("#suggest").open || $("#install").open) return; // the sheets close themselves
+  if (S.search) { e.preventDefault(); closeSearch(); return; }
+  if (S.sel) back();
+});
 
-/* ---------- Rendering: list ---------- */
-const panel = $("#panel");
-panel.addEventListener("animationend", e => { if (e.target === panel) panel.classList.remove("p-open", "p-back", "p-tab"); });
+/* ---------- Search panel: field, filters, results ---------- */
+const searchEl = $("#search"); let searchOpener = null;
+function openSearch(opener) {
+  if (S.search) return;
+  S.search = true; searchOpener = opener || document.activeElement;
+  searchEl.inert = false; searchEl.dataset.open = "true"; Track.ev("tab", "list");
+  renderSearch();
+  $("#q").focus({ preventScroll: true });
+}
+function closeSearch(restore = true) {
+  if (!S.search) return;
+  S.search = false; searchEl.dataset.open = "false"; searchEl.inert = true;
+  if (restore && searchOpener && searchOpener.isConnected) searchOpener.focus({ preventScroll: true });
+}
+$("#search-done").addEventListener("click", () => closeSearch());
+$("#map-search").addEventListener("click", e => openSearch(e.currentTarget));
 function dayLabel(off) { const d = new Date(); d.setDate(d.getDate() + off); return off === 0 ? "Ma" : off === 1 ? "Holnap" : DAYN[d.getDay()] + ", " + shortDate(d); }
-function dayShort(off) { const d = new Date(); d.setDate(d.getDate() + off); return off === 0 ? "Ma" : off === 1 ? "Holnap" : DAY_SHORT[d.getDay()] + ", " + shortDate(d); }
-
-/* Filters: chips under the search field; the rest (day, place, Mass type, events, Rorate) in the ⋯ sheet. */
-const chipHTML = (k, label, dot) => `<button class="ui-chip" type="button" data-f="${k}" aria-pressed="${S.f[k]}">${dot ? `<span class="dot" style="background:${dot}"></span>` : ""}${label}</button>`;
-const hiddenFilters = () => (S.f.ev ? 1 : 0) + (S.f.rorate ? 1 : 0) + (S.f.tag ? 1 : 0);
-function renderChips() {
-  const n = hiddenFilters();
-  $("#chips").innerHTML = `<button class="ui-chip daychip" type="button" data-sheet aria-haspopup="dialog" aria-label="Nap: ${esc(dayLabel(S.dayOffset))}. Szűrők megnyitása">${esc(dayShort(S.dayOffset))}</button>`
-    + chipHTML("mass", "Mise", "var(--accent)") + chipHTML("conf", "Gyóntatás", "var(--penance)")
-    + (isToday() ? chipHTML("open", "Most nyitva", "var(--open)") : "")
-    + `<button class="ui-chip more" type="button" data-sheet aria-haspopup="dialog" aria-label="További szűrők${n ? ` (${n} bekapcsolva)` : ""}"><span aria-hidden="true">⋯</span>${n ? `<b class="badge" aria-hidden="true">${n}</b>` : ""}</button>`;
-}
+const filterCount = () => (S.f.open ? 1 : 0) + (S.f.ev ? 1 : 0) + (S.f.rorate ? 1 : 0) + (S.f.tag ? 1 : 0);
 function renderFilters() {
-  const ctx = dayContext(selDate());
+  const ctx = dayContext(selDate()), kind = S.f.conf ? "conf" : S.f.mass ? "mass" : "", n = filterCount();
   const opts = [...Array(8).keys()].map(i => `<option value="${i}" ${i === S.dayOffset ? "selected" : ""}>${dayLabel(i)}</option>`).join("");
   const ors = Object.keys(ORIGINS).map(k => `<option ${k === S.origin ? "selected" : ""}>${esc(k)}</option>`).join("")
     + (navigator.geolocation && !ORIGINS["Saját helyzetem"] ? `<option value="__me">Saját helyzetem…</option>` : "");
   const tagLabel = t => esc(C.tagLabel(t)[0].toUpperCase() + C.tagLabel(t).slice(1));
-  $("#filters-body").innerHTML = `
-    <label class="ui-field"><span>Nap</span><select id="day">${opts}</select></label>
-    <label class="ui-field"><span>Távolság innen</span><select id="origin">${ors}</select></label>
-    ${TAG_OPTIONS.length ? `<label class="ui-field"><span>A mise jellege</span><select id="tagf"><option value="">Bármilyen mise</option>${TAG_OPTIONS.map(t => `<option value="${esc(t)}" ${S.f.tag === t ? "selected" : ""}>${tagLabel(t)}</option>`).join("")}</select></label>` : ""}
-    <div class="fchips" role="group" aria-label="További szűrők">${chipHTML("ev", "Esemény a héten", "var(--gold)")}${ctx.advent ? chipHTML("rorate", "Rorate", "var(--gold)") : ""}</div>`;
+  const tog = (k, label) => `<label class="s-opt"><span>${label}</span><input class="ui-toggle" type="checkbox" data-f="${k}"${S.f[k] ? " checked" : ""}></label>`;
+  $("#s-filters").innerHTML = `<div class="ui-seg s-kind" role="group" aria-label="Alkalom">${[["", "Mind"], ["mass", "Mise"], ["conf", "Gyóntatás"]]
+    .map(([k, l]) => `<button type="button" data-kind="${k}" aria-pressed="${kind === k}">${l}</button>`).join("")}</div>
+    <details class="ui-fold s-more" id="s-more"${S.moreOpen ? " open" : ""}><summary>További szűrők<span class="count">${esc(dayLabel(S.dayOffset))}${n ? ` · ${n} bekapcsolva` : ""}</span></summary>
+    <div class="s-opts">
+      <label class="s-opt"><span>Nap</span><select id="day">${opts}</select></label>
+      <label class="s-opt"><span>Távolság innen</span><select id="origin">${ors}</select></label>
+      ${TAG_OPTIONS.length ? `<label class="s-opt"><span>A mise jellege</span><select id="tagf"><option value="">Bármilyen mise</option>${TAG_OPTIONS.map(t => `<option value="${esc(t)}" ${S.f.tag === t ? "selected" : ""}>${tagLabel(t)}</option>`).join("")}</select></label>` : ""}
+      ${isToday() ? tog("open", "Most nyitva") : ""}${tog("ev", "Esemény a héten")}${ctx.advent ? tog("rorate", "Rorate") : ""}
+    </div></details>`;
 }
-const filtersEl = $("#filters");
-function openFilters() { renderFilters(); if (!filtersEl.open) filtersEl.showModal(); }
-$("#filters-done").addEventListener("click", () => filtersEl.close());
-filtersEl.addEventListener("click", e => {
-  if (e.target === filtersEl) return filtersEl.close(); // tap on the backdrop
-  const b = e.target.closest("[data-f]"); if (!b) return;
-  S.f[b.dataset.f] = !S.f[b.dataset.f]; if (S.f[b.dataset.f]) Track.ev("filter", b.dataset.f); renderFilters(); render();
+const sFilters = $("#s-filters");
+sFilters.addEventListener("click", e => {
+  const b = e.target.closest("button[data-kind]"); if (!b) return;
+  const k = b.dataset.kind; S.f.mass = k === "mass"; S.f.conf = k === "conf"; if (k) Track.ev("filter", k); render();
 });
-filtersEl.addEventListener("change", e => {
+sFilters.addEventListener("toggle", e => { if (e.target.id === "s-more") S.moreOpen = e.target.open; }, true);
+sFilters.addEventListener("change", e => {
   const t = e.target;
-  if (t.id === "day") { setDayOffset(+t.value); Track.ev("filter", "day"); }
+  if (t.dataset.f) { S.f[t.dataset.f] = t.checked; if (t.checked) Track.ev("filter", t.dataset.f); }
+  else if (t.id === "day") { setDayOffset(+t.value); Track.ev("filter", "day"); }
   else if (t.id === "origin") {
-    if (t.value === "__me") { filtersEl.close(); return locateMe(); }
+    if (t.value === "__me") { closeSearch(); return locateMe(); }
     S.origin = t.value; try { localStorage.setItem("harangszo", JSON.stringify({ origin: S.origin })); } catch (_) { }
     Track.ev("filter", "origin");
   } else if (t.id === "tagf") { S.f.tag = t.value; if (t.value) Track.ev("filter", "tag"); }
   else return;
-  render(); renderFilters();
+  render();
 });
-$("#chips").addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b) return;
-  if (b.hasAttribute("data-sheet")) return openFilters();
-  S.f[b.dataset.f] = !S.f[b.dataset.f]; if (S.f[b.dataset.f]) Track.ev("filter", b.dataset.f); render();
-});
+// The church list: nearest first, as many as LIST_LIMIT, with a summary line.
+function listHTML(rows) {
+  if (S.loading || S.error) return stateHTML();
+  const ctx = dayContext(selDate()), shown = rows.slice(0, LIST_LIMIT), more = rows.length - shown.length;
+  const feastNames = ctx.feasts.map(k => C.FEAST_BY_KEY[k].name).join(", ");
+  let nConf = 0; for (const r of rows) if (r.di.hasConf) nConf++;
+  return `<div class="lhead pad"><h2 class="sec-h">${S.q.trim() ? "Találatok" : "A közelben"}</h2>`
+    + `<p class="summary">${rows.length.toLocaleString("hu-HU")} templom · ${nConf} helyen gyóntatnak ${isToday() ? "ma" : "aznap"} · ${ctx.summer ? "nyári" : "téli"} időszámítás · távolság: ${esc(S.origin)}</p>`
+    + `${feastNames ? `<p class="feastline">Ünnep: ${esc(feastNames)}. Ahol a templom megadta, az ünnepi miserend látszik.</p>` : ""}</div>`
+    + `<ul class="rows pad">${shown.map(listRowHTML).join("") || `<li class="ui-empty">Nincs a szűrőknek megfelelő templom. Próbálj másik napot, vagy kapcsolj ki egy szűrőt.</li>`}`
+    + `${more > 0 ? `<li class="ui-empty">További ${more.toLocaleString("hu-HU")} templom. Írj be egy települést, vagy válassz másik kiindulópontot.</li>` : ""}</ul>`;
+}
+function renderSearch() {
+  if (!S.search) return;
+  renderFilters();
+  $("#s-results").innerHTML = listHTML(lastRows);
+}
+$("#s-results").addEventListener("click", e => { const b = e.target.closest(".row[data-id]"); if (b) select(+b.dataset.id); });
 let searchTimer, searchTrackTimer;
 // Statistics: a search is counted once typing has stopped. A word that finds churches is part of their public
 // name, town or address; a word that finds nothing is kept so the missing church or spelling can be added.
@@ -386,64 +505,87 @@ function trackSearch() {
 $("#q").addEventListener("input", e => {
   S.q = e.target.value; clearTimeout(searchTimer);
   clearTimeout(searchTrackTimer); searchTrackTimer = setTimeout(trackSearch, 2000);
-  searchTimer = setTimeout(() => {
-    // With the panel open, typing shows the matching list; with only the map showing, the markers follow.
-    if (S.sheet !== "closed" && (S.sel || S.tab === "saved")) { S.sel = null; S.tab = "list"; setSheet(S.sheet); }
-    render();
-  }, 150);
+  searchTimer = setTimeout(render, 150);
+});
+$("#q").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
+
+/* ---------- Most: the nearest church with a Mass still to come ---------- */
+function renderMost() {
+  const today = now(), searchBtn = `<button class="pill" id="m-search" type="button" aria-haspopup="dialog">Keresés</button><span class="sp"></span>`;
+  if (S.loading || S.error) {
+    panel.innerHTML = `<div class="most">${plainTop(searchBtn)}<div class="m-body pad"><p class="dayline">${esc(dayLine(today))}</p>${stateHTML()}</div></div>`;
+    return;
+  }
+  const { hero, next, any } = nearby(), c = hero?.r.c;
+  const top = searchBtn + (c ? saveBtnHTML(c, "m-save") : "");
+  let body = `<p class="dayline" id="m-day">${esc(dayLine(today))}</p>`;
+  if (hero) {
+    const web = webOf(c);
+    body += whenHTML(c, hero.i, true, "m-when")
+      + `<h2 class="cname" id="m-name">${esc(c.name)}</h2><p class="addr">${esc(whereOf(c))} · ${esc(distText(hero.r.dist))}</p>`
+      + `<div class="acts"><a class="btn go" id="m-dir" href="${dirOf(c)}" target="_blank" rel="noopener noreferrer">Útvonal</a>`
+      + `<button class="btn" type="button" id="m-week" data-open="${c.id}">Heti rend</button>`
+      + `${web ? `<a class="btn" id="m-web" href="${esc(web)}" target="_blank" rel="noopener noreferrer">Honlap</a>` : ""}</div>`;
+  } else {
+    body += `<p class="m-empty" id="m-empty">${any ? "Ma már nincs több ismert szentmise a közelben. A templomok heti rendjét a Keresés vagy a Térkép alatt találod; holnapra a keresésben választhatsz napot."
+      : "A közelben (25 km-en belül) nincs ismert templom. Keress települést, vagy válassz másik kiindulópontot a keresésben."}</p>`;
+  }
+  if (next.length) body += `<h3 class="sec">${hero ? "Utána a közelben" : "Ma még a közelben"}</h3><ul class="rows">${next.map(x =>
+    rowHTML(x.r.c.id, showT(x.i.t), x.r.c.name, [timeWord(x.r.c, x.i), x.r.c.addr].filter(Boolean).join(" · "), kmText(x.r.dist))).join("")}</ul>`;
+  const mine = S.origin === "Saját helyzetem";
+  body += `<p class="m-origin">Kiindulópont: ${mine ? "a helyzeted" : esc(S.origin)}${navigator.geolocation && !mine ? ` · <button class="link" type="button" id="m-locate">Saját helyzetem</button>` : ""}</p>`;
+  panel.innerHTML = `<div class="most" data-id="${c ? c.id : ""}">${hasPhoto(c) ? photoHTML(c, top) : plainTop(top)}<div class="m-body pad">${body}</div></div>`;
+  fillPhotos(panel);
+}
+panel.addEventListener("click", e => {
+  const sv = e.target.closest("[data-save]");
+  if (sv) { const id = +sv.dataset.save, on = Saved.toggle(id); if (on) Track.once("save", id); panel.querySelectorAll(`[data-save="${id}"]`).forEach(b => setSaveBtn(b, on)); return; }
+  if (e.target.closest("#m-search,[data-open-search]")) return openSearch(e.target.closest("button"));
+  const wk = e.target.closest("#m-week"); if (wk) return select(+wk.dataset.open, { week: true });
+  if (e.target.closest("#m-locate")) return locateMe();
+  const a = e.target.closest("a#m-dir,a#m-web"); if (a) { Track.once(a.id === "m-dir" ? "dir" : "web", +panel.querySelector(".most").dataset.id); return; }
+  const row = e.target.closest(".row[data-id]"); if (row) select(+row.dataset.id);
 });
 
-// A list card: name, address, distance; at most two tags (open state when known today, then the next times).
-function cardHTML(r) {
-  const di = r.di;
-  const lang = i => { const l = i.g.find(t => t.startsWith("lang:")); return l ? " · " + esc(C.LANGS[l.slice(5)] || l.slice(5)) : S.f.tag && i.g.includes(S.f.tag) ? " · " + esc(C.tagLabel(S.f.tag)) : ""; };
-  // A time the filters ask for comes first (the next confession when "Gyóntatás" is on, and so on).
-  const isMass = i => i.k === "mass" || i.k === "rorate";
-  const wanted = i => (S.f.conf && i.k === "conf") || (S.f.rorate && i.k === "rorate") || (S.f.tag ? isMass(i) && i.g.includes(S.f.tag) : S.f.mass && isMass(i));
-  const up = upcoming(di.items).filter(i => i.k !== "ador").map((i, n) => ({ i, n })).sort((a, b) => wanted(b.i) - wanted(a.i) || a.n - b.n).map(x => x.i);
-  const timeTag = i => `<span class="ui-tag t-${i.k === "mass" || i.k === "rorate" ? "mass" : i.k === "conf" ? "conf" : "ador"}">${i.t ? showT(i.t) + " " : ""}${i.k === "mass" ? "mise" + lang(i) : i.k === "rorate" ? "rorate" : i.k === "conf" ? "gyónás" : esc(i.what.length > 24 ? i.what.slice(0, 22) + "…" : i.what)}</span>`;
-  const os = isToday() ? (r.os || openState(r.c, now())) : null;
-  const tags = [];
-  if (os && os.known) tags.push(`<span class="ui-tag ${os.open ? "t-open" : "t-muted"}">${esc(os.label)}</span>`);
-  for (const i of up) { if (tags.length >= 2) break; tags.push(timeTag(i)); }
-  if (!up.length) tags.push(`<span class="ui-tag t-muted">${!hasSchedule(r.c) && !di.feastMode ? "Még nincs feltöltött időpont" : isToday() ? "Ma már nincs több alkalom" : "Nincs alkalom ezen a napon"}</span>`);
-  const where = [r.c.city, r.c.addr].filter(Boolean).join(", ");
-  return `<li><button class="lcard ui-card" data-id="${r.c.id}" aria-current="${S.sel === r.c.id}">
-    <span class="lc-top"><span class="lc-name">${esc(r.c.name)}</span><span class="lc-dist">${kmText(r.dist)}</span></span>
-    <span class="lc-where">${esc(where)}</span>
-    <span class="lc-tags">${tags.slice(0, 2).join("")}</span></button></li>`;
-}
-function bindCards() { panel.querySelector(".list")?.addEventListener("click", e => { const b = e.target.closest(".lcard"); if (b) select(+b.dataset.id); }); }
-function renderList() {
-  if (S.loading || S.error) { panel.innerHTML = `<div class="ui-empty"><p>${S.error ? esc(S.error) : "Templomok betöltése…"}</p></div>`; renderNearest([]); return; }
-  const ctx = dayContext(selDate()), rows = filtered(), shown = rows.slice(0, LIST_LIMIT), more = rows.length - shown.length;
-  const feastNames = ctx.feasts.map(k => C.FEAST_BY_KEY[k].name).join(", ");
-  panel.innerHTML = `<div class="lhead pad"><h2>${S.q.trim() ? "Találatok" : "A közelben"}</h2><p class="summary" id="summary"></p>
-    ${feastNames ? `<div class="feastline">Ünnep: <b>${esc(feastNames)}</b>. Ahol a templom megadta, az ünnepi miserend látszik.</div>` : ""}</div>
-    <ul class="list pad">${shown.map(cardHTML).join("") || `<li class="ui-empty">Nincs a szűrőknek megfelelő templom. Próbálj másik napot vagy kapcsolj ki egy szűrőt.</li>`}
-    ${more > 0 ? `<li class="ui-empty">További ${more.toLocaleString("hu-HU")} templom. Írj be egy települést, vagy válassz másik kiindulópontot.</li>` : ""}</ul>`;
-  let nConf = 0; for (const r of rows) if (r.di.hasConf) nConf++;
-  $("#summary").textContent = `${rows.length.toLocaleString("hu-HU")} templom · ${nConf} helyen gyóntatnak ${isToday() ? "ma" : "aznap"} · ${ctx.summer ? "nyári" : "téli"} időszámítás · távolság: ${S.origin}`;
-  bindCards(); drawMarkers(rows); renderNearest(rows);
-}
-// Mentett: the saved churches, nearest first, whatever the filters say.
+/* ---------- Mentett, and the list beside the map (desktop Térkép) ---------- */
 function renderSaved() {
-  if (S.loading || S.error) { panel.innerHTML = `<div class="ui-empty"><p>${S.error ? esc(S.error) : "Templomok betöltése…"}</p></div>`; renderNearest([]); return; }
-  const ctx = dayContext(selDate()), rows = filtered();
+  if (S.loading || S.error) { panel.innerHTML = `<div class="lhead pad top-gap"><h2 class="sec-h">Mentett</h2></div>${stateHTML()}`; return; }
+  const ctx = dayContext(selDate());
   const saved = Saved.ids().map(id => BY_ID.get(id)).filter(Boolean).map(c => ({ c, di: dayInfoCached(c, ctx), dist: distOf(c), os: null })).sort((a, b) => a.dist - b.dist);
-  panel.innerHTML = `<div class="lhead pad"><h2>Mentett</h2>${saved.length ? `<p class="summary">${saved.length} templom · távolság: ${esc(S.origin)}</p>` : ""}</div>`
-    + (saved.length ? `<ul class="list pad">${saved.map(cardHTML).join("")}</ul>`
-      : `<div class="ui-empty"><p>Még nincs mentett templom. A templom oldalán a ♡ gombbal mentheted.</p></div>`);
-  bindCards(); drawMarkers(rows); renderNearest(rows);
+  panel.innerHTML = `<div class="lhead pad top-gap"><h2 class="sec-h">Mentett</h2>${saved.length ? `<p class="summary">${saved.length} templom · távolság: ${esc(S.origin)}</p>` : ""}</div>`
+    + (saved.length ? `<ul class="rows pad">${saved.map(listRowHTML).join("")}</ul>`
+      : `<div class="ui-empty"><p>Még nincs mentett templom. A templom oldalán a szív gombbal mentheted, és itt mindig kéznél lesz.</p></div>`);
 }
+function renderMapList(rows) {
+  panel.innerHTML = `<div class="pad top-gap"><button class="mapsearch in-col" type="button" data-open-search aria-haspopup="dialog">${svgI('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', 18)}<span>${esc(S.q.trim() || "Templom vagy település")}</span></button></div>` + listHTML(rows);
+}
+
+/* ---------- Térkép (phone): the bottom panel with the tapped or the next church ---------- */
+function renderMapCard() {
+  const el = $("#mapcard");
+  if (S.loading || S.error) { el.innerHTML = `<p class="mc-msg">${S.error ? esc(S.error) : "Templomok betöltése…"}</p>`; return; }
+  const { hero, next } = nearby();
+  let c = null, i = null, dist = 0;
+  if (S.pick && BY_ID.has(S.pick)) {
+    c = BY_ID.get(S.pick); const di = dayInfoCached(c, dayContext(now()));
+    i = upcomingOf(di, MASSK)[0] || upcomingOf(di, ALLK)[0] || null; dist = distOf(c);
+  } else if (hero) { c = hero.r.c; i = hero.i; dist = hero.r.dist; }
+  if (!c) { el.innerHTML = `<p class="mc-msg">Ma már nincs több ismert szentmise a közelben.</p>`; return; }
+  const after = next.find(x => x.r.c.id !== c.id);
+  el.innerHTML = `<button class="mc-main" type="button" data-id="${c.id}"><b class="mid">${i ? esc(showT(i.t)) : "–"}</b><span class="mc-t"><strong>${esc(c.name)}</strong>`
+    + `<span>${i ? esc(kindName(c, i).toLowerCase()) : "ma már nincs"} · ${esc(distText(dist))}</span></span></button>`
+    + (after ? `<button class="mc-row" type="button" data-id="${after.r.c.id}"><span><b>${esc(showT(after.i.t))}</b>${esc(after.r.c.name)}${after.r.c.addr ? " · " + esc(after.r.c.addr) : ""}</span><span class="r-d">${esc(kmText(after.r.dist))}</span></button>` : "");
+}
+$("#mapcard").addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (b) select(+b.dataset.id); });
 function locateMe() {
-  const sum = $("#summary"); if (sum) sum.textContent = "Helymeghatározás…";
   if (!navigator.geolocation) return;
+  toast("Helymeghatározás…");
   navigator.geolocation.getCurrentPosition(p => {
     ORIGINS["Saját helyzetem"] = [p.coords.latitude, p.coords.longitude]; S.origin = "Saját helyzetem"; Track.once("locate");
-    MapView.focus(p.coords.latitude, p.coords.longitude, 13); MapView.me?.(p.coords.latitude, p.coords.longitude); render();
-  }, () => { render(); const s2 = $("#summary"); if (s2) s2.textContent = "A helyzeted nem érhető el. Engedélyezd a böngészőben, vagy válassz várost."; else { const h = $("#maphint"); h.hidden = false; h.textContent = "A helyzeted nem érhető el. Engedélyezd a böngészőben."; setTimeout(() => h.hidden = true, 4000); } }, { timeout: 10000, maximumAge: 300000 });
+    MapView.focus(p.coords.latitude, p.coords.longitude, 13); MapView.me?.(p.coords.latitude, p.coords.longitude); toast(""); render();
+  }, () => toast("A helyzeted nem érhető el. Engedélyezd a böngészőben, vagy válassz kiindulópontot a keresésben."), { timeout: 10000, maximumAge: 300000 });
 }
+$("#locate-btn").addEventListener("click", () => locateMe());
 
 /* ---------- Rendering: detail ---------- */
 const SEASON_NAME = Object.fromEntries(Object.entries(C.PERIOD_INFO).map(([k, v]) => [k, v.adj]));
@@ -556,23 +698,13 @@ function noteHTML(c) {
   const body = lines.map(l => /:$/.test(l) ? `<p class="note-h">${linkify(l)}</p>` : `<p>${linkify(l)}</p>`).join("");
   return `${body ? `<div class="schednote">${body}</div>` : ""}${src}`;
 }
-// Top bar of the detail: ‹ back, ♡ save to Mentett, ↗ share.
-const HEART = `<svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>`;
-const saveLabel = on => on ? "Eltávolítás a kedvencek közül" : "Mentés a kedvencek közé";
-const saveBtnHTML = c => { const on = Saved.has(c.id); return `<button class="d-ib savebtn" id="save-church" type="button" aria-pressed="${on}" aria-label="${saveLabel(on)}" title="${saveLabel(on)}">${HEART}</button>`; };
-function setSaveBtn(b, on) { b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", saveLabel(on)); b.title = saveLabel(on); }
-const svgI = d => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-const ICONS = {
-  route: svgI('<path d="M5 19 19 5"/><path d="M9 5h10v10"/>'),
-  call: svgI('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>'),
-  web: svgI('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
-  fix: svgI('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/>'),
-};
 let toastTimer;
 function toast(msg) {
   const t = $("#toast"); if (!t) return;
+  clearTimeout(toastTimer);
+  if (!msg) { t.classList.remove("on"); return; }
   t.textContent = msg; t.classList.add("on");
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
 }
 // Share sheet where the device has one; otherwise copy the church's link.
 async function shareChurch(c) {
@@ -591,61 +723,48 @@ async function shareChurch(c) {
 }
 const noSchedule = c => !c.svc.length && !(c.dated || []).length;
 const dayAt = off => { const d = now(); d.setDate(d.getDate() + off); return d; };
-// Same effect as the day select in the filter sheet.
+// Same effect as the day select in the search panel.
 function setDayOffset(off) { S.dayOffset = off; if (!isToday()) S.f.open = false; if (!C.inAdvent(selDate())) S.f.rorate = false; }
-const KIND_TAG = { mass: ["t-mass", "mise"], rorate: ["t-mass", "rorate"], conf: ["t-conf", "gyónás"], ador: ["t-ador", "imádás"], prayer: ["t-ador", "ima"], ev: ["t-ador", "esemény"] };
-const NEXT_WORD = { conf: "gyóntatás", ador: "szentségimádás", prayer: "ájtatosság", ev: "esemény" };
-const inText = d => d < 60 ? `${d} perc múlva` : `${Math.floor(d / 60)} ó${d % 60 ? ` ${d % 60} p` : ""} múlva`;
 const kindLabel = (c, k) => k === "mass" ? massWord(c) : k === "conf" ? "Gyóntatás" : k === "ador" ? "Szentségimádás" : k === "rorate" ? "Rorate" : k === "prayer" ? "Imaóra, ájtatosság" : "Esemény";
-// The hero: the next Mass of the selected day (from now on, today), else its next time of any kind.
+// The big time on a church page: the next Mass of the selected day (from now on, today), else its next time of any kind.
 function nextHTML(c, di) {
-  const m = now().getHours() * 60 + now().getMinutes();
+  const m = nowMin();
   const up = di.items.filter(i => i.t && !i.away && (!isToday() || mins(i.end || i.t) >= m));
   const i = up.find(x => x.k === "mass" || x.k === "rorate") || up[0];
   if (!i) {
     if (noSchedule(c)) return `<div class="ui-empty d-empty" id="d-next"><p>Ehhez a templomhoz még nincs feltöltött időpont. Ha tudod a miserendet, küldd be a Javítás gombbal.</p></div>`;
     return `<p class="d-nomore" id="d-next">${isToday() ? "Ma már nincs több alkalom" : "Nincs alkalom ezen a napon"}</p>`;
   }
-  const what = i.k === "mass" || i.k === "rorate" ? (c.rite === "gk" ? "liturgia" : "mise") : NEXT_WORD[i.k];
-  const label = "Következő " + what + (isToday() ? "" : " · " + DAYN[selDate().getDay()].toLowerCase());
-  const word = S.dayOffset === 0 ? "ma" : S.dayOffset === 1 ? "holnap" : shortDate(selDate());
-  const extra = i.g.length ? C.tagLabel(i.g[0]) : i.k === "ev" || i.k === "prayer" ? i.what : i.n;
-  const diff = mins(i.t) - m;
-  return `<div class="ui-hero" id="d-next"><small>${esc(label)}</small><div class="t">${esc(showT(i.t))}</div><div class="w">${esc(word)}${extra ? " · " + esc(extra) : ""}</div>`
-    + `${isToday() && diff > 0 && diff < 720 ? `<span class="in">${inText(diff)}</span>` : ""}</div>`;
+  return whenHTML(c, i, isToday(), "d-next");
 }
-// The selected day's times: feast line, then one grouped list (past times faded).
+// The selected day's times: feast line, then hairline rows (past times greyed).
 function dayBoxHTML(c, di) {
-  const m = now().getHours() * 60 + now().getMinutes();
+  const m = nowMin();
   const feast = di.feastMode === "dated" ? `<p class="d-feast">A templom heti miserendje szerint${di.feast ? " · " + esc(di.feast) : ""}${di.datedUrl ? ` · <a href="${esc(di.datedUrl)}" target="_blank" rel="noopener noreferrer">forrás</a>` : ""}</p>`
     : di.feast ? `<p class="d-feast">Ünnepi miserend · ${esc(di.feast)}${di.feastMode === "sunday" ? " (vasárnapi rend szerint)" : ""}</p>` : "";
   const rows = di.items.map(i => {
     const past = isToday() && i.t && mins(i.end || i.t) < m;
-    const main = i.k === "ev" || i.k === "prayer" ? i.what : kindLabel(c, i.k);
+    const main = i.k === "ev" || i.k === "prayer" ? i.what : i.k === "mass" ? kindName(c, i) : kindLabel(c, i.k);
     const sub = [i.end ? showT(i.end) + "-ig" : "", i.k === "prayer" ? "" : i.n, whoWhere(i)].filter(Boolean).join(" · ");
-    const [cls, tag] = KIND_TAG[i.k] || KIND_TAG.ev;
-    return `<li class="ui-row d-row${past ? " past" : ""}"><span class="d-t">${showT(i.t) || "–"}</span><span class="d-k">${esc(main)}${sub ? `<small>${esc(sub)}</small>` : ""}${tagsHTML(i.g)}</span>`
-      + `<span class="ui-tag ${cls}">${i.k === "mass" && c.rite === "gk" ? "liturgia" : tag}</span></li>`;
-  }).join("") || `<li class="ui-row d-row d-none">Nincs meghirdetett alkalom ezen a napon.</li>`;
-  return `<div class="d-daybox" id="d-daybox">${feast}<ul class="ui-glist" id="d-day" aria-label="${esc(dayLabel(S.dayOffset))}">${rows}</ul></div>`;
+    return `<li class="d-row${past ? " past" : ""}"><span class="d-t">${showT(i.t) || "–"}</span><span class="d-k">${esc(main)}${sub ? `<small>${esc(sub)}</small>` : ""}${tagsHTML(i.g)}</span></li>`;
+  }).join("") || `<li class="d-row d-none">Nincs meghirdetett alkalom ezen a napon.</li>`;
+  return `<div class="d-daybox" id="d-daybox">${feast}<ul class="d-list" id="d-day" aria-label="${esc(dayLabel(S.dayOffset))}">${rows}</ul></div>`;
 }
 const foldHTML = (id, title, body, count) => body
   ? `<details class="ui-fold" id="${id}"><summary>${title}${count ? `<span class="count">${count}</span>` : ""}</summary><div class="d-fold">${body}</div></details>` : "";
 function renderDetail() {
-  const c = BY_ID.get(S.sel); if (!c) { S.sel = null; return renderList(); }
+  const c = BY_ID.get(S.sel); if (!c) { S.sel = null; setView(); return renderMost(); }
   const ctx = dayContext(selDate()), di = dayInfoCached(c, ctx), os = openState(c, now());
-  // The minute timer re-renders the page: keep open folds and the scroll position of the same church.
+  // The minute timer re-renders the page: keep open folds of the same church ("Heti rend" on Most opens the week).
   const prev = panel.querySelector(".detail"), same = prev && +prev.dataset.id === c.id;
-  const openFolds = same ? [...prev.querySelectorAll(".ui-fold[open]")].map(f => f.id) : [], top = same ? panel.scrollTop : 0;
-  const dir = `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}`;
-  const where = [c.city, c.addr].filter(Boolean).join(", ");
-  const web = c.web ? (/^https?:/i.test(c.web) ? c.web : "https://" + c.web) : "";
-  const acts = [`<a class="d-act" href="${dir}" target="_blank" rel="noopener noreferrer">${ICONS.route}<span>Útvonal</span></a>`,
-    c.phone ? `<a class="d-act" href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}" aria-label="Hívás: ${esc(c.phone)}" title="${esc(c.phone)}">${ICONS.call}<span>Hívás</span></a>` : "",
-    web ? `<a class="d-act" href="${esc(web)}" target="_blank" rel="noopener noreferrer" title="${esc(c.web)}">${ICONS.web}<span>Weboldal</span></a>` : "",
-    `<button class="d-act" type="button" id="go-suggest" aria-haspopup="dialog">${ICONS.fix}<span>Javítás</span></button>`].filter(Boolean);
+  const openFolds = same ? [...prev.querySelectorAll(".ui-fold[open]")].map(f => f.id) : S.weekOpen ? ["f-week"] : [];
+  const dir = dirOf(c), web = webOf(c);
+  const acts = [`<a class="btn go d-act" href="${dir}" target="_blank" rel="noopener noreferrer">Útvonal</a>`,
+    c.phone ? `<a class="btn d-act" href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}" aria-label="Hívás: ${esc(c.phone)}" title="${esc(c.phone)}">Hívás</a>` : "",
+    web ? `<a class="btn d-act" href="${esc(web)}" target="_blank" rel="noopener noreferrer" title="${esc(c.web)}">Honlap</a>` : "",
+    `<button class="btn d-act" type="button" id="go-suggest" aria-haspopup="dialog">Javítás</button>`].filter(Boolean);
   const showDays = !noSchedule(c) || c.ev.length > 0;
-  const days = [...Array(7).keys()].map(i => `<button type="button" data-off="${i}" aria-pressed="${i === S.dayOffset}" aria-label="${esc(dayLabel(i))}"><span>${DAY_SHORT[dayAt(i).getDay()]}</span><b>${dayAt(i).getDate()}</b></button>`).join("");
+  const days = [...Array(7).keys()].map(i => `<button type="button" data-off="${i}" aria-pressed="${i === S.dayOffset}" aria-label="${esc(dayLabel(i))}"><span>${i === 0 ? "Ma" : DAY_SHORT[dayAt(i).getDay()]}</span><b>${dayAt(i).getDate()}</b></button>`).join("");
   // The week table lists Masses, prayers and confessions; its fold counts those rules.
   const reg = c.svc.filter(s => isRegular(s) && ["mass", "prayer", "conf"].includes(s.k) && seasonOk(s, ctx));
   const dDays = datedDays(c), feasts = feastList(c), rr = rorateRules(c), evs = upcomingEvents(c);
@@ -656,23 +775,22 @@ function renderDetail() {
     foldHTML("f-events", "Események", eventsHTML(evs), evs.length),
     foldHTML("f-note", "Megjegyzés", noteHTML(c), 0),
   ].join("");
-  panel.innerHTML = `<div class="detail pad" data-id="${c.id}">
-    <div class="d-bar"><button class="d-ib" id="back" type="button" aria-label="Vissza" title="Vissza">‹</button><span class="sp"></span>${saveBtnHTML(c)}<button class="d-ib" id="share" type="button" aria-label="Megosztás" title="Megosztás">↗</button></div>
-    <div class="d-tags">${os.label ? `<span class="ui-tag ${os.known && os.open ? "t-open" : "t-muted"}">${esc(os.label)}</span>` : ""}<span class="ui-tag t-muted">${riteName(c)}</span></div>
-    <h2 class="d-name">${esc(c.name)}</h2>
-    <p class="d-where">${esc(where)} · ${kmText(distOf(c))} (${esc(S.origin)})</p>
-    ${c.approx ? `<p class="d-approx">A templom helye a térképen hozzávetőleges (a település közepe). Útvonaltervezés előtt ellenőrizd a címet.</p>` : ""}
+  const bar = `<button class="pill round" id="back" type="button" aria-label="Vissza" title="Vissza">${ICONS.back}</button><span class="sp"></span>`
+    + `${saveBtnHTML(c, "save-church")}<button class="pill round" id="share" type="button" aria-label="Megosztás" title="Megosztás">${ICONS.share}</button>`;
+  panel.innerHTML = `<div class="detail" data-id="${c.id}">${hasPhoto(c) ? photoHTML(c, bar, "d-bar") : plainTop(bar, "d-bar")}<div class="d-main pad">
+    <p class="dayline" id="d-dayline">${esc(dayLine(selDate()))}</p>
     ${nextHTML(c, di)}
-    <div class="d-actions" style="--n:${acts.length}">${acts.join("")}</div>
+    <h2 class="d-name">${esc(c.name)}</h2>
+    <p class="d-where">${esc(whereOf(c))} · ${esc(distText(distOf(c)))}</p>
+    <p class="d-tags">${[os.label, riteName(c)].filter(Boolean).map(esc).join(" · ")}</p>
+    ${c.approx ? `<p class="d-approx">A templom helye a térképen hozzávetőleges (a település közepe). Útvonaltervezés előtt ellenőrizd a címet.</p>` : ""}
+    <div class="acts d-actions">${acts.join("")}</div>
     ${showDays ? `<div class="d-days" role="group" aria-label="Nap">${days}</div>${dayBoxHTML(c, di)}` : ""}
-    ${folds ? `<div class="ui-glist d-folds">${folds}</div>` : ""}
-  </div>`;
-  $("#back").addEventListener("click", () => {
-    S.sel = null;
-    if (S.tab === "map" && !isDesktop()) { setSheet("closed"); render(); } else withTransition(render, "back");
-  });
-  $("#save-church").addEventListener("click", e => { const on = Saved.toggle(c.id); if (on) Track.once("save", c.id); setSaveBtn(e.currentTarget, on); });
-  // Statistics: taps on Útvonal / Hívás / Weboldal.
+    ${folds ? `<div class="d-folds">${folds}</div>` : ""}
+  </div></div>`;
+  fillPhotos(panel);
+  $("#back").addEventListener("click", back);
+  // Statistics: taps on Útvonal / Hívás / Honlap.
   panel.querySelectorAll("a.d-act").forEach(a => a.addEventListener("click", () => Track.once(a.href.startsWith("tel:") ? "call" : a.href === dir ? "dir" : "web", c.id)));
   $("#share").addEventListener("click", () => shareChurch(c));
   $("#go-suggest").addEventListener("click", () => openSuggest(c));
@@ -681,13 +799,12 @@ function renderDetail() {
     setDayOffset(+b.dataset.off);
     panel.querySelectorAll(".d-days button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
     const d2 = dayInfoCached(c, dayContext(selDate()));
+    $("#d-dayline").textContent = dayLine(selDate());
     $("#d-next").outerHTML = nextHTML(c, d2);
     $("#d-daybox").outerHTML = dayBoxHTML(c, d2);
-    renderChips(); drawMarkers(filtered());
+    drawMarkers(filtered()); renderSearch();
   });
   for (const id of openFolds) document.getElementById(id)?.setAttribute("open", "");
-  drawMarkers(lastRows.length ? lastRows : filtered());
-  panel.scrollTop = top;
 }
 
 /* ---------- Suggestions: database when live, otherwise a pre-filled GitHub issue ---------- */
@@ -777,11 +894,9 @@ const NO_DATA = "Nincs internetkapcsolat, és még nincs elmentett templomlista 
   const ios = (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) && navigator.standalone === false;
   let prompt = null;
   const update = () => { btn.hidden = standalone() || !(prompt || ios); };
-  const closeMenu = () => { $("#menu").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); };
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); prompt = e; update(); });
   window.addEventListener("appinstalled", () => { prompt = null; update(); Track.once("install"); });
   btn.addEventListener("click", async () => {
-    closeMenu();
     if (prompt) { const p = prompt; prompt = null; try { await p.prompt(); await p.userChoice; } catch (_) { } update(); return; }
     if (ios && !sheet.open) sheet.showModal();
   });
@@ -792,12 +907,12 @@ const NO_DATA = "Nincs internetkapcsolat, és még nincs elmentett templomlista 
 
 /* ---------- Map ---------- */
 /* The map never draws every church one by one. Below street level, churches that are close together on screen
-   are merged into one round marker with their number ("37"); tapping it zooms in on them. A church that stands
-   alone keeps its own marker: a dot when zoomed out, a pill with the next time when zoomed in. From SHOW_ALL_ZOOM
-   on, every church has its own marker. */
+   are merged into one black circle with their number ("37"); tapping it zooms in on them. A church that stands
+   alone keeps its own marker: a dot when zoomed out, a black time label when zoomed in (the next one red, a church
+   with nothing more that day a small grey dot). From SHOW_ALL_ZOOM on, every church has its own marker. */
 const HU_BOUNDS = { s: 45.7, w: 16.1, n: 48.6, e: 22.9 };
 // How far the map may pan. Wider than Hungary on purpose: if the screen shows more than this, the map is pinned
-// to its middle and cannot shift Hungary out from under the side panel.
+// to its middle and cannot shift Hungary out from under the side column.
 const PAN_BOUNDS = { s: 43.5, w: 11.5, n: 50.5, e: 27.5 };
 const SHOW_ALL_ZOOM = 14, LABEL_ZOOM = 12.5, CLUSTER_PX = 72;
 // Web Mercator world pixels at a zoom level (both map libraries use 256px tiles).
@@ -805,23 +920,18 @@ const worldPx = (lat, lon, z) => { const k = 256 * 2 ** z, sn = Math.sin(lat * M
   return [(lon + 180) / 360 * k, (0.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * k]; };
 const clusterSize = n => n < 10 ? 30 : n < 100 ? 36 : n < 1000 ? 42 : 50;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-// Room the floating UI takes on each side of the map, so the first view of Hungary is not hidden under the
-// side panel (desktop), the brand chip, the zoom buttons or the bottom dock.
+const FONT = "-apple-system,'SF Pro Text',Roboto,system-ui,sans-serif";
+// Room the floating UI takes on each side of the map, so the first view of Hungary is not hidden under the search
+// field and the bottom panel (phone) or the zoom buttons (desktop; the column sits beside the map, not over it).
 function fitPadding() {
-  const W = innerWidth, H = innerHeight, sheet = $("#sheet"), ctrls = $(".ctrls"), dock = $(".dock");
-  const desk = isDesktop(), gap = desk ? 24 : 8, panelOpen = desk && S.sheet !== "closed";
-  // Phone: the search row and the chip row float over the top. Desktop: they sit in the side panel (counted on
-  // the left); with the panel closed they float over the map like on a phone.
-  return {
-    top: (panelOpen ? 0 : $("#chips").getBoundingClientRect().bottom) + gap,
-    bottom: Math.max(0, H - dock.getBoundingClientRect().top) + gap,
-    left: (panelOpen ? sheet.offsetLeft + sheet.offsetWidth : 0) + gap,
-    right: (desk ? W - ctrls.offsetLeft : 0) + gap };
+  const W = innerWidth, H = innerHeight, ctrls = $(".ctrls");
+  if (isDesktop()) return { top: 24, bottom: 24, left: 24, right: Math.max(0, W - ctrls.getBoundingClientRect().left) + 24 };
+  return { top: $("#map-search").getBoundingClientRect().bottom + 8, bottom: Math.max(0, H - $("#mapcard").getBoundingClientRect().top) + 8, left: 8, right: 8 };
 }
 const OSM_DATA_CREDIT = 'Templomhelyek: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 // Church markers are created once per church on first show; each draw only adds/removes the ones whose visibility
-// changed and re-styles the ones whose colour or selection changed. Cluster markers are thrown away once hidden.
+// changed and re-styles the ones whose look changed. Cluster markers are thrown away once hidden.
 function makeDiffer(create, restyle, addMany, removeMany) {
   const cache = new Map(); let shown = new Set();
   return list => {
@@ -829,7 +939,7 @@ function makeDiffer(create, restyle, addMany, removeMany) {
     for (const p of list) {
       let e = cache.get(p.key);
       if (!e) { e = { mk: create(p), sig: "", temp: !!p.n }; cache.set(p.key, e); }
-      const sig = p.cls + "|" + (p.label || "") + (p.dot ? "." : "") + (p.sel ? "*" : "") + (p.n || "");
+      const sig = p.cls + "|" + (p.label || "") + (p.dot ? "." : "") + (p.sel ? "*" : "") + (p.next ? "!" : "") + (p.n || "");
       if (e.sig !== sig) { restyle(e.mk, p); e.sig = sig; }
       next.add(p.key);
       if (!shown.has(p.key)) toAdd.push(e.mk);
@@ -841,11 +951,18 @@ function makeDiffer(create, restyle, addMany, removeMany) {
     shown = next;
   };
 }
-// Tapping a number zooms in until its churches spread out.
+// Tapping a number zooms in until its churches spread out; tapping a church shows it in the bottom panel (phone)
+// or opens its page in the column (desktop).
 const openCluster = p => MapView.zoomTo(p.b);
+function tapChurch(id) {
+  if (isDesktop() || S.sel || S.tab !== "map") return select(id);
+  S.pick = id; renderMapCard(); queueMarkers();
+}
+const zIndexOf = p => p.sel ? 1000 : p.next ? 900 : p.n ? 500 + Math.min(p.n, 400) : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200);
+const mkClass = p => p.next ? "next" : p.cls === "none" ? "none" : "on";
 function leafletView() {
   const map = L.map("map", { minZoom: 6, maxZoom: 18, zoomSnap: .25, zoomControl: false, maxBounds: [[PAN_BOUNDS.s, PAN_BOUNDS.w], [PAN_BOUNDS.n, PAN_BOUNDS.e]] });
-  // Light or dark base map with the site's theme (CARTO basemaps on OpenStreetMap data).
+  // CARTO's base map (OpenStreetMap data), turned fully grey in styles.css.
   const dark = window.matchMedia("(prefers-color-scheme: dark)");
   const tiles = () => L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark.matches ? "dark_all" : "rastertiles/voyager"}/{z}/{x}/{y}{r}.png`, { maxZoom: 19, subdomains: "abcd",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-közreműködők &copy; <a href="https://carto.com/attributions">CARTO</a>' });
@@ -856,12 +973,13 @@ function leafletView() {
   { const p = fitPadding(); map.fitBounds([[HU_BOUNDS.s, HU_BOUNDS.w], [HU_BOUNDS.n, HU_BOUNDS.e]], { paddingTopLeft: [p.left, p.top], paddingBottomRight: [p.right, p.bottom] }); }
   const layer = L.layerGroup().addTo(map);
   const icons = {};
-  const icon = p => { const k = p.cls + p.label + p.dot + p.sel + (p.n || ""); return icons[k] || (icons[k] = L.divIcon({ className: "mkicon", iconSize: [0, 0],
-    html: p.n ? `<div class="mkclu mk-${p.cls}" style="--s:${clusterSize(p.n)}px" aria-label="${p.n} templom">${p.n.toLocaleString("hu-HU")}</div>` : p.dot ? `<div class="mkdot mk-${p.cls} ${p.sel ? "sel" : ""}"></div>` : `<div class="mkwrap ${p.sel ? "sel" : ""}"><span class="mk mk-${p.cls}">${esc(p.label)}</span></div>` })); };
+  const icon = p => { const k = mkClass(p) + p.label + p.dot + p.sel + (p.n || ""); return icons[k] || (icons[k] = L.divIcon({ className: "mkicon", iconSize: [0, 0],
+    html: p.n ? `<div class="mkclu" style="--s:${clusterSize(p.n)}px" aria-label="${p.n} templom">${p.n.toLocaleString("hu-HU")}</div>`
+      : p.dot ? `<div class="mkdot mk-${mkClass(p)}${p.sel ? " sel" : ""}"></div>` : `<div class="mkwrap"><span class="mk mk-${mkClass(p)}${p.sel ? " sel" : ""}">${esc(p.label)}</span></div>` })); };
   const draw = makeDiffer(
     p => { const mk = L.marker([p.lat, p.lon], { title: p.n ? `${p.n} templom – nagyíts rá` : p.c.name, icon: icon({ cls: "none", label: "–", dot: true, sel: false }), keyboard: false });
-      mk.on("click", () => p.n ? openCluster(p) : select(p.c.id)); return mk; },
-    (mk, p) => { mk.setIcon(icon(p)); mk.setZIndexOffset(p.sel ? 1000 : p.n ? 500 + Math.min(p.n, 400) : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200)); },
+      mk.on("click", () => p.n ? openCluster(p) : tapChurch(p.c.id)); return mk; },
+    (mk, p) => { mk.setIcon(icon(p)); mk.setZIndexOffset(zIndexOf(p)); },
     arr => arr.forEach(m => layer.addLayer(m)),
     arr => arr.forEach(m => layer.removeLayer(m)));
   let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { map.invalidateSize(); queueMarkers(); }, 150); });
@@ -869,45 +987,47 @@ function leafletView() {
   return {
     draw, ready: () => true,
     view() { const b = map.getBounds().pad(0.05); return { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast(), zoom: map.getZoom() }; },
-    focus(lat, lon, z) { map.flyTo([lat, lon], Math.max(map.getZoom(), z), { duration: .5 }); },
+    focus(lat, lon, z) { map.flyTo([lat, lon], Math.max(map.getZoom(), z), { duration: motionOk() ? .5 : 0 }); },
     zoomTo(b) { const z = map.getZoom(), t = Math.min(map.getBoundsZoom([[b.s, b.w], [b.n, b.e]], false, L.point(60, 60)), 17);
-      map.flyTo([(b.s + b.n) / 2, (b.w + b.e) / 2], Math.max(t, z + 1.5), { duration: .5 }); },
+      map.flyTo([(b.s + b.n) / 2, (b.w + b.e) / 2], Math.max(t, z + 1.5), { duration: motionOk() ? .5 : 0 }); },
     me(lat, lon) { if (meMk) meMk.setLatLng([lat, lon]); else meMk = L.marker([lat, lon], { icon: L.divIcon({ className: "mkicon", iconSize: [0, 0], html: '<div class="me-dot"></div>' }), interactive: false, zIndexOffset: 2000 }).addTo(map); }
   };
 }
-// Google Maps in the same look as the Leaflet map: muted light or dark style, no Google buttons, time pills as markers.
-const GM_LIGHT = [{ featureType: "poi", stylers: [{ visibility: "off" }] }, { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { elementType: "geometry", stylers: [{ saturation: -60 }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9d6e6" }] }, { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f1ece1" }] }];
-const GM_DARK = [{ featureType: "poi", stylers: [{ visibility: "off" }] }, { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { elementType: "geometry", stylers: [{ color: "#1b1814" }] }, { elementType: "labels.text.fill", stylers: [{ color: "#948a79" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#14120f" }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a251f" }] },
-  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] }, { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#332d26" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#1a2230" }] }, { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#4a4339" }] }];
-const pillSVG = (fill, ink, ring, label, sel) => {
-  const w = Math.max(40, 12 + label.length * 7.4), h = 24, W = w + 8, H = h + 8;
-  return { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-    ${sel ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="${H / 2 - 1}" fill="none" stroke="#c9971c" stroke-width="3"/>` : ""}
-    <rect x="4" y="4" width="${w}" height="${h}" rx="${h / 2}" fill="${fill}" stroke="${ring}" stroke-width="2"/>
-    <text x="${W / 2}" y="${H / 2 + 4}" text-anchor="middle" font-family="'Source Sans 3',system-ui,sans-serif" font-size="11" font-weight="600" fill="${ink}">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text></svg>`), w: W, h: H };
+// Google Maps in the same grey as the Leaflet map, no Google buttons, the same black labels as markers.
+const GM_LIGHT = [{ stylers: [{ saturation: -100 }] }, { featureType: "poi", stylers: [{ visibility: "off" }] }, { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "landscape", elementType: "geometry", stylers: [{ lightness: 45 }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] }, { featureType: "water", elementType: "geometry", stylers: [{ color: "#dcdcdc" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#6b6b6b" }] }];
+const GM_DARK = [{ stylers: [{ saturation: -100 }] }, { featureType: "poi", stylers: [{ visibility: "off" }] }, { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { elementType: "geometry", stylers: [{ color: "#1a1a1a" }] }, { elementType: "labels.text.fill", stylers: [{ color: "#8c8c8c" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0e0e0e" }] }, { featureType: "road", elementType: "geometry", stylers: [{ color: "#2c2c2c" }] },
+  { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] }, { featureType: "water", elementType: "geometry", stylers: [{ color: "#0b0b0b" }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#3a3a3a" }] }];
+const svgUrl = s => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(s);
+const xmlEsc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+// A label with a small pointer under it; the pointer's tip is the church.
+const pinSVG = (fill, ink, label, sel) => {
+  const w = Math.round(14 + label.length * 7.2), h = 24, W = w + 4, H = h + 8;
+  return { url: svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <path d="M2 ${2 + 6}a6 6 0 0 1 6-6h${w - 12}a6 6 0 0 1 6 6v${h - 12}a6 6 0 0 1-6 6h-${w / 2 - 11}l-5 5-5-5h-${w / 2 - 11}a6 6 0 0 1-6-6z" fill="${fill}" stroke="${sel ? ink : fill}" stroke-width="${sel ? 2 : 1}"/>
+    <text x="${W / 2}" y="${2 + h / 2 + 4.5}" text-anchor="middle" font-family="${FONT}" font-size="13" font-weight="600" fill="${ink}">${xmlEsc(label)}</text></svg>`), w: W, h: H };
 };
-const cluSVG = (fill, ink, ring, label, d) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}" viewBox="0 0 ${d} ${d}">
-  <circle cx="${d / 2}" cy="${d / 2}" r="${d / 2 - 1}" fill="${fill}" opacity=".28"/><circle cx="${d / 2}" cy="${d / 2}" r="${d / 2 - 4}" fill="${fill}" stroke="${ring}" stroke-width="2"/>
-  <text x="${d / 2}" y="${d / 2 + 4.5}" text-anchor="middle" font-family="'Source Sans 3',system-ui,sans-serif" font-size="${d > 50 ? 13 : 12}" font-weight="700" fill="${ink}">${label}</text></svg>`);
-const dotSVG = (fill, ring, sel) => "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">${sel ? '<circle cx="10" cy="10" r="9" fill="none" stroke="#c9971c" stroke-width="3"/>' : ""}<circle cx="10" cy="10" r="6" fill="${fill}" stroke="${ring}" stroke-width="2"/></svg>`);
+const cluSVG = (fill, ink, ring, label, d) => svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}" viewBox="0 0 ${d} ${d}">
+  <circle cx="${d / 2}" cy="${d / 2}" r="${d / 2 - 1.5}" fill="${fill}" stroke="${ring}" stroke-width="1.5"/>
+  <text x="${d / 2}" y="${d / 2 + 4.5}" text-anchor="middle" font-family="${FONT}" font-size="13" font-weight="600" fill="${ink}">${label}</text></svg>`);
+const dotSVG = (fill, ring, r) => svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="${r}" fill="${fill}" stroke="${ring}" stroke-width="2"/></svg>`);
 function googleView() {
   let gmap = null, pendingFocus = null, draw = null, meMk = null, moved = false;
   const dark = window.matchMedia("(prefers-color-scheme: dark)");
-  const pal = () => ({ mass: [css("--accent"), css("--on-accent")], conf: [css("--penance"), css("--on-penance")], none: [css("--mk-none-bg"), css("--mk-none-ink")], ring: css("--surface"), border: css("--border") });
+  const pal = () => ({ ink: css("--ink"), bg: css("--bg"), red: css("--red"), grey: css("--ink-3") });
   let colors = null, iconCache = {};
   const icon = p => {
-    const k = p.cls + p.label + p.dot + p.sel + (p.n || ""); if (iconCache[k]) return iconCache[k];
-    const [fill, ink] = colors[p.cls], ring = p.cls === "none" ? colors.border : colors.ring;
-    if (p.n) { const d = clusterSize(p.n) + 6; return iconCache[k] = { url: cluSVG(fill, ink, colors.ring, p.n.toLocaleString("hu-HU"), d), scaledSize: new google.maps.Size(d, d), anchor: new google.maps.Point(d / 2, d / 2) }; }
-    if (p.dot) return iconCache[k] = { url: dotSVG(p.cls === "none" ? colors.border : fill, colors.ring, p.sel), scaledSize: new google.maps.Size(20, 20), anchor: new google.maps.Point(10, 10) };
-    const sv = pillSVG(fill, ink, ring, p.label, p.sel);
-    return iconCache[k] = { url: sv.url, scaledSize: new google.maps.Size(sv.w, sv.h), anchor: new google.maps.Point(sv.w / 2, sv.h / 2) };
+    const cls = mkClass(p), k = cls + p.label + p.dot + p.sel + (p.n || ""); if (iconCache[k]) return iconCache[k];
+    if (p.n) { const d = clusterSize(p.n); return iconCache[k] = { url: cluSVG(colors.ink, colors.bg, colors.bg, p.n.toLocaleString("hu-HU"), d), scaledSize: new google.maps.Size(d, d), anchor: new google.maps.Point(d / 2, d / 2) }; }
+    const fill = cls === "next" ? colors.red : cls === "none" ? colors.grey : colors.ink;
+    if (p.dot || cls === "none") return iconCache[k] = { url: dotSVG(fill, colors.bg, cls === "none" ? 4.5 : p.sel ? 7 : 6), scaledSize: new google.maps.Size(20, 20), anchor: new google.maps.Point(10, 10) };
+    const sv = pinSVG(fill, colors.bg, p.label, p.sel);
+    return iconCache[k] = { url: sv.url, scaledSize: new google.maps.Size(sv.w, sv.h), anchor: new google.maps.Point(sv.w / 2, sv.h - 1) };
   };
   window.__initGoogle = () => {
     colors = pal();
@@ -915,14 +1035,14 @@ function googleView() {
       gestureHandling: "greedy", clickableIcons: false, backgroundColor: css("--land"), styles: dark.matches ? GM_DARK : GM_LIGHT,
       restriction: { latLngBounds: { north: PAN_BOUNDS.n, south: PAN_BOUNDS.s, west: PAN_BOUNDS.w, east: PAN_BOUNDS.e } } });
     // Fit twice: on the first call the map has no size yet and its pan limit keeps it centred; once it has
-    // drawn, the padding can shift Hungary out from under the side panel.
+    // drawn, the padding can shift Hungary out from under the search field and the bottom panel.
     const fitHU = () => gmap.fitBounds({ north: HU_BOUNDS.n, south: HU_BOUNDS.s, west: HU_BOUNDS.w, east: HU_BOUNDS.e }, fitPadding());
     fitHU(); google.maps.event.addListenerOnce(gmap, "idle", () => { if (!pendingFocus && !moved) fitHU(); });
     dark.addEventListener?.("change", () => { gmap.setOptions({ styles: dark.matches ? GM_DARK : GM_LIGHT }); colors = pal(); iconCache = {}; queueMarkers(); });
     draw = makeDiffer(
       p => { const mk = new google.maps.Marker({ position: { lat: p.lat, lng: p.lon }, title: p.n ? `${p.n} templom – nagyíts rá` : p.c.name, optimized: true });
-        mk.addListener("click", () => p.n ? openCluster(p) : select(p.c.id)); return mk; },
-      (mk, p) => { mk.setIcon(icon(p)); mk.setZIndex(p.sel ? 1000 : p.n ? 500 + Math.min(p.n, 400) : Math.round(p.c.score) + (p.cls === "none" ? 0 : 200)); },
+        mk.addListener("click", () => p.n ? openCluster(p) : tapChurch(p.c.id)); return mk; },
+      (mk, p) => { mk.setIcon(icon(p)); mk.setZIndex(zIndexOf(p)); },
       arr => arr.forEach(m => m.setMap(gmap)),
       arr => arr.forEach(m => m.setMap(null)));
     gmap.addListener("idle", () => queueMarkers());
@@ -946,7 +1066,7 @@ function googleView() {
       gmap.fitBounds({ north: b.n, south: b.s, east: b.e, west: b.w }, 60);
       google.maps.event.addListenerOnce(gmap, "idle", () => { if (gmap.getZoom() <= z) gmap.setZoom(z + 1); else if (gmap.getZoom() > 17) gmap.setZoom(17); }); },
     me(lat, lon) { if (!gmap) return; const pos = { lat, lng: lon }; if (meMk) meMk.setPosition(pos); else meMk = new google.maps.Marker({ position: pos, map: gmap, clickable: false, zIndex: 2000,
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: colors.mass[0], fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 } }); }
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: "#1a73e8", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 } }); }
   };
   return api;
 }
@@ -955,26 +1075,31 @@ if (!MAPS_KEY && typeof L === "undefined") Offline.mapFailed();
 
 let mapRows = [], markerJob = null;
 function drawMarkers(rows) { mapRows = rows; queueMarkers(); }
-// Deferred so the list paints first; only the latest request runs.
+// Deferred so the column paints first; only the latest request runs.
 function queueMarkers() {
   if (markerJob) (window.cancelIdleCallback || clearTimeout)(markerJob);
   markerJob = window.requestIdleCallback ? requestIdleCallback(updateMarkers, { timeout: 250 }) : setTimeout(updateMarkers, 50);
 }
+// The selected church's label also names it: "18:00 Mátyás-templom".
+const shortName = n => n.length > 22 ? n.slice(0, 21).trimEnd() + "…" : n;
 function updateMarkers() {
   markerJob = null;
   if (!MapView.ready()) return;
-  const v = MapView.view(), inView = [];
+  const v = MapView.view(), inView = [], selId = S.sel || S.pick, nid = isToday() ? nextId() : null;
   for (const r of mapRows) { const c = r.c; if (c.lat >= v.s && c.lat <= v.n && c.lon >= v.w && c.lon <= v.e) inView.push(r); }
-  // Zoomed in: a pill with the next time; zoomed out: a coloured dot.
   const dot = v.zoom < LABEL_ZOOM;
-  const one = (r, sel) => { const n = nextOf(r.di); return { key: r.c.id, c: r.c, lat: r.c.lat, lon: r.c.lon, cls: n.cls, label: n.t, dot, sel }; };
+  // The next church (the one Most shows) is labelled with that Mass: "18:00 Mátyás-templom", in red.
+  const hero = nid ? nearby().hero : null;
+  const one = (r, sel) => { const isNext = r.c.id === nid, n = isNext ? { t: showT(hero.i.t), k: hero.i.k, cls: "mass" } : nextOf(r.di);
+    return { key: r.c.id, c: r.c, lat: r.c.lat, lon: r.c.lon, cls: n.cls, label: (sel || isNext) && n.k ? n.t + " " + shortName(r.c.name) : n.t, dot: dot && !sel && !isNext, sel, next: isNext && !!n.k }; };
   const list = [];
-  if (v.zoom >= SHOW_ALL_ZOOM) for (const r of inView) list.push(one(r, S.sel === r.c.id));
+  if (v.zoom >= SHOW_ALL_ZOOM) for (const r of inView) list.push(one(r, selId === r.c.id));
   else {
     // Grid clustering in screen pixels: churches in the same CLUSTER_PX cell become one numbered marker.
+    // The selected and the next church always keep their own marker.
     const cells = new Map(), z = v.zoom;
     for (const r of inView) {
-      if (S.sel === r.c.id) continue;
+      if (selId === r.c.id || nid === r.c.id) { list.push(one(r, selId === r.c.id)); continue; }
       const [x, y] = worldPx(r.c.lat, r.c.lon, z), k = Math.floor(x / CLUSTER_PX) + ":" + Math.floor(y / CLUSTER_PX);
       const g = cells.get(k); if (g) g.push(r); else cells.set(k, [r]);
     }
@@ -989,31 +1114,37 @@ function updateMarkers() {
     }
     for (const { k, g } of kept) {
       if (g.length === 1) { list.push(one(g[0], false)); continue; }
-      let la = 0, lo = 0, s = 90, w = 180, n = -90, e = -180, mass = false, conf = false;
-      for (const r of g) { const c = r.c; la += c.lat; lo += c.lon; s = Math.min(s, c.lat); n = Math.max(n, c.lat); w = Math.min(w, c.lon); e = Math.max(e, c.lon);
-        const nx = nextOf(r.di).cls; if (nx === "mass") mass = true; else if (nx === "conf") conf = true; }
-      // Colour: a Mass still to come in the group → accent; only confession → violet; otherwise neutral.
-      list.push({ key: `g${z}:${k}`, n: g.length, lat: la / g.length, lon: lo / g.length, b: { s, w, n, e }, cls: mass ? "mass" : conf ? "conf" : "none", label: "", dot: false, sel: false });
+      let la = 0, lo = 0, s = 90, w = 180, n = -90, e = -180;
+      for (const r of g) { const c = r.c; la += c.lat; lo += c.lon; s = Math.min(s, c.lat); n = Math.max(n, c.lat); w = Math.min(w, c.lon); e = Math.max(e, c.lon); }
+      list.push({ key: `g${z}:${k}`, n: g.length, lat: la / g.length, lon: lo / g.length, b: { s, w, n, e }, cls: "on", label: "", dot: false, sel: false, next: false });
     }
   }
-  if (S.sel && !list.some(p => p.sel)) { const c = BY_ID.get(S.sel); if (c) { const n = nextOf(dayInfoCached(c, dayContext(selDate()))); list.push({ key: c.id, c, lat: c.lat, lon: c.lon, cls: n.cls, label: n.t, dot, sel: true }); } }
+  if (selId && !list.some(p => p.sel)) { const c = BY_ID.get(selId); if (c) list.push(one({ c, di: dayInfoCached(c, dayContext(selDate())) }, true)); }
   MapView.draw(list);
-  const hint = $("#maphint"); if (hint) hint.hidden = true;
-}
-function select(id) {
-  S.sel = id;
-  const c = BY_ID.get(id);
-  if (c && LIVE) Track.once("view", id);
-  if (c) MapView.focus(c.lat, c.lon, 15);
-  withTransition(render, "open");
-  if (S.sheet === "closed" || isDesktop()) setSheet(isDesktop() ? "full" : "peek");
 }
 
 /* ---------- Boot ---------- */
-function render() { renderChips(); S.sel ? renderDetail() : S.tab === "saved" ? renderSaved() : renderList(); }
+// The column remembers where each list was scrolled; a church page opens at its top.
+let lastKey = null; const scrollMem = {};
+function render() {
+  setView();
+  const key = S.sel ? "c" + S.sel : S.tab, top = col.scrollTop;
+  const rows = S.loading || S.error ? [] : filtered();
+  if (S.sel) renderDetail(); else if (S.tab === "saved") renderSaved(); else if (S.tab === "map") renderMapList(rows); else renderMost();
+  renderMapCard(); renderSearch();
+  $("#map-search-text").textContent = S.q.trim() || "Templom vagy település";
+  drawMarkers(rows);
+  if (key !== lastKey) { if (lastKey) scrollMem[lastKey] = top; col.scrollTop = S.sel ? 0 : scrollMem[key] || 0; lastKey = key; }
+  else col.scrollTop = top;
+}
 $("#notice").innerHTML = LIVE
   ? `<b>Fejlesztés alatt.</b> Az időpontokat a plébániák és a hívek töltik fel, így sok templomnál még hiányoznak. Indulás előtt ellenőrizd a plébánián. ${OSM_DATA_CREDIT}.`
   : `<b>Bemutató.</b> A templomok valósak, de a mise-, gyóntatási és nyitvatartási időpontok kitalált mintaadatok. Indulás előtt mindig ellenőrizd a plébánián.`;
+// The bottom panel's height, for the toasts and the offline note above it on the map.
+(function measure() {
+  const set = () => app.style.setProperty("--mapcard-h", Math.round($("#mapcard").offsetHeight) + "px");
+  set(); if (window.ResizeObserver) new ResizeObserver(set).observe($("#mapcard"));
+})();
 const typing = () => document.activeElement?.matches("input,textarea,select");
 function boot() {
   if (!LIVE) { setChurches(SAMPLE_CHURCHES.map(fromSample)); S.loading = false; render(); return; }
@@ -1039,5 +1170,5 @@ function boot() {
 // A link like ./#t=123 (e.g. from the parish page) opens that church once the data is there.
 let deepLink = +((location.hash.match(/t=(\d+)/) || [])[1] || 0);
 const openDeepLink = () => { if (deepLink && BY_ID.has(deepLink)) { const id = deepLink; deepLink = 0; select(id); } };
-setSheet(S.sheet); render(); boot(); openDeepLink();
-setInterval(() => { if (!S.loading && isToday() && !typing()) render(); }, 60000);
+render(); boot(); openDeepLink();
+setInterval(() => { if (!S.loading && !typing()) render(); }, 60000);

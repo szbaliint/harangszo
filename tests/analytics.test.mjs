@@ -27,7 +27,7 @@ async function open({ url = "/index.html?track=1", init, view = IPHONE } = {}) {
   const { calls } = await mockSupabase(page, { rpc: { public_data: () => CHURCHES, track: () => null } });
   await page.clock.setFixedTime(NOW);
   await page.goto(server.url + url);
-  await page.locator("#nearest .nx").first().waitFor({ timeout: 15000 });
+  await page.locator("#m-name").waitFor({ timeout: 15000 });
   // every event sent so far, flattened
   const events = async () => { await page.evaluate(() => window.Track.flush()); await page.waitForTimeout(150);
     return calls.filter(c => c.path === "/rest/v1/rpc/track").flatMap(c => c.body.p).map(x => x.e + (x.k ? ":" + x.k : "")); };
@@ -39,12 +39,13 @@ test("a visit, a church page and its actions are counted, with nothing that iden
   try {
     let ev = await t.events();
     for (const e of ["visit", "visitor", "new_visitor", "device:phone", "mode:browser"]) assert.ok(ev.includes(e), `${e} in ${ev}`);
-    await t.page.locator("#nearest .nx").first().click();
+    await t.page.locator("#m-week").click();
     await t.page.locator("h2.d-name").waitFor();
     await t.page.locator("#save-church").click();
     await t.page.locator("a.d-act", { hasText: "Útvonal" }).evaluate(a => { a.addEventListener("click", e => e.preventDefault()); a.click(); });
     // the same church again is still one view
-    await t.page.locator("#back").click(); await t.page.locator("#nearest .nx, .lcard").first().waitFor();
+    await t.page.locator("#back").click(); await t.page.locator("#m-name").waitFor();
+    await t.page.locator("#m-week").click(); await t.page.locator("h2.d-name").waitFor();
     ev = await t.events();
     assert.equal(ev.filter(e => e === "view:101").length, 1, String(ev));
     assert.ok(ev.includes("save:101") && ev.includes("dir:101"), String(ev));
@@ -60,12 +61,12 @@ test("a reload in the same tab is not a new visit; the next day counts the visit
   const t = await open();
   try {
     await t.events();
-    await t.page.reload(); await t.page.locator("#nearest .nx").first().waitFor();
+    await t.page.reload(); await t.page.locator("#m-name").waitFor();
     let ev = await t.events();
     assert.equal(ev.filter(e => e === "visit").length, 1, String(ev));
     // a new tab session on the next day
     await t.page.evaluate(() => { sessionStorage.clear(); localStorage.setItem("harangszo.seen", "2026-11-08"); });
-    await t.page.reload(); await t.page.locator("#nearest .nx").first().waitFor();
+    await t.page.reload(); await t.page.locator("#m-name").waitFor();
     ev = await t.events();
     assert.equal(ev.filter(e => e === "visit").length, 2); assert.equal(ev.filter(e => e === "visitor").length, 2);
     assert.equal(ev.filter(e => e === "new_visitor").length, 1, String(ev));
@@ -75,15 +76,19 @@ test("a reload in the same tab is not a new visit; the next day counts the visit
 test("filters, tabs and searches are counted; a search with no result is kept apart", async () => {
   const t = await open();
   try {
-    await t.page.locator('#chips [data-f="conf"]').click();
-    await t.page.locator('#chips [data-f="conf"]').click(); // switching it off is not counted
-    await t.page.locator('.ui-tab[data-tab="list"]').click();
+    await t.page.locator("#m-search").click(); // the search panel is the list
+    await t.page.locator('#s-filters [data-kind="conf"]').click();
+    await t.page.locator('#s-filters [data-kind=""]').click(); // switching it off is not counted
+    await t.page.locator("#search-done").click();
+    await t.page.locator('.tab[data-tab="saved"]').click();
+    await t.page.locator('.tab[data-tab="most"]').click(); // home: not counted (track() only knows map, list, saved)
+    await t.page.locator("#m-search").click();
     await t.page.fill("#q", "Ferences"); await t.page.waitForTimeout(2300);
     await t.page.fill("#q", "Nincsilyen Templom"); await t.page.waitForTimeout(2300);
     await t.page.fill("#q", "ab"); await t.page.waitForTimeout(2300); // too short
     const ev = await t.events();
     assert.equal(ev.filter(e => e === "filter:conf").length, 1, String(ev));
-    assert.ok(ev.includes("tab:list") && ev.includes("search:ferences") && ev.includes("search_none:nincsilyen templom"), String(ev));
+    assert.ok(ev.includes("tab:list") && ev.includes("tab:saved") && !ev.some(e => e === "tab:most") && ev.includes("search:ferences") && ev.includes("search_none:nincsilyen templom"), String(ev));
     assert.ok(!ev.some(e => e.endsWith(":ab")), String(ev));
   } finally { await t.close(); }
 });
@@ -96,7 +101,7 @@ for (const [name, init, url] of [
 ]) test(`nothing is sent with ${name}`, async () => {
   const t = await open({ init, url });
   try {
-    await t.page.locator("#nearest .nx").first().click(); await t.page.locator("h2.d-name").waitFor();
+    await t.page.locator("#m-week").click(); await t.page.locator("h2.d-name").waitFor();
     assert.deepEqual(await t.events(), []);
     assert.equal(await t.page.evaluate(() => window.Track.off), true);
   } finally { await t.close(); }

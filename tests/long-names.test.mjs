@@ -1,4 +1,4 @@
-// Task 8 (Review Focus 1): a very long church name wraps in every view — map list card, Legközelebb row, detail
+// Task 8 (Review Focus 1): a very long church name wraps in every view — Most, a search result row, the church page
 // header, parish portal header, admin list and admin header — at 360px and 1440px, without overflowing its box
 // or covering a button in the same header.
 import { test, before, after } from "node:test";
@@ -60,29 +60,28 @@ async function openMap(view) {
     const body = (await res.text()).replace(`name:"Nagyboldogasszony-templom (Mátyás-templom)"`, `name:${JSON.stringify(LONG)}`);
     await route.fulfill({ response: res, body });
   });
+  await page.route(/commons\.wikimedia\.org/, r => r.abort());
   await page.goto(`${server.url}/index.html`);
-  await page.waitForSelector("#nearest .nh");
+  await page.waitForSelector("#m-name");
   return { page, errors, close: () => ctx.close() };
 }
 
 for (const view of Object.keys(VIEWS)) {
-  test(`map: Legközelebb, list card and detail (${view})`, async () => {
+  test(`map: Most, a result row and the church page (${view})`, async () => {
     const { page, errors, close } = await openMap(view);
     try {
-      // Legközelebb: wraps to at most two lines (clamped with an ellipsis), clear of the time badge.
-      const nx = await check(page, "#nearest .nx:first-of-type strong", "#nearest .nx:first-of-type .tt", "Legközelebb");
-      const lines = Math.round(nx.h / nx.lh);
-      assert.ok(lines >= 2, `Legközelebb: the name wraps instead of cutting off on one line (${lines} line)`);
-      assert.ok(lines <= 2, `Legközelebb: clamped to two lines (${lines})`);
-      await shot(page, `nearest-${view}`);
-      if (view === "360") { await page.click('.ui-tab[data-tab="list"]'); await page.waitForTimeout(400); }
-      await page.locator('#panel .lcard[data-id="2"]').waitFor();
-      await check(page, '#panel .lcard[data-id="2"] .lc-name', '#panel .lcard[data-id="2"] .lc-dist', "list card");
+      // Most: the long name (the nearest church with a Mass to come) wraps, clear of the time and the buttons.
+      const m = await check(page, "#m-name", "#m-when, #m-when *, .most .acts, .most .acts > *, .most .top-plain button", "Most");
+      assert.ok(Math.round(m.h / m.lh) >= 2, "Most: the name wraps instead of cutting off");
+      await shot(page, `most-${view}`);
+      await page.click("#m-search");
+      await page.locator('#s-results .row[data-id="2"]').waitFor();
+      await check(page, '#s-results .row[data-id="2"] .r-name', '#s-results .row[data-id="2"] .r-d, #s-results .row[data-id="2"] .r-t', "result row");
       await shot(page, `list-${view}`);
-      await page.click('#panel .lcard[data-id="2"]');
+      await page.click('#s-results .row[data-id="2"]');
       await page.waitForSelector('.detail[data-id="2"]');
-      await page.waitForTimeout(400); // the panel's slide-in
-      await check(page, "h2.d-name", ".d-bar button, .d-actions, .d-actions a, .d-actions button", "detail");
+      await page.waitForTimeout(400); // the page's slide-in
+      await check(page, "h2.d-name", ".d-bar button, .d-actions, .d-actions a, .d-actions button, #d-next, #d-next *", "detail");
       await shot(page, `detail-${view}`);
       assert.deepEqual(errors, []);
     } finally { await close(); }
