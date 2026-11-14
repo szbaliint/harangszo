@@ -71,7 +71,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/010_parish_portal.sql` | parish portal: access requests and approval, editors list, edit history, admin-only fields protected, parish edits locked and stamped |
 | `supabase/migrations/011_analytics.sql` | anonymous usage statistics: daily counters, `track()` for the map, `analytics_report()` for the admin's Statisztika page |
 | `supabase/migrations/012_retention.sql` | deletes statistics older than 2 years and suggestions decided over a year ago, as the privacy notice promises |
-| `supabase/migrations/013_photos.sql` | church photos: Wikimedia Commons photos from the photo import, or the parish's own upload (`church-photos` storage bucket, `set_church_photo()`); `public_data()` returns `photo_url` and `photo_credit` |
+| `supabase/migrations/013_photos.sql` | church photos: Wikimedia Commons photos from the photo import, or the parish's own upload (`church-photos` storage bucket, `set_church_photo()`); `public_data()` returns `photo_url`, `photo_credit` and `photo_page` |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 

@@ -101,8 +101,9 @@ await ok("has photo_url and photo_credit where set, nothing where not", async ()
   const c2 = data.find(c => c.id === 2), c1 = data.find(c => c.id === 1);
   assert.equal(c2.photo_url, COMMONS);
   assert.equal(c2.photo_credit, "Fotó: Valaki · CC BY-SA 4.0 · Wikimedia Commons");
-  assert.equal(c2.photo_page, undefined); assert.equal(c2.photo_source, undefined);
-  assert.ok(!("photo_url" in c1) && !("photo_credit" in c1));
+  assert.equal(c2.photo_page, "https://commons.wikimedia.org/wiki/File:X.jpg"); assert.equal(c2.photo_source, undefined);
+  assert.equal(c2.photo_checked_at, undefined);
+  assert.ok(!("photo_url" in c1) && !("photo_credit" in c1) && !("photo_page" in c1));
   assert.deepEqual(Object.keys(c1).sort(), ["address", "city", "id", "imp", "lat", "lon", "name", "rite"]);
 });
 
@@ -124,6 +125,8 @@ await ok("parish can set its own uploaded photo; credit and page are fixed", asy
   await parish(() => q(`update public.churches set photo_url = $1, photo_source = 'parish', photo_credit = 'Fotó: bárki', photo_page = 'https://x' where id = 1`, [PREFIX + "1/front.jpg"]));
   const r = await row(1);
   assert.deepEqual([r.photo_url, r.photo_source, r.photo_credit, r.photo_page], [PREFIX + "1/front.jpg", "parish", "Fotó: a plébánia", null]);
+  const c1 = (await as("anon", "", () => q("select public.public_data() d")))[0].d.find(c => c.id === 1);
+  assert.deepEqual([c1.photo_url, c1.photo_credit, "photo_page" in c1], [PREFIX + "1/front.jpg", "Fotó: a plébánia", false]);
 });
 await ok("parish cannot relabel its photo as Commons", async () => {
   await parish(() => q(`update public.churches set photo_source = 'commons' where id = 1`));

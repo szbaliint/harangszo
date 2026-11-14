@@ -409,7 +409,7 @@ language sql stable security invoker set search_path = public as $$
     'schedule_note', c.schedule_note, 'schedule_source', c.schedule_source, 'schedule_source_url', c.schedule_source_url,
     'schedule_updated', c.schedule_updated, 'parish_updated', c.parish_updated_at::date,
     'location_approx', nullif(c.location_approx, false), 'feast_sunday', nullif(c.feast_sunday, '{}'),
-    'photo_url', c.photo_url, 'photo_credit', c.photo_credit,
+    'photo_url', c.photo_url, 'photo_credit', c.photo_credit, 'photo_page', c.photo_page,
     'hours', (select jsonb_agg(jsonb_build_object('days', h.days, 'opens', to_char(h.opens,'HH24:MI'), 'closes', to_char(h.closes,'HH24:MI')))
               from opening_hours h where h.church_id = c.id),
     'services', (select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('kind', s.kind, 'days', s.days, 'start', to_char(s.start_time,'HH24:MI'),
