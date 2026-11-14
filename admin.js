@@ -959,7 +959,7 @@ async function renderStats() {
         ${stRows(r.searches_none.slice(0, 15), x => esc(x.q), x => +x.n)}</section>
       <section class="st-box"><h2>Használat</h2>
         <h3>Eszköz</h3>${split("device", { phone: "Telefon", tablet: "Táblagép", desktop: "Számítógép" })}
-        <h3>Nézet</h3>${split("tab", { map: "Térkép", list: "Lista", saved: "Mentett" })}
+        <h3>Nézet</h3>${split("tab", { most: "Most", map: "Térkép", saved: "Mentett", list: "Lista, keresés" })}
         <h3>Szűrők</h3>${split("filter", { mass: "Mise", conf: "Gyóntatás", open: "Most nyitva", ev: "Esemény a héten", rorate: "Rorate", tag: "A mise jellege", day: "Másik nap", origin: "Másik hely" })}
         <p class="st-note">Saját helyzet használata: ${nf(t["locate:"])} · beküldött javítás: ${nf(r.suggestions?.received)} (döntésre vár: ${nf(r.suggestions?.pending)}) · betöltési hiba: ${nf((+t["error:data"] || 0) + (+t["error:map"] || 0))}</p></section>
       <section class="st-box"><h2>Plébániák</h2>

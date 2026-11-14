@@ -748,7 +748,7 @@ begin
       k := '';
     elsif e = 'device' then continue when k not in ('phone', 'tablet', 'desktop');
     elsif e = 'mode'   then continue when k not in ('app', 'browser');
-    elsif e = 'tab'    then continue when k not in ('map', 'list', 'saved');
+    elsif e = 'tab'    then continue when k not in ('most', 'map', 'list', 'saved');
     elsif e = 'filter' then continue when k not in ('mass', 'conf', 'open', 'ev', 'rorate', 'tag', 'day', 'origin');
     elsif e = 'error'  then continue when k not in ('data', 'map');
     elsif e in ('view', 'dir', 'call', 'web', 'save', 'share', 'suggest') then

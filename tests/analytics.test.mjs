@@ -81,16 +81,30 @@ test("filters, tabs and searches are counted; a search with no result is kept ap
     await t.page.locator('#s-filters [data-kind=""]').click(); // switching it off is not counted
     await t.page.locator("#search-done").click();
     await t.page.locator('.tab[data-tab="saved"]').click();
-    await t.page.locator('.tab[data-tab="most"]').click(); // home: not counted (track() only knows map, list, saved)
+    await t.page.locator('.tab[data-tab="most"]').click(); // back home: counted (migration 014)
     await t.page.locator("#m-search").click();
     await t.page.fill("#q", "Ferences"); await t.page.waitForTimeout(2300);
     await t.page.fill("#q", "Nincsilyen Templom"); await t.page.waitForTimeout(2300);
     await t.page.fill("#q", "ab"); await t.page.waitForTimeout(2300); // too short
     const ev = await t.events();
     assert.equal(ev.filter(e => e === "filter:conf").length, 1, String(ev));
-    assert.ok(ev.includes("tab:list") && ev.includes("tab:saved") && !ev.some(e => e === "tab:most") && ev.includes("search:ferences") && ev.includes("search_none:nincsilyen templom"), String(ev));
+    assert.ok(ev.includes("tab:list") && ev.includes("tab:saved") && ev.includes("tab:most") && ev.includes("search:ferences") && ev.includes("search_none:nincsilyen templom"), String(ev));
+    assert.equal(ev.filter(e => e === "tab:most").length, 1, "opening the app on Most is not counted, coming back is");
     assert.ok(!ev.some(e => e.endsWith(":ab")), String(ev));
   } finally { await t.close(); }
+});
+
+test("every tab and filter key the map sends is one track() accepts (schema.sql)", () => {
+  const sql = readFileSync(new URL("../supabase/schema.sql", import.meta.url), "utf8");
+  const allowed = ev => (new RegExp(`elsif e = '${ev}'\\s+then continue when k not in \\(([^)]*)\\)`).exec(sql)?.[1] || "").match(/'[^']+'/g).map(x => x.slice(1, -1));
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8"), app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+  const tabs = [...html.matchAll(/class="tab"[^>]*data-tab="(\w+)"/g)].map(m => m[1]);
+  assert.deepEqual(tabs, ["most", "map", "saved"]);
+  for (const k of [...tabs, "list"]) assert.ok(allowed("tab").includes(k), `tab:${k}`);
+  for (const k of ["mass", "conf", "open", "ev", "rorate", "tag", "day", "origin"]) assert.ok(allowed("filter").includes(k), `filter:${k}`);
+  assert.match(app, /Track\.ev\("tab", "list"\)/);
+  const mig = readFileSync(new URL("../supabase/migrations/014_track_most.sql", import.meta.url), "utf8");
+  assert.match(mig, /k not in \('most', 'map', 'list', 'saved'\)/);
 });
 
 for (const [name, init, url] of [

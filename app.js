@@ -392,7 +392,7 @@ function openTab(tab) {
   if (S.search) closeSearch(false);
   if (tab === S.tab && !S.sel) { col.scrollTo({ top: 0, behavior: motionOk() ? "smooth" : "auto" }); return; }
   S.tab = tab; S.sel = null; S.pick = null; S.weekOpen = false;
-  if (tab !== "most") Track.ev("tab", tab);
+  Track.ev("tab", tab); // a switch back to Most counts too (track() knows it from migration 014); opening on Most does not
   withTransition(render, "tab");
 }
 // Tabs answer on pointer-down, like a native tab bar; the click that follows is ignored (keyboard clicks still work).
