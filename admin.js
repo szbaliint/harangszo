@@ -22,7 +22,7 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SEARCH_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`;
 
 if (!real(CFG.supabaseUrl) || !real(CFG.supabaseAnonKey) || !window.supabase) {
-  main.innerHTML = `<div class="ui-card ad-narrow"><h1 class="ad-ptitle">Még nincs beállítva</h1><p>Az adatbázis (Supabase) adatai hiányoznak a <code>config.js</code> fájlból. Add meg a <code>SUPABASE_URL</code> és <code>SUPABASE_PUBLISHABLE_KEY</code> titkokat a GitHub-tárolóban, majd futtasd újra a közzétételt. Lépések: README.</p></div>`;
+  main.innerHTML = `<div class="ad-narrow"><h1 class="ad-ptitle">Még nincs beállítva</h1><p>Az adatbázis (Supabase) adatai hiányoznak a <code>config.js</code> fájlból. Add meg a <code>SUPABASE_URL</code> és <code>SUPABASE_PUBLISHABLE_KEY</code> titkokat a GitHub-tárolóban, majd futtasd újra a közzétételt. Lépések: README.</p></div>`;
   throw new Error("not configured");
 }
 const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
@@ -57,7 +57,7 @@ function toast(text) {
 function showShell(on) { rail.hidden = !on; listCol.hidden = !on; if (!on) { app.dataset.page = "login"; syncBar(); } }
 function renderLogin(msg = "") {
   unmountEditor(); showShell(false); $("#who").innerHTML = "";
-  main.innerHTML = `<form class="ui-card ad-narrow" id="login">
+  main.innerHTML = `<form class="ad-narrow" id="login">
     <h1 class="ad-ptitle">Belépés</h1>
     <label class="ui-field" for="em"><span>E-mail</span><input id="em" type="email" autocomplete="username" required></label>
     <label class="ui-field" for="pw"><span>Jelszó</span><input id="pw" type="password" autocomplete="current-password" required></label>
@@ -79,7 +79,7 @@ async function afterLogin(user) {
   $("#who").innerHTML = who;
   if (!staff) {
     showShell(false);
-    main.innerHTML = `<div class="ui-card ad-narrow wide"><h1 class="ad-ptitle">Nincs szerkesztői jogod</h1>
+    main.innerHTML = `<div class="ad-narrow wide"><h1 class="ad-ptitle">Nincs szerkesztői jogod</h1>
       <p>Be vagy jelentkezve, de a fiókod még nincs felvéve szerkesztőnek. Kérd meg az adminisztrátort, hogy vegyen fel.</p>
       <p class="ad-muted">Ha te vagy az első adminisztrátor, futtasd ezt a Supabase SQL Editorban:</p>
       <code class="snip">insert into public.staff (user_id, role, display_name)\nvalues ('${esc(user.id)}', 'admin', '${esc(user.email)}');</code>
@@ -88,7 +88,7 @@ async function afterLogin(user) {
   }
   if (staff.role === "parish") {
     showShell(false);
-    main.innerHTML = `<div class="ui-card ad-narrow"><h1 class="ad-ptitle">A plébániák felülete máshol van</h1>
+    main.innerHTML = `<div class="ad-narrow"><h1 class="ad-ptitle">A plébániák felülete máshol van</h1>
       <p>A templomod miserendjét a plébániáknak készült, egyszerűbb oldalon szerkesztheted.</p>
       <a class="ui-btn primary" href="plebania.html">Tovább a plébániai felületre</a><p class="ad-me">${who}</p></div>`;
     return;
@@ -295,7 +295,7 @@ async function openChurch(id) {
   main.innerHTML = `<p class="ad-loading">Betöltés…</p>`; main.scrollTop = 0;
   const { data, error } = await sb.from("churches").select("*, opening_hours(*), services!services_church_id_fkey(*), events(*)").eq("id", id).single();
   if (A.sel !== id) return;
-  if (error) { main.innerHTML = `<div class="ad-page"><p class="ui-card ad-msg err">Nem sikerült megnyitni: ${esc(error.message)}</p></div>`; return; }
+  if (error) { main.innerHTML = `<div class="ad-page"><p class="ad-msg err">Nem sikerült megnyitni: ${esc(error.message)}</p></div>`; return; }
   const byTime = (a, b) => String(a.start_time).localeCompare(String(b.start_time));
   const KORDER = { mass: 0, rorate: 1, confession: 2, adoration: 3 };
   // Feast schedules: Sunday-rule feasts from churches.feast_sunday, custom ones from services rows with a feast key.
@@ -408,7 +408,7 @@ function renderSched(box) {
 }
 function suggBoxHTML() {
   const s = A.meta?.sugg || [];
-  return `<section class="ui-card ad-box" id="side-sugg"><h2>Javaslat ehhez a templomhoz · ${s.length}</h2>
+  return `<section class="ad-box" id="side-sugg"><h2>Javaslat ehhez a templomhoz · ${s.length}</h2>
     ${s.length ? s.map(x => `<div class="ad-sg"><p>„${esc(x.text)}”</p><p class="m">${esc(TYPES[x.type] || x.type)} · ${esc(x.contact || "hívő")} · ${esc(ago(x.created_at))}</p>
       <div class="ad-two"><button type="button" class="ui-btn primary" data-sugg="approved" data-id="${x.id}">Átveszem</button><button type="button" class="ui-btn secondary" data-sugg="rejected" data-id="${x.id}">Elutasítom</button></div></div>`).join("")
       : `<p class="ad-muted">Nincs döntésre váró javaslat.</p>`}
@@ -418,7 +418,7 @@ function adminBoxHTML() {
   const c = A.draft, kv = (k, v) => `<div class="ad-kv"><span>${k}</span><span>${v}</span></div>`;
   const src = c.schedule_source, ref = c.source_ref;
   const osm = c.osm_type && c.osm_id ? `<a href="https://www.openstreetmap.org/${esc(c.osm_type)}/${esc(c.osm_id)}" target="_blank" rel="noopener">${esc(c.osm_type)}/${esc(c.osm_id)}</a>` : "";
-  return `<section class="ui-card ad-box" id="side-admin"><h2>Csak admin</h2>
+  return `<section class="ad-box" id="side-admin"><h2>Csak admin</h2>
     <div class="ad-kv"><span>Fontosság</span><label class="ui-field" for="f-imp" title="A térkép kicsinyítve csak a legfontosabb templomokat mutatja; ezzel előrébb vagy hátrébb sorolhatod ezt a templomot."><span hidden>Kiemelés a térképen</span><select id="f-imp" data-k="importance_manual">
       <option value="" ${c.importance_manual == null || c.importance_manual === "" ? "selected" : ""}>Automatikus${c.importance_auto != null ? " (" + c.importance_auto + ")" : ""}</option>
       ${[[100, "Kiemelt – mindig látszik"], [75, "Fontos"], [50, "Átlagos"], [20, "Háttérben"]].map(([v, t]) => `<option value="${v}" ${String(c.importance_manual) === String(v) ? "selected" : ""}>${t}</option>`).join("")}
@@ -437,7 +437,7 @@ function editorsBoxHTML() {
   const eds = A.meta?.editors || [], pend = (A.meta?.requests || []).filter(r => r.status === "pending");
   const rows = [...eds.map(e => `<div class="ad-kv"><span title="${esc(e.email || "")}">${esc(e.display_name || e.email || e.user_id)}</span>${tag("t-open", "jóváhagyva")}</div>`),
     ...pend.map(r => `<div class="ad-kv"><span title="${esc(r.email || "")}">${esc(r.name)}</span>${tag("t-conf", "jóváhagyásra vár")}</div>`)];
-  return `<section class="ui-card ad-box" id="side-editors"><h2>Szerkesztők</h2>
+  return `<section class="ad-box" id="side-editors"><h2>Szerkesztők</h2>
     ${rows.join("") || `<p class="ad-muted">Ehhez a templomhoz még nincs plébániai szerkesztő.</p>`}
     <a class="ui-btn quiet ad-link" href="plebania.html?templom=${A.draft.id}" target="_blank" rel="noopener">Megnyitás a plébániai felületen</a>
   </section>`;
@@ -460,7 +460,7 @@ function renderFeasts(box) {
   const now = new Date();
   const cards = keys.map(k => {
     const f = c.feasts[k], fe = window.LitCal.FEAST_BY_KEY[k], next = window.LitCal.nextFeastDate(k, now);
-    return `<div class="ui-card ad-card" role="group" aria-labelledby="fh-${k}">
+    return `<div class="ad-card" role="group" aria-labelledby="fh-${k}">
       <div class="ad-cardh"><div><h3 id="fh-${k}">${esc(fe.name)}</h3><span class="ad-when">${next.getFullYear()}. ${next.toLocaleDateString("hu-HU", { month: "long", day: "numeric", weekday: "long" })}</span></div>
         <button type="button" class="ui-btn danger" data-delfeast="${k}">Ünnep eltávolítása</button></div>
       <div class="ui-seg" role="group" aria-label="Rend: ${esc(fe.name)}">
@@ -480,7 +480,7 @@ function renderFeasts(box) {
   box.innerHTML = `<div class="ad-stack">
     <p class="ad-lead">Ünnepnapon az itt megadott rend lép a hétköznapi helyére. Ha egy ünnep nincs felvéve, aznap a szokásos miserend látszik. A „Parancsolt ünnepeken” és „Munkaszüneti napokon” egyszerre minden ilyen napra érvényes (ha nem vasárnapra esik); egy külön felvett ünnep ezeknél erősebb.</p>
     ${cards}
-    <div class="ui-card ad-card"><div class="ad-line"><label class="ui-field wide" for="add-feast"><span>Ünnep hozzáadása</span><select id="add-feast">${avail.map(f => `<option value="${f.key}">${esc(f.name)}</option>`).join("")}</select></label>
+    <div class="ad-card"><div class="ad-line"><label class="ui-field wide" for="add-feast"><span>Ünnep hozzáadása</span><select id="add-feast">${avail.map(f => `<option value="${f.key}">${esc(f.name)}</option>`).join("")}</select></label>
       <button type="button" class="ui-btn secondary" id="add-feast-btn" ${avail.length ? "" : "disabled"}>Hozzáadás</button></div></div>
   </div>`;
 }
@@ -490,7 +490,7 @@ function renderEvents(box) {
   const c = A.draft;
   box.innerHTML = `<div class="ad-stack">
     <p class="ad-lead">Egyszeri alkalmak: búcsú, bérmálás, koncert, lelkigyakorlat. A térképen a templom oldalán, a közelgő események között látszanak.</p>
-    ${c.events.map((e, i) => `<div class="ui-card ad-card"><div class="ad-line">
+    ${c.events.map((e, i) => `<div class="ad-card"><div class="ad-line">
       <label class="ui-field ad-d"><span>Dátum</span><input type="date" data-l="events" data-i="${i}" data-f="date" value="${esc(e.date)}"></label>
       ${timeField("Időpont", `data-l="events" data-i="${i}" data-f="start"`, e.start)}
       <label class="ui-field wide"><span>Cím</span><input data-l="events" data-i="${i}" data-f="title" value="${esc(e.title)}" placeholder="pl. Búcsúi szentmise"></label>
@@ -505,7 +505,7 @@ function renderData(box) {
   const c = A.draft, isAdmin = A.staff.role === "admin";
   const osm = c.lat && c.lon ? `https://www.openstreetmap.org/?mlat=${c.lat}&mlon=${c.lon}#map=18/${c.lat}/${c.lon}` : "";
   box.innerHTML = `<div class="ad-stack">
-    <div class="ui-card ad-card"><h3>Alapadatok</h3>
+    <div class="ad-card"><h3>Alapadatok</h3>
       <div class="ad-grid2">
         <label class="ui-field" for="f-name"><span>Név</span><input id="f-name" data-k="name" value="${esc(c.name)}" required></label>
         <label class="ui-field" for="f-city"><span>Település</span><input id="f-city" data-k="city" value="${esc(c.city)}"></label>
@@ -519,7 +519,7 @@ function renderData(box) {
       ${osm ? `<a class="ui-btn secondary ad-add" href="${osm}" target="_blank" rel="noopener">Hely ellenőrzése a térképen</a>` : ""}
       <label class="ui-field" for="f-notes"><span>Belső megjegyzés (nem nyilvános)</span><textarea id="f-notes" data-k="notes" rows="3">${esc(c.notes)}</textarea></label>
     </div>
-    <div class="ui-card ad-card"><div><h3>Nyitvatartás</h3><span class="ad-when">Mikor lehet bemenni imádkozni</span></div>
+    <div class="ad-card"><div><h3>Nyitvatartás</h3><span class="ad-when">Mikor lehet bemenni imádkozni</span></div>
       <label class="ad-check" for="f-only"><input type="checkbox" class="ui-toggle" id="f-only" data-k="open_only_services" ${c.open_only_services ? "checked" : ""}><span>Csak a szertartások idején van nyitva</span></label>
       <div class="ad-rows">${c.hours.map((h, i) => `<div class="ad-hours" role="group" aria-label="Nyitvatartás, ${i + 1}. sor">
         <div class="ui-daypick" role="group" aria-label="Napok">${DAY_ORDER.map(d => `<button type="button" data-days="hours.${i}" data-d="${d}" aria-pressed="${h.days.includes(d)}" aria-label="${DAY_NAME[d]}">${DAY_SHORT[d]}</button>`).join("")}</div>
@@ -527,10 +527,10 @@ function renderData(box) {
           <button type="button" class="ui-btn danger" data-delrow="hours" data-i="${i}" aria-label="Nyitvatartási sor törlése">Törlés</button></div></div>`).join("")}</div>
       <button type="button" class="ui-btn secondary ad-add" data-addrow="hours">＋ Nyitvatartási sor</button>
     </div>
-    <div class="ui-card ad-card"><div><h3>Megjegyzés a miserendhez</h3><span class="ad-when">Nyilvános, a miserend alatt látszik. Webcímek kattinthatók lesznek.</span></div>
+    <div class="ad-card"><div><h3>Megjegyzés a miserendhez</h3><span class="ad-when">Nyilvános, a miserend alatt látszik. Webcímek kattinthatók lesznek.</span></div>
       <label class="ui-field" for="f-snote"><span hidden>Megjegyzés a miserendhez</span><textarea id="f-snote" data-k="schedule_note" rows="4" placeholder="pl. Adventben a hétköznapi misék reggel 6-kor">${esc(c.schedule_note)}</textarea></label>
     </div>
-    ${c.id && isAdmin ? `<div class="ui-card ad-card"><h3>Összevonás, törlés</h3>
+    ${c.id && isAdmin ? `<div class="ad-card"><h3>Összevonás, törlés</h3>
       <p class="ad-muted">Ha ez a templom kétszer szerepel, vond össze a másik bejegyzéssel. A törlés az időpontjait és eseményeit is törli.</p>
       <div class="ad-danger"><button type="button" class="ui-btn secondary" id="merge-open">Összevonás egy másik templommal…</button><button type="button" class="ui-btn danger" id="del">Templom törlése</button></div></div>` : ""}
   </div>`;
@@ -545,13 +545,13 @@ function renderEditors(box) {
       <span class="ad-cacts">${tag("t-open", "jóváhagyva")}<button type="button" class="ui-btn danger" data-revoke="${esc(e.user_id)}" data-c="${cid}">Hozzáférés megvonása</button></span></li>`).join("")}</ul>`
       : `<p class="ad-muted">Ehhez a templomhoz még nincs plébániai szerkesztő.</p>`}
     <h2 class="ad-h2">Hozzáférési kérések</h2>
-    ${m.requests.length ? m.requests.map(r => `<article class="ui-card ad-sgcard">
+    ${m.requests.length ? `<div class="ad-cards">` + m.requests.map(r => `<article class="ad-sgcard">
       <div class="ad-cmeta">${tag(REQ_STATUS[r.status]?.[1] || "t-muted", REQ_STATUS[r.status]?.[0] || r.status)}<span>${esc(shortWhen(r.created_at))}</span></div>
       <h3 class="ad-ctitle">${esc(r.name)}${r.position ? " – " + esc(r.position) : ""}</h3>
       <p class="ad-muted">${[r.email, r.phone].filter(Boolean).map(esc).join(" · ")}</p>
       ${r.message ? `<p>${esc(r.message)}</p>` : ""}
       ${r.status === "pending" ? `<div class="ad-cacts"><button type="button" class="ui-btn primary" data-approve="${r.id}">Jóváhagyás</button><button type="button" class="ui-btn secondary" data-reject="${r.id}">Elutasítás</button></div>` : ""}
-    </article>`).join("") : `<p class="ad-muted">Ehhez a templomhoz nem érkezett kérés.</p>`}
+    </article>`).join("") + `</div>` : `<p class="ad-muted">Ehhez a templomhoz nem érkezett kérés.</p>`}
     <a class="ui-btn secondary ad-add" href="plebania.html?templom=${cid}" target="_blank" rel="noopener">Megnyitás a plébániai felületen</a>
   </div>`;
 }
@@ -759,7 +759,7 @@ async function renderSuggestions() {
   const { data, error } = await sb.from("suggestions").select("*, churches(id,name,city)").eq("status", A.suggStatus).order("created_at", { ascending: false }).limit(100);
   if (A.page !== "sugg" || !$("#slist")) return;
   if (error) { $("#slist").innerHTML = `<p class="ad-msg err">Nem sikerült betölteni: ${esc(error.message)}</p>`; return; }
-  $("#slist").innerHTML = (data || []).map(s => `<article class="ui-card ad-sgcard">
+  $("#slist").innerHTML = (data || []).map(s => `<article class="ad-sgcard">
       <div class="ad-cmeta">${tag(SUGG_STATUS[s.status]?.[1] || "t-muted", SUGG_STATUS[s.status]?.[0] || s.status)}<span>${esc(TYPES[s.type] || s.type)}</span><span>${esc(shortWhen(s.created_at))}</span></div>
       <h2 class="ad-ctitle">${esc(s.churches ? s.churches.name + " (" + s.churches.city + ")" : "Ismeretlen templom")}</h2>
       <p>${esc(s.text)}</p>
@@ -790,7 +790,7 @@ async function renderAccess() {
   if (A.page !== "access" || !$("#alist")) return;
   if (error) { $("#alist").innerHTML = `<p class="ad-msg err">${/access_requests/.test(error.message) ? "Futtasd le a 010-es adatbázis-frissítést (supabase/migrations/010_parish_portal.sql)." : esc(error.message)}</p>`; return; }
   const pend = (reqs || []).filter(r => r.status === "pending"), done = (reqs || []).filter(r => r.status !== "pending").slice(0, 30);
-  $("#alist").innerHTML = [...pend, ...done].map(r => `<article class="ui-card ad-sgcard">
+  $("#alist").innerHTML = [...pend, ...done].map(r => `<article class="ad-sgcard">
       <div class="ad-cmeta">${tag(SUGG_STATUS[r.status]?.[1] || "t-muted", { pending: "Döntésre vár", approved: "Jóváhagyva", rejected: "Elutasítva" }[r.status] || r.status)}<span>${esc(shortWhen(r.created_at))}</span></div>
       <h2 class="ad-ctitle">${esc(r.name)}${r.position ? " – " + esc(r.position) : ""}</h2>
       <p>${esc(r.churches ? r.churches.name + (r.churches.city ? " (" + r.churches.city + ")" : "") : "#" + r.church_id)}</p>
@@ -800,7 +800,7 @@ async function renderAccess() {
         ${r.status === "pending" ? `<button type="button" class="ui-btn primary" data-approve="${r.id}">Jóváhagyás</button><button type="button" class="ui-btn secondary" data-reject="${r.id}">Elutasítás</button>` : ""}</div></article>`).join("") || `<div class="ui-empty"><strong>Nincs kérés</strong></div>`;
   const names = new Map((await sb.from("churches").select("id,name,city").in("id", [...new Set((eds || []).map(e => e.church_id))].slice(0, 300))).data?.map(c => [c.id, c]) || []);
   if (A.page !== "access" || !$("#elist")) return;
-  $("#elist").innerHTML = (eds || []).map(e => { const c = names.get(e.church_id); return `<article class="ui-card ad-sgcard"><h2 class="ad-ctitle">${esc(e.display_name || e.email || e.user_id)}</h2>
+  $("#elist").innerHTML = (eds || []).map(e => { const c = names.get(e.church_id); return `<article class="ad-sgcard"><h2 class="ad-ctitle">${esc(e.display_name || e.email || e.user_id)}</h2>
       <p>${esc(c ? c.name + (c.city ? " (" + c.city + ")" : "") : "#" + e.church_id)}${e.email ? ` <span class="ad-muted">${esc(e.email)}</span>` : ""}</p>
       <div class="ad-cacts"><button type="button" class="ui-btn secondary" data-open="${e.church_id}">Templom megnyitása</button><button type="button" class="ui-btn danger" data-revoke="${esc(e.user_id)}" data-c="${e.church_id}">Hozzáférés megvonása</button></div></article>`; }).join("") || `<p class="ad-muted">Még nincs plébániai szerkesztő.</p>`;
   main.querySelectorAll(".ad-page [data-open]").forEach(b => b.addEventListener("click", () => openFromPage(+b.dataset.open)));
@@ -829,7 +829,7 @@ function renderMerge() {
     <button type="button" class="ui-btn quiet ad-back" data-back>‹ Lista</button>
     <h1 class="ad-ptitle">Összevonás</h1>
     <p class="ad-lead">Ha ugyanaz a templom kétszer szerepel (egy import a térkép temploma mellé tette, vagy a térképen kétszer van), itt vonhatod össze. Válaszd ki a listából az egyiket, utána keresd meg a párját.</p>
-    ${c ? `<section class="ui-card ad-merge" id="merge" aria-label="Összevonás: ${esc(c.name)}"></section>` : `<div class="ui-empty"><strong>Válassz templomot</strong><p>A listából válaszd ki az egyik bejegyzést.</p></div>`}
+    ${c ? `<section class="ad-merge" id="merge" aria-label="Összevonás: ${esc(c.name)}"></section>` : `<div class="ui-empty"><strong>Válassz templomot</strong><p>A listából válaszd ki az egyik bejegyzést.</p></div>`}
   </div>`;
   if (c) openMerge();
 }
@@ -928,7 +928,7 @@ async function renderStats() {
   const split = (ev, labels) => { const rows = Object.entries(labels).map(([k, l]) => ({ l, n: +t[ev + ":" + k] || 0 })), tot = rows.reduce((s, x) => s + x.n, 0);
     return stRows(rows.filter(x => x.n || tot === 0).map(x => ({ ...x, l: x.l + (tot ? ` <small>${pct(x.n, tot)}</small>` : "") })), x => x.l, x => x.n); };
   const church = x => `${esc(x.name)} <small>${esc(x.city || "")}</small>`;
-  const tile = (label, n, sub = "") => `<div class="ui-card st-tile"><small>${label}</small><b>${n}</b>${sub ? `<span>${sub}</span>` : ""}</div>`;
+  const tile = (label, n, sub = "") => `<div class="st-tile"><small>${label}</small><b>${n}</b>${sub ? `<span>${sub}</span>` : ""}</div>`;
   const when = x => x ? new Date(x).toLocaleDateString("hu-HU", { year: "numeric", month: "short", day: "numeric" }) : "soha";
   $("#st-body").innerHTML = `
     <div class="st-tiles">
@@ -940,26 +940,26 @@ async function renderStats() {
       ${tile("Plébániai mentés", nf(r.parish_saves_count), `${nf(cov.parish_managed)} templomot kezel plébánia`)}
     </div>
     <div class="st-grid" style="margin-top:12px">
-      <section class="ui-card st-box st-wide"><div class="st-head"><h2 id="st-ctitle"></h2>
+      <section class="st-box st-wide"><div class="st-head"><h2 id="st-ctitle"></h2>
           <div class="ui-seg ad-seg" id="st-m" role="group" aria-label="Mit mutasson a grafikon">${Object.entries(ST_MEASURES).map(([k, l]) => `<button type="button" data-m="${k}" aria-pressed="${A.statMeasure === k}">${l}</button>`).join("")}</div></div>
         <div class="st-chart" id="st-chart"></div>
         <details class="ui-fold"><summary>Táblázat</summary><table class="st-table"><thead><tr><th>Nap</th><th>Látogatás</th><th>Látogató</th><th>Új</th><th>Templomoldal</th></tr></thead>
           <tbody>${[...r.days].reverse().map(d => `<tr><td>${esc(d.day)}</td><td>${nf(d.visits)}</td><td>${nf(d.visitors)}</td><td>${nf(d.new)}</td><td>${nf(d.views)}</td></tr>`).join("")}</tbody></table></details>
       </section>
-      <section class="ui-card st-box"><h2>Legnézettebb templomok</h2><p class="st-sub">Megnyitások; koppints a templom megnyitásához.</p>
+      <section class="st-box"><h2>Legnézettebb templomok</h2><p class="st-sub">Megnyitások; koppints a templom megnyitásához.</p>
         ${stRows(r.churches.filter(x => x.view).slice(0, 15), x => church(x) + ((+x.dir || +x.call || +x.web || +x.save) ? ` <span class="st-acts">· ${[[x.dir, "útvonal"], [x.call, "hívás"], [x.web, "web"], [x.save, "♡"]].filter(y => +y[0]).map(y => nf(y[0]) + " " + y[1]).join(" · ")}</span>` : ""), x => +x.view, true)}</section>
-      <section class="ui-card st-box"><h2>Sokan nézik, de nincs időpontja</h2><p class="st-sub">Itt segít a legtöbbet egy feltöltött miserend. Összesen ${nf((cov.churches || 0) - (cov.with_times || 0))} templomnál nincs időpont (${pct((cov.churches || 0) - (cov.with_times || 0), cov.churches)}).</p>
+      <section class="st-box"><h2>Sokan nézik, de nincs időpontja</h2><p class="st-sub">Itt segít a legtöbbet egy feltöltött miserend. Összesen ${nf((cov.churches || 0) - (cov.with_times || 0))} templomnál nincs időpont (${pct((cov.churches || 0) - (cov.with_times || 0), cov.churches)}).</p>
         ${stRows(r.no_times.slice(0, 15), church, x => +x.view, true)}</section>
-      <section class="ui-card st-box"><h2>Keresések</h2><p class="st-sub">Találatot adó keresőszavak (${nf(a.search)}).</p>
+      <section class="st-box"><h2>Keresések</h2><p class="st-sub">Találatot adó keresőszavak (${nf(a.search)}).</p>
         ${stRows(r.searches.slice(0, 15), x => esc(x.q), x => +x.n)}</section>
-      <section class="ui-card st-box"><h2>Keresések találat nélkül</h2><p class="st-sub">Hiányzó templom, település vagy más írásmód lehet (${nf(a.search_none)}).</p>
+      <section class="st-box"><h2>Keresések találat nélkül</h2><p class="st-sub">Hiányzó templom, település vagy más írásmód lehet (${nf(a.search_none)}).</p>
         ${stRows(r.searches_none.slice(0, 15), x => esc(x.q), x => +x.n)}</section>
-      <section class="ui-card st-box"><h2>Használat</h2>
+      <section class="st-box"><h2>Használat</h2>
         <h3>Eszköz</h3>${split("device", { phone: "Telefon", tablet: "Táblagép", desktop: "Számítógép" })}
         <h3>Nézet</h3>${split("tab", { map: "Térkép", list: "Lista", saved: "Mentett" })}
         <h3>Szűrők</h3>${split("filter", { mass: "Mise", conf: "Gyóntatás", open: "Most nyitva", ev: "Esemény a héten", rorate: "Rorate", tag: "A mise jellege", day: "Másik nap", origin: "Másik hely" })}
         <p class="st-note">Saját helyzet használata: ${nf(t["locate:"])} · beküldött javítás: ${nf(r.suggestions?.received)} (döntésre vár: ${nf(r.suggestions?.pending)}) · betöltési hiba: ${nf((+t["error:data"] || 0) + (+t["error:map"] || 0))}</p></section>
-      <section class="ui-card st-box"><h2>Plébániák</h2>
+      <section class="st-box"><h2>Plébániák</h2>
         <h3>Legutóbbi mentések</h3>${r.parish_saves.length ? `<div class="st-rows">${r.parish_saves.slice(0, 10).map(x => `<button type="button" class="st-row" data-open="${x.id}"><span class="nm">${church(x)}</span><span class="st-acts">${esc(x.who || "")} · ${esc(shortWhen(x.at))}</span></button>`).join("")}</div>` : `<p class="st-note">Még egy plébánia sem mentett.</p>`}
         <h3>Hozzáférést kapott, de még nem mentett</h3>${r.parish_never.length ? `<div class="st-rows">${r.parish_never.map(x => `<button type="button" class="st-row" data-open="${x.id}"><span class="nm">${church(x)}</span><span class="st-acts">${esc(x.who || "")}</span></button>`).join("")}</div>` : `<p class="st-note">Mindenki mentett már.</p>`}
         <h3>Fél éve nem frissített, plébánia által kezelt</h3>${r.parish_stale.length ? `<div class="st-rows">${r.parish_stale.map(x => `<button type="button" class="st-row" data-open="${x.id}"><span class="nm">${church(x)}</span><span class="st-acts">${esc(when(x.at))}</span></button>`).join("")}</div>` : `<p class="st-note">Nincs ilyen.</p>`}</section>

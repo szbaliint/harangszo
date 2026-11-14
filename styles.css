@@ -471,7 +471,7 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
   opacity:0;visibility:hidden;transform:translateY(16px);pointer-events:none;
   transition:opacity .22s var(--ease),transform .22s var(--ease),visibility 0s linear .22s}
 .ui-savebar.on{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .22s var(--ease),transform .22s var(--ease),visibility 0s}
-.ui-savebar>span{flex:1 1 auto;min-width:0}
+.ui-savebar>span{flex:1 1 0;min-width:0}
 .ui-savebar .ui-btn{flex:none;background:var(--bg);border-color:var(--bg);color:var(--ink)}
 .ui-savebar .ui-btn.quiet{background:transparent;border-color:transparent;color:var(--bg);font-weight:600;text-decoration:underline;padding:0 10px}
 
@@ -504,36 +504,29 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
   [class*="ui-"],[class*="ui-"]::before,[class*="ui-"]::after,dialog.ui-sheet::backdrop{transition:none!important;animation:none!important}}
 
 /* Schedule editor (schedule-editor.js) */
-/* Week board: a card per day (Sunday first, in gold), a soft-tinted tile per time, a dashed ＋ tile at the end. */
-.se-board{container-type:inline-size;display:grid;gap:8px;min-width:0}
-.se-day.ui-card{padding:10px 12px 12px}
-.se-dh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px;font:600 17px/1.2 var(--f-display);color:var(--ink)}
-.se-day.sun .se-dh{color:var(--gold)}
-.se-dh small{font:400 12.5px/1.2 var(--f-body);color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Week board: a hairline row per day (Sunday first), an outlined tile per time, a ＋ tile at the end. Kinds are told
+   apart by their word ("mise", "gyónás"…), never by colour. */
+.se-board{container-type:inline-size;display:grid;min-width:0;border-top:1px solid var(--line)}
+.se-day{padding:12px 0 14px;border-bottom:1px solid var(--line);min-width:0}
+.se-dh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 10px;font:700 var(--fs-3)/1.2 var(--f-body);color:var(--ink)}
+.se-dh small{font:400 var(--fs-1)/1.2 var(--f-body);color:var(--ink-3);white-space:nowrap}
 .se-tiles{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
 .se-tile{position:relative;display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-width:44px;min-height:44px;max-width:100%;
-  margin:0;padding:6px 10px;border:0;border-radius:12px;font:400 13px/1.2 var(--f-body);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;
-  transition:box-shadow .18s var(--ease),transform .18s var(--ease)}
-.se-tile b{font:700 16px/1.2 var(--f-body);font-variant-numeric:tabular-nums}
+  margin:0;padding:5px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--ink-2);font:400 var(--fs-1)/1.2 var(--f-body);text-align:left;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:border-color .15s var(--ease),background-color .15s var(--ease)}
+.se-tile b{font:600 var(--fs-3)/1.2 var(--f-body);color:var(--ink)}
 .se-tile span{display:block;max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.se-tile:active{transform:scale(.97)}
-.se-tile.k-mass{background:var(--accent-soft);color:var(--accent)}
-.se-tile.k-confession{background:var(--penance-soft);color:var(--penance)}
-.se-tile.k-adoration,.se-tile.k-prayer{background:var(--gold-soft);color:var(--gold)}
-.se-tile.k-rorate{background:var(--accent-soft);color:var(--accent);border:2px dashed var(--accent);padding:4px 8px}
-.se-tile.se-add{align-items:center;padding:0 13px;border:1.5px dashed var(--border);background:transparent;color:var(--accent);font:600 17px/1 var(--f-body)}
-@media (hover:hover){.se-tile:hover{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,currentColor 35%,transparent)}
-  .se-tile.se-add:hover{border-color:var(--accent);box-shadow:none}}
+.se-tile:active{background:var(--sunken)}
+.se-tile.se-add{align-items:center;padding:0 13px;color:var(--ink-2);font:400 var(--fs-3)/1 var(--f-body)}
+@media (hover:hover){.se-tile:hover{border-color:var(--border)}}
 /* Laptop-wide board: day name in a left column, each tile on one line (drawn 36px, tap area kept at 44px). */
 @container (min-width:720px){
-  .se-day.ui-card{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;column-gap:8px;padding:8px 12px}
-  .se-dh{flex-direction:column;align-items:flex-start;gap:2px;margin:0;font-size:16.5px}
+  .se-day{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;column-gap:8px;padding:8px 0}
+  .se-dh{flex-direction:column;align-items:flex-start;gap:2px;margin:0;font-size:var(--fs-2)}
   .se-tiles{row-gap:8px}
-  .se-tile{flex-direction:row;align-items:baseline;gap:5px;min-height:36px;padding:7px 10px}
-  .se-tile.k-rorate{padding:5px 8px}
-  .se-tile::before{content:"";position:absolute;inset:-4px 0}
-  .se-tile b{font-size:15px}
-  .se-tile span{font-size:12.5px}
+  .se-tile{flex-direction:row;align-items:baseline;gap:6px;min-height:36px;padding:7px 10px}
+  .se-tile::before{content:"";position:absolute;inset:-5px 0}
+  .se-tile b{font-size:var(--fs-2)}
   .se-tile.se-add{align-items:center;min-width:40px}}
 
 /* Time editor sheet: four questions, a live summary, two folds */
@@ -543,32 +536,31 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
 .se-sheet>.body{grid-auto-rows:max-content}
 .se-sheet>footer{flex-wrap:wrap}
 .se-q{display:grid;gap:8px;min-width:0}
-.se-ql{margin:0;font:700 15px/1.3 var(--f-body);color:var(--ink)}
-.se-ql-s{font-size:14px;font-weight:600}
+.se-ql{margin:0;font:700 var(--fs-2)/1.3 var(--f-body);color:var(--ink)}
+.se-ql-s{font-weight:600}
 .se-pills{display:flex;flex-wrap:wrap;gap:10px 6px;min-width:0}
-.se-hint{margin:0;font-size:13px;line-height:1.35;color:var(--ink-3)}
+.se-hint{margin:0;font-size:var(--fs-1);line-height:1.35;color:var(--ink-3)}
 .se-time{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.se-start{box-sizing:border-box;width:120px;height:54px;margin:0;padding:0 10px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--ink);
-  font:700 24px/1 var(--f-body);font-variant-numeric:tabular-nums;text-align:center;transition:border-color .18s var(--ease),box-shadow .18s var(--ease)}
-.se-start:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 0 5px var(--accent-soft)}
+.se-start{box-sizing:border-box;width:120px;height:54px;margin:0;padding:0 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--ink);
+  font:600 var(--fs-4)/1 var(--f-body);font-variant-numeric:tabular-nums;text-align:center;transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
+.se-start:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
 .se-dash{color:var(--ink-3)}
-.se-endf{box-sizing:border-box;display:flex;align-items:center;gap:6px;width:140px;height:54px;padding:0 12px;border:1px solid var(--border);border-radius:14px;background:var(--surface);
-  color:var(--ink-3);font:400 15px/1 var(--f-body);cursor:text;transition:border-color .18s var(--ease),box-shadow .18s var(--ease)}
-.se-endf input{flex:1 1 auto;width:100%;min-width:0;height:100%;margin:0;padding:0;border:0;background:none;color:var(--ink);font:600 18px/1 var(--f-body);font-variant-numeric:tabular-nums;outline:none}
-.se-endf:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 0 5px var(--accent-soft)}
+.se-endf{box-sizing:border-box;display:flex;align-items:center;gap:6px;width:140px;height:54px;padding:0 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);
+  color:var(--ink-3);font:400 var(--fs-2)/1 var(--f-body);cursor:text;transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
+.se-endf input{flex:1 1 auto;width:100%;min-width:0;height:100%;margin:0;padding:0;border:0;background:none;color:var(--ink);font:600 var(--fs-3)/1 var(--f-body);font-variant-numeric:tabular-nums;outline:none}
+.se-endf:focus-within{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
 .se-start.err,.se-endf.err{border-color:var(--closed)}
-.se-start.err:focus,.se-endf.err:focus-within{box-shadow:0 0 0 1px var(--closed),0 0 0 5px color-mix(in srgb,var(--closed) 16%,transparent)}
+.se-start.err:focus,.se-endf.err:focus-within{box-shadow:0 0 0 1px var(--closed)}
 .ui-daypick.err button[aria-pressed="false"],.se-pills.err .ui-chip[aria-pressed="false"]{border-color:var(--closed)}
 .se-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:start}
 .se-span{grid-column:1/-1}
 .se-weeks{display:grid;gap:6px}
-.se-sum{margin:0;padding:10px 12px;border-radius:14px;background:var(--accent-soft);color:var(--accent);font-size:14px;line-height:1.4}
+.se-sum{margin:0;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--ink);font-size:var(--fs-2);line-height:1.4}
 .se-fold{display:grid;gap:14px}
 .se-sub{display:grid;gap:10px}
-.se-check{display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;font-size:14.5px;color:var(--ink)}
-.se-check small{display:block;margin-top:2px;font-size:13px;line-height:1.35;color:var(--ink-3)}
-.se-msg{flex:1 1 100%;margin:0 0 2px;color:var(--closed);font:600 14px/1.35 var(--f-body)}
+.se-check{display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;font-size:var(--fs-2);color:var(--ink)}
+.se-check small{display:block;margin-top:2px;font-size:var(--fs-1);line-height:1.35;color:var(--ink-3)}
+.se-msg{flex:1 1 100%;margin:0 0 2px;color:var(--closed);font:600 var(--fs-2)/1.35 var(--f-body)}
 .se-msg:empty{display:none}
 @media (prefers-reduced-motion:reduce){
-  .se-tile,.se-start,.se-endf{transition:none!important}
-  .se-tile:active{transform:none}}
+  .se-tile,.se-start,.se-endf{transition:none!important}}

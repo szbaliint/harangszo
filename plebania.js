@@ -23,7 +23,7 @@ const PV_WORD = { mass: "mise", rorate: "rorate", confession: "gyónás", adorat
 const KORDER = { mass: 0, rorate: 1, confession: 2, adoration: 3, prayer: 4 };
 
 if (!real(CFG.supabaseUrl) || !real(CFG.supabaseAnonKey) || !window.supabase) {
-  main.innerHTML = `<div class="ui-card pp-narrow"><h1 class="pp-title">Az oldal még nincs beállítva</h1><p class="pp-lead">Az adatbázis elérése hiányzik. Szólj a Harangszó gazdájának.</p></div>`;
+  main.innerHTML = `<div class="pp-narrow"><h1 class="pp-title">Az oldal még nincs beállítva</h1><p class="pp-lead">Az adatbázis elérése hiányzik. Szólj a Harangszó gazdájának.</p></div>`;
   throw new Error("not configured");
 }
 const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
@@ -53,7 +53,7 @@ function renderTop() {
     const saved = [P.savedAt, c.parish_updated_at].filter(Boolean).map(t => new Date(t)).sort((a, b) => b - a)[0];
     const when = saved ? whenText(saved) : "";
     topEl.innerHTML = `<div class="pp-head"><span class="pp-kicker">Plébánia · szerkesztés</span><h1 class="pp-name">${esc(c.name)}</h1>
-      <p class="pp-state${c.published ? "" : " off"}"><i aria-hidden="true"></i><span>${c.published ? "Látható a térképen" : "Rejtve"}${when ? " · utoljára mentve " + esc(when) : ""}</span></p></div>${who}`;
+      <p class="pp-state">${c.published ? "Látható a térképen" : "Rejtve"}${when ? " · utoljára mentve " + esc(when) : ""}</p></div>${who}`;
   } else topEl.innerHTML = `<a class="pp-brand" href="./">Harangszó<small>plébániáknak</small></a>${who}`;
   $("#logout")?.addEventListener("click", async () => { if (P.dirty && !confirm("Vannak nem mentett változások. Biztosan kilépsz?")) return; P.dirty = false; await sb.auth.signOut(); });
   $("#other")?.addEventListener("click", async () => { const { data } = await sb.from("churches").select("id,name,city").in("id", P.ids); renderPicker(data || []); });
@@ -70,7 +70,7 @@ function leaveChurch(view) {
 function renderAuth(mode = "login", msg = "", ok = false) {
   leaveChurch("auth");
   const titles = { login: "Belépés", signup: "Fiók létrehozása", forgot: "Új jelszó kérése", reset: "Új jelszó megadása" };
-  main.innerHTML = `<form class="ui-card pp-narrow" id="auth" novalidate>
+  main.innerHTML = `<form class="pp-narrow" id="auth" novalidate>
     <h1 class="pp-title">${titles[mode]}</h1>
     ${mode === "login" ? `<p class="pp-lead">Itt töltheti fel a plébánia, mikor van szentmise, gyóntatás és szentségimádás a templomban. A hívek a Harangszó térképén látják.</p>` : ""}
     ${mode === "signup" ? `<p class="pp-lead">Az első belépés után kiválasztod a templomodat, és mi jóváhagyjuk a hozzáférést.</p>
@@ -143,7 +143,7 @@ async function afterLogin(user) {
 const resultRows = (list, chosen) => list.map(c => `<button type="button" class="ui-row" data-id="${c.id}"${chosen !== undefined ? ` aria-pressed="${chosen === c.id}"` : ""}><b>${esc(c.name)}</b><small>${esc(c.city || "")}</small></button>`).join("");
 function renderPicker(list, admin = false) {
   leaveChurch("picker");
-  main.innerHTML = `<div class="ui-card pp-narrow">
+  main.innerHTML = `<div class="pp-narrow">
     <h1 class="pp-title">Melyik templom miserendjét szerkeszted?</h1>
     ${admin ? `<p class="pp-lead">Adminisztrátorként bármelyik templomot megnyithatod úgy, ahogy a plébániák látják.</p>
       <label class="ui-field"><span>Templom vagy település</span><input id="pk-q" type="search" autocomplete="off" placeholder="pl. Szent Anna, Eger"></label>` : ""}
@@ -171,8 +171,8 @@ async function renderRequest() {
   main.innerHTML = `<div class="pp-narrow">
     <h1 class="pp-title">Melyik templomot szerkesztenéd?</h1>
     <p class="pp-lead">Válaszd ki a templomot, és írd meg, ki vagy. Ha jóváhagytuk, ezen az oldalon rögtön szerkesztheted a miserendjét. Ha több templomot is gondozol (filiák), mindegyikhez kérj hozzáférést.</p>
-    ${(mine || []).length ? `<div class="ui-card pp-card"><h2>Eddigi kéréseid</h2><div class="ui-glist">${mine.map(r => `<div class="ui-row pp-req"><span><b>${esc(r.churches?.name || "#" + r.church_id)}</b> <span class="muted">${esc(r.churches?.city || "")}</span></span><span class="ui-tag ${STATUS[r.status]?.[1] || "t-muted"}">${STATUS[r.status]?.[0] || esc(r.status)}</span></div>`).join("")}</div></div>` : ""}
-    <form class="ui-card pp-narrow" id="rq" style="margin:0" novalidate>
+    ${(mine || []).length ? `<section class="pp-reqs"><h2>Eddigi kéréseid</h2><div class="ui-glist">${mine.map(r => `<div class="ui-row pp-req"><span><b>${esc(r.churches?.name || "#" + r.church_id)}</b> <span class="muted">${esc(r.churches?.city || "")}</span></span><span class="ui-tag ${STATUS[r.status]?.[1] || "t-muted"}">${STATUS[r.status]?.[0] || esc(r.status)}</span></div>`).join("")}</div></section>` : ""}
+    <form class="pp-form" id="rq" novalidate>
       <label class="ui-field"><span>Templom keresése</span><input id="rq-q" type="search" autocomplete="off" placeholder="A templom neve vagy a település"></label>
       <div class="ui-glist pp-results" id="rq-list"></div>
       <label class="ui-field"><span>Neved</span><input id="rq-name" value="${esc(name)}" autocomplete="name" required></label>
@@ -207,7 +207,7 @@ async function openChurch(id, { quiet = false } = {}) {
   if (P.dirty && !confirm("Vannak nem mentett változások. Eldobod őket?")) return;
   if (!quiet) { leaveChurch("loading"); main.innerHTML = `<p class="pp-muted">Betöltés…</p>`; }
   const { data: c, error } = await sb.from("churches").select("*, opening_hours(*), services!services_church_id_fkey(*), events(*)").eq("id", id).single();
-  if (error || !c) { leaveChurch("error"); main.innerHTML = `<div class="ui-card pp-narrow"><h1 class="pp-title">Ezt a templomot nem tudod megnyitni</h1><p class="pp-lead">Lehet, hogy még nincs hozzáférésed hozzá.</p></div>`; return; }
+  if (error || !c) { leaveChurch("error"); main.innerHTML = `<div class="pp-narrow"><h1 class="pp-title">Ezt a templomot nem tudod megnyitni</h1><p class="pp-lead">Lehet, hogy még nincs hozzáférésed hozzá.</p></div>`; return; }
   P.church = c;
   c.services ||= []; c.events ||= []; c.opening_hours ||= [];
   const feastMode = {}, feastRows = {};
@@ -291,7 +291,7 @@ function renderFeasts() {
   const groupHint = { holyday: "jan. 1., jan. 6., aug. 15., nov. 1., dec. 25., ha hétköznapra esik", public: "pl. márc. 15., nagypéntek, húsvét- és pünkösdhétfő, máj. 1., aug. 20., okt. 23., dec. 24–26." };
   const rows = k => d.feastRows[k] ||= [];
   $("#sec").innerHTML = `<p class="pp-lead">Ha egy ünnepen másképp van mise, mint egyébként azon a napon, itt add meg. Amit nem állítasz be, azon a napon a heti miserend érvényes. A két csoportos sor minden ilyen napra vonatkozik; egy külön beállított ünnep erősebb náluk.</p>
-    <div class="pp-list">${list.map(x => { const m = d.feastMode[x.key] || ""; return `<div class="ui-card pp-card" role="group" aria-labelledby="fh-${x.key}"><div><h3 id="fh-${x.key}">${esc(x.name)}</h3><span class="when">${x.group ? groupHint[x.key] : `${x.next.getFullYear()}. ${dateText(x.next)}, ${DAY_NAME[x.next.getDay()].toLowerCase()}`}</span></div>
+    <div class="pp-list">${list.map(x => { const m = d.feastMode[x.key] || ""; return `<div class="pp-card" role="group" aria-labelledby="fh-${x.key}"><div><h3 id="fh-${x.key}">${esc(x.name)}</h3><span class="when">${x.group ? groupHint[x.key] : `${x.next.getFullYear()}. ${dateText(x.next)}, ${DAY_NAME[x.next.getDay()].toLowerCase()}`}</span></div>
       <div class="ui-seg" role="group" aria-label="Rend: ${esc(x.name)}">${FEAST_MODES.map(([k, v]) => `<button type="button" data-fm="${x.key}" data-v="${k}" aria-pressed="${m === k}">${v}</button>`).join("")}</div>
       ${m === "custom" ? `<div class="pp-rows">${rows(x.key).map(r => `<div class="pp-line">
           <label class="ui-field"><span>Mi ez?</span><select data-fr="${x.key}" data-u="${r.uid}" data-f="kind">${Object.entries(FEAST_KIND).map(([k, v]) => `<option value="${k}" ${r.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
@@ -314,7 +314,7 @@ function renderFeasts() {
 function renderEvents() {
   const t = ymd(today()), d = P.d, up = d.events.filter(e => !e.date || e.date >= t), past = d.events.length - up.length;
   $("#sec").innerHTML = `<p class="pp-lead">Egyszeri alkalmak: búcsú, bérmálás, koncert, lelkigyakorlat. A térképen a templom oldalán, a közelgő események között látszanak.</p>
-    <div class="pp-list">${up.map(e => `<div class="ui-card pp-card"><div class="pp-line">
+    <div class="pp-list">${up.map(e => `<div class="pp-card"><div class="pp-line">
       <label class="ui-field d"><span>Dátum</span><input type="date" data-ev="${e.uid}" data-f="date" value="${esc(e.date)}" min="${t}"></label>
       <label class="ui-field t"><span>Kezdés</span><input type="time" data-ev="${e.uid}" data-f="start" value="${esc(e.start)}"></label>
       <label class="ui-field wide"><span>Megnevezés</span><input data-ev="${e.uid}" data-f="title" value="${esc(e.title)}" maxlength="200" placeholder="pl. Búcsúi szentmise"></label>
@@ -331,19 +331,19 @@ function renderEvents() {
 function renderData() {
   const d = P.d, c = P.church;
   $("#sec").innerHTML = `<div class="pp-list">
-    <div class="ui-card pp-card"><h3>Elérhetőség</h3><div class="pp-line">
+    <div class="pp-card"><h3>Elérhetőség</h3><div class="pp-line">
       <label class="ui-field"><span>Telefonszám</span><input data-k="phone" type="tel" value="${esc(d.phone)}"></label>
       <label class="ui-field"><span>Weboldal</span><input data-k="website" type="url" value="${esc(d.website)}" placeholder="https://"></label>
       <label class="ui-field wide"><span>Cím</span><input data-k="address" value="${esc(d.address)}"></label></div>
       <p class="pp-muted">A templom neve (${esc(c.name)}) és helye a térképen csak nálunk módosítható. Ha hibás, írd meg a megjegyzésben vagy a térképen a „Javítás beküldése” gombbal.</p></div>
-    <div class="ui-card pp-card"><div><h3>Nyitvatartás</h3><span class="when">Mikor lehet bemenni imádkozni</span></div>
+    <div class="pp-card"><div><h3>Nyitvatartás</h3><span class="when">Mikor lehet bemenni imádkozni</span></div>
       <label class="pp-check"><input type="checkbox" class="ui-toggle" data-k="open_only_services" ${d.open_only_services ? "checked" : ""}><span>Csak a szertartások idején van nyitva</span></label>
       ${d.hours.map(h => `<div class="pp-hours" role="group" aria-label="Nyitvatartás"><div class="ui-daypick" role="group" aria-label="Napok">${DAYS.map(x => `<button type="button" data-hd="${h.uid}" data-d="${x}" aria-pressed="${h.days.includes(x)}" aria-label="${DAY_NAME[x]}">${DAY_SHORT[x]}</button>`).join("")}</div>
         <div class="pp-line"><label class="ui-field t"><span>Nyit</span><input type="time" data-h="${h.uid}" data-f="opens" value="${esc(h.opens)}"></label>
         <label class="ui-field t"><span>Zár</span><input type="time" data-h="${h.uid}" data-f="closes" value="${esc(h.closes)}"></label>
         <button type="button" class="ui-btn danger" data-hdel="${h.uid}">Törlés</button></div></div>`).join("")}
       <button type="button" class="ui-btn secondary pp-add" id="h-add">＋ Nyitvatartás</button></div>
-    <div class="ui-card pp-card"><div><h3>Megjegyzés a miserendhez</h3><span class="when">A hívek a miserend alatt látják</span></div>
+    <div class="pp-card"><div><h3>Megjegyzés a miserendhez</h3><span class="when">A hívek a miserend alatt látják</span></div>
       <label class="ui-field"><span hidden>Megjegyzés a miserendhez</span><textarea data-k="schedule_note" maxlength="1500" rows="4" placeholder="pl. Nyári szünetben a hétköznapi misék a plébániatemplomban vannak. Gyóntatás előzetes egyeztetéssel is: 06 30 …">${esc(d.schedule_note)}</textarea></label></div></div>`;
   const sec = $("#sec");
   sec.querySelectorAll("[data-k]").forEach(el => el.addEventListener(el.type === "checkbox" ? "change" : "input", () => { d[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value; changed(el.type === "checkbox" ? null : el); }));
