@@ -1,0 +1,32 @@
+name: Import church photos from Wikimedia Commons
+
+# Run manually from the Actions tab. For churches imported from OpenStreetMap, looks up a photo named by the map
+# object (wikimedia_commons / image tags) or by its Wikidata item (P18), and keeps it only under a free licence
+# (CC0, public domain, CC BY, CC BY-SA), with the author and licence as the credit line. A parish's own photo is
+# never replaced. Needs supabase/migrations/013_photos.sql.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only look the photos up and count them, write nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Import
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: node scripts/import-photos.mjs

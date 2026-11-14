@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Schedule editor</title>
+<script>/* ?theme=dark before first paint */ if (/[?&]theme=dark\b/.test(location.search)) document.documentElement.dataset.theme = "dark";</script>
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  /* Fixture layout only: styles.css locks the body for the map page. */
+  html, body { height: auto; }
+  body { overflow: auto; margin: 0; padding: 16px 16px 40px; }
+  main { max-width: 1100px; margin: 0 auto; display: grid; gap: 14px; }
+  h1 { font: 700 var(--fs-4)/1.2 var(--f-body); margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Heti rend</h1>
+  <div id="board"></div>
+</main>
+<script src="../../calendar.js"></script>
+<script src="../../schedule-editor.js"></script>
+<script>
+  // Mounts the editor with the fixture church's regular services, mapped to Rule the way admin.js reads them.
+  // ?admin=1 → admin mode, ?crowded=1 → 8 Sunday times, ?theme=dark. window.last = the last onChange value.
+  const q = new URLSearchParams(location.search);
+  const hm = t => t ? String(t).slice(0, 5) : "";
+  const toRule = s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", period: s.period || "all", valid: s.valid || "",
+    weeks: s.weeks || [], every: s.every || 1, anchor: s.anchor || "", tags: s.tags || [], celebrant: s.celebrant || "", place: s.place || "",
+    place_church_id: s.place_church_id || "", feast_skip: !!s.feast_skip });
+  const NEARBY = [{ id: 1044, name: "Ciszterci templom", city: "Eger" }, { id: 1045, name: "Minorita templom", city: "Eger" }];
+  const crowded = () => ["06:30", "07:30", "08:00", "09:00", "10:00", "11:30", "17:00", "19:00"].map((start, n) => ({
+    kind: n === 6 ? "confession" : "mass", days: [0], start, end: n === 6 ? "17:45" : "", note: n === 1 ? "Diákmise a kápolnában" : "", period: "all", valid: "",
+    weeks: [], every: 1, anchor: "", tags: n === 4 ? ["lang:la", "solemn"] : [], celebrant: "", place: "", place_church_id: "", feast_skip: false }));
+  window.last = null; window.changes = 0;
+  let ed = null;
+  window.mountEditor = (rules, opts = {}) => {
+    ed?.destroy();
+    ed = ScheduleEditor.mount(document.getElementById("board"), { rules, admin: !!opts.admin, nearby: opts.nearby || NEARBY,
+      onChange: r => { window.last = r; window.changes++; } });
+    return true;
+  };
+  fetch("church-1043.json").then(r => r.json()).then(c => {
+    window.fixtureRules = c.services.filter(s => !s.feast).map(toRule);
+    window.mountEditor(q.has("crowded") ? crowded() : window.fixtureRules, { admin: q.has("admin") });
+    document.body.dataset.ready = "1";
+  });
+</script>
+</body>
+</html>

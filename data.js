@@ -13,6 +13,8 @@ const SAMPLE_CHURCHES=[
   feasts:{dec24:[{k:"mass",t:"16:00",n:"Pásztorjáték és szentmise"},{k:"mass",t:"00:00",n:"Éjféli mise"}],dec25:[{k:"mass",t:"08:30"},{k:"mass",t:"10:00",n:"Ünnepi nagymise"},{k:"mass",t:"18:30"}],nov1:[{k:"mass",t:"08:00"},{k:"mass",t:"10:00",n:"Ünnepi szentmise"},{k:"mass",t:"18:00"},{k:"conf",t:"09:00",u:"12:00"}]},
   ev:[{date:"2026-10-30",t:"20:00",title:"Orgonahangverseny",n:"Belépőjegyes"},{date:"2026-11-01",t:"10:00",title:"Mindenszentek – ünnepi szentmise"}]},
  {id:2,name:"Nagyboldogasszony-templom (Mátyás-templom)",city:"Budapest",addr:"Szentháromság tér 2.",rite:"rk",lat:47.5020,lon:19.0344,
+  photo_url:"https://commons.wikimedia.org/wiki/Special:FilePath/Matthias_Church,_Budapest,_2017.jpg?width=1000",photo_credit:"Fotó: Stefan Schäfer · CC BY-SA 4.0 · Wikimedia Commons",
+  photo_page:"https://commons.wikimedia.org/wiki/File:Matthias_Church,_Budapest,_2017.jpg",
   hours:[H("09:00","17:00",MS),H("13:00","17:00",SUN)],
   mass:[{d:MS,t:"07:00"},{d:MS,t:"18:00"},{d:SUN,t:"08:30"},{d:SUN,t:"10:00",n:"Latin nyelvű nagymise"},{d:SUN,t:"12:00"},{d:SUN,t:"19:00"}],
   conf:[{d:[2,4,6],f:"17:00",u:"17:45"}],

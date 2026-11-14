@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="hu"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#d9d6cf;font-family:"Source Sans 3",system-ui,sans-serif;padding:32px;color:#1d1a16;
+--bg:#f6f3ec;--surface:#fffdf8;--sunken:#efe9dc;--line:#e6dfd0;--border:#cfc5b1;--ink:#1d1a16;--ink2:#5b5447;--ink3:#857c6c;--accent:#233f8c;--accent-soft:#e6e9f4;--gold:#9a6b10;--gold-soft:#f5ead2;--violet:#6a2e8c;--violet-soft:#f0e6f4;--open:#1d7a4c;--open-soft:#e0f0e6;--glass:rgb(255 253 248/.86)}
+h1{font:600 22px/1.2 "Source Sans 3";margin:0 0 4px}
+.sub{color:#5b5447;margin:0 0 22px;font-size:14px;max-width:1100px}
+.row{display:flex;gap:34px;align-items:flex-start}
+.col h2{font:600 15px "Source Sans 3";margin:0 0 10px}
+.col p.n{font-size:13px;color:#5b5447;margin:10px 0 0;max-width:340px;line-height:1.45}
+.phone{width:340px;height:720px;border-radius:44px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgb(0 0 0/.25),0 0 0 10px #111;background:var(--bg)}
+/* fake map */
+.map{position:absolute;inset:0;background:
+ radial-gradient(ellipse 60% 40% at 30% 60%,#ebe5d6 0 60%,transparent 61%),
+ linear-gradient(115deg,transparent 47%,#c9d6e6 47.5% 50%,transparent 50.5%),
+ repeating-linear-gradient(35deg,transparent 0 46px,#e2dccd 46px 48px),
+ repeating-linear-gradient(-55deg,transparent 0 62px,#e2dccd 62px 64px),#f1ece1}
+.glass{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--line);box-shadow:0 6px 24px rgb(40 30 10/.16)}
+.top{position:absolute;top:52px;left:14px;right:14px;display:flex;gap:8px}
+.search{flex:1;height:46px;border-radius:999px;display:flex;align-items:center;gap:10px;padding:0 16px;color:var(--ink3);font-size:15px}
+.brand{height:46px;width:46px;border-radius:50%;display:grid;place-items:center;font:700 20px "EB Garamond";color:var(--accent)}
+.chips{position:absolute;top:108px;left:14px;right:0;display:flex;gap:6px;overflow:hidden}
+.chip{border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink2);white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.chip i{width:7px;height:7px;border-radius:50%}
+.pin{position:absolute;font:600 11.5px "Source Sans 3";padding:4px 8px;border-radius:999px;background:var(--accent);color:#fff;border:2px solid #fffdf8;box-shadow:0 2px 6px rgb(0 0 0/.2)}
+.pin.c{background:var(--violet)}.pin.n{background:#fffdf8;color:var(--ink3);border-color:var(--border)}
+.clu{position:absolute;width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font:700 12.5px "Source Sans 3";box-shadow:0 0 0 5px rgb(35 63 140/.22)}
+.me{position:absolute;width:18px;height:18px;border-radius:50%;background:#2f6bff;border:3px solid #fff;box-shadow:0 0 0 8px rgb(47 107 255/.18)}
+.ctrl{position:absolute;right:14px;bottom:250px;border-radius:999px;padding:4px;display:grid;gap:2px}
+.ctrl span{width:40px;height:40px;display:grid;place-items:center;color:var(--ink2);font-size:18px}
+.next{position:absolute;left:12px;right:12px;bottom:92px;border-radius:24px;padding:14px;display:grid;gap:10px}
+.next h3{margin:0;font:600 11.5px "Source Sans 3";letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.nx{display:flex;align-items:center;gap:12px}
+.nx b{font:600 17px "Source Sans 3";background:var(--accent);color:#fff;border-radius:12px;padding:8px 9px}
+.nx b.c{background:var(--violet)}
+.nx div{flex:1;min-width:0}
+.nx strong{display:block;font:600 16px/1.2 "EB Garamond";white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nx small{color:var(--ink3);font-size:12.5px}
+.tabs{position:absolute;left:12px;right:12px;bottom:22px;display:flex;border-radius:999px;padding:5px}
+.tabs span{flex:1;text-align:center;padding:9px 0;border-radius:999px;font-size:12.5px;color:var(--ink2)}
+.tabs span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+/* list sheet */
+.sheet{position:absolute;left:0;right:0;bottom:0;top:250px;background:var(--bg);border-radius:26px 26px 0 0;box-shadow:0 -10px 30px rgb(40 30 10/.18);padding:10px 14px}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--border);margin:0 auto 12px}
+.sh{display:flex;align-items:baseline;justify-content:space-between;margin:0 4px 10px}
+.sh h3{margin:0;font:700 21px "EB Garamond"}
+.sh small{color:var(--ink3);font-size:12.5px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px 14px;margin-bottom:8px}
+.card .t{display:flex;justify-content:space-between;gap:8px}
+.card h4{margin:0;font:600 17px/1.2 "EB Garamond"}
+.card .d{font:500 12px "Source Sans 3";color:var(--ink3)}
+.card p{margin:2px 0 8px;font-size:13px;color:var(--ink3)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:600;border-radius:999px;padding:3px 9px}
+.tag.m{background:var(--accent-soft);color:var(--accent)}.tag.c{background:var(--violet-soft);color:var(--violet)}.tag.o{background:var(--open-soft);color:var(--open)}.tag.x{background:var(--sunken);color:var(--ink3)}
+/* detail */
+.det{position:absolute;inset:0;background:var(--bg);overflow:hidden}
+.dh{padding:52px 16px 0;display:flex;gap:8px}
+.ib{width:38px;height:38px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;color:var(--ink2);font-size:15px}
+.dh .sp{flex:1}
+.dt{padding:12px 18px 0}
+.dt .tags{margin-bottom:8px}
+.dt h2{margin:0;font:700 26px/1.12 "EB Garamond";letter-spacing:-.01em}
+.dt p{margin:4px 0 0;color:var(--ink3);font-size:13.5px}
+.hero{margin:14px 14px 0;background:var(--accent);color:#fff;border-radius:22px;padding:16px;position:relative}
+.hero small{opacity:.8;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase}
+.hero .t{font:600 40px/1 "Source Sans 3";margin:6px 0 2px}
+.hero .w{font-size:13.5px;opacity:.9}
+.hero .in{position:absolute;right:14px;top:16px;background:rgb(255 255 255/.16);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 14px 0}
+.act{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 0 8px;text-align:center;font-size:12px;color:var(--ink2)}
+.act b{display:block;font-size:17px;color:var(--accent);margin-bottom:2px}
+.days{display:flex;gap:6px;margin:16px 14px 0;overflow:hidden}
+.day{flex:none;width:46px;border-radius:14px;padding:6px 0;text-align:center;background:var(--surface);border:1px solid var(--line);font-size:11px;color:var(--ink3)}
+.day b{display:block;font:600 17px "Source Sans 3";color:var(--ink)}
+.day.on{background:var(--accent);border-color:var(--accent);color:#dfe5f7}.day.on b{color:#fff}
+.list{margin:10px 14px 0;background:var(--surface);border:1px solid var(--line);border-radius:18px}
+.li{display:flex;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid var(--line);font-size:14.5px}
+.li:first-child{border-top:0}
+.li .tm{font:600 14.5px "Source Sans 3";width:48px}
+.li .k{flex:1}.li .k small{display:block;color:var(--ink3);font-size:12px}
+.past{opacity:.45}
+.acc{margin:10px 14px 0;background:var(--surface);border:1px solid var(--line);border-radius:18px}
+.acc div{display:flex;justify-content:space-between;padding:12px 14px;border-top:1px solid var(--line);font-size:14.5px;font-weight:500}
+.acc div:first-child{border-top:0}
+.acc div span{color:var(--ink3);font-weight:400;font-size:13px}
+body{font-variant-numeric:tabular-nums}.dt h2,.card h4,.sh h3,.nx strong{letter-spacing:0}.dt h2{font-size:29px;font-weight:600}.card h4{font-size:18.5px}.nx strong{font-size:17.5px}.brand{font-weight:600}.card .d{white-space:nowrap}</style></head><body>
+<h1>2 · Map, list and church detail (phone) · fonts B</h1>
+<p class="sub">Same structure as today (full-screen map, bottom sheet, tab bar), redrawn in tone A. The search bar moves to the top of the map, the filters become chips under it, and the church detail is reorganised: the answer first, everything else folded away.</p>
+<div class="row">
+<div class="col"><h2>Map</h2>
+<div class="phone"><div class="map"></div>
+ <div class="top"><div class="search glass">⌕ Templom vagy település</div><div class="brand glass">H</div></div>
+ <div class="chips"><span class="chip glass on">Ma</span><span class="chip glass"><i style="background:var(--accent)"></i>Mise</span><span class="chip glass"><i style="background:var(--violet)"></i>Gyóntatás</span><span class="chip glass"><i style="background:var(--open)"></i>Most nyitva</span><span class="chip glass">⋯</span></div>
+ <span class="pin" style="top:200px;left:60px">18:00</span><span class="pin c" style="top:250px;left:190px">17:00</span><span class="pin" style="top:320px;left:110px">18:30</span><span class="pin n" style="top:180px;left:230px">–</span><span class="clu" style="top:380px;left:240px">12</span><span class="clu" style="top:150px;left:150px">7</span><span class="pin" style="top:410px;left:40px">19:00</span>
+ <span class="me" style="top:300px;left:170px"></span>
+ <div class="ctrl glass"><span>⌖</span><span>＋</span><span>－</span></div>
+ <div class="next glass"><h3>Legközelebb</h3>
+  <div class="nx"><b>18:00</b><div><strong>Budavári Nagyboldogasszony</strong><small>mise · 640 m · 8 perc gyalog</small></div></div>
+  <div class="nx"><b class="c">17:00</b><div><strong>Szent Anna-templom</strong><small>gyónás · 860 m</small></div></div></div>
+ <div class="tabs glass"><span class="on">Térkép</span><span>Lista</span><span>Mentett</span></div>
+</div>
+<p class="n">Search always visible on top, filters one tap away as chips. "Legközelebb" shows the next two times near you in one glass card. The third tab becomes <b>Mentett</b> (favourite churches), since search lives on the map now.</p></div>
+
+<div class="col"><h2>List (sheet pulled up)</h2>
+<div class="phone"><div class="map"></div>
+ <div class="top"><div class="search glass">⌕ Templom vagy település</div><div class="brand glass">H</div></div>
+ <div class="chips"><span class="chip glass on">Ma</span><span class="chip glass"><i style="background:var(--accent)"></i>Mise</span><span class="chip glass"><i style="background:var(--violet)"></i>Gyóntatás</span><span class="chip glass">⋯</span></div>
+ <div class="sheet"><div class="grab"></div>
+  <div class="sh"><h3>A közelben</h3><small>4 799 templom · távolság szerint</small></div>
+  <div class="card"><div class="t"><h4>Budavári Nagyboldogasszony-templom</h4><span class="d">640 m</span></div><p>Szentháromság tér 2</p><div class="tags"><span class="tag o">Nyitva 17:00-ig</span><span class="tag m">18:00 mise</span></div></div>
+  <div class="card"><div class="t"><h4>Szent Anna-templom</h4><span class="d">860 m</span></div><p>Batthyány tér 7</p><div class="tags"><span class="tag c">17:00 gyónás</span><span class="tag m">18:00 mise</span></div></div>
+  <div class="card"><div class="t"><h4>Havas Boldogasszony-templom</h4><span class="d">670 m</span></div><p>Krisztina tér 2</p><div class="tags"><span class="tag x">Ma már nincs több alkalom</span></div></div>
+ </div>
+ <div class="tabs glass"><span>Térkép</span><span class="on">Lista</span><span>Mentett</span></div>
+</div>
+<p class="n">The sheet slides over the map; the map stays visible above it. Cards keep the same content as today, calmer: name in Garamond, distance in small grey figures, at most two tags.</p></div>
+
+<div class="col"><h2>Church detail</h2>
+<div class="phone"><div class="det">
+ <div class="dh"><span class="ib">‹</span><span class="sp"></span><span class="ib">♡</span><span class="ib">↗</span></div>
+ <div class="dt"><div class="tags"><span class="tag o">Nyitva 17:00-ig</span><span class="tag x">római katolikus</span></div><h2>Budavári Nagyboldog&shy;asszony-templom</h2><p>Szentháromság tér 2 · 640 m</p></div>
+ <div class="hero"><small>Következő mise</small><div class="t">18:00</div><div class="w">ma · magyar nyelvű</div><span class="in">1 ó 20 p múlva</span></div>
+ <div class="acts"><div class="act"><b>➚</b>Útvonal</div><div class="act"><b>☏</b>Hívás</div><div class="act"><b>◎</b>Weboldal</div><div class="act"><b>✎</b>Javítás</div></div>
+ <div class="days"><div class="day on">H<b>9</b></div><div class="day">K<b>10</b></div><div class="day">Sze<b>11</b></div><div class="day">Cs<b>12</b></div><div class="day">P<b>13</b></div><div class="day">Szo<b>14</b></div></div>
+ <div class="list"><div class="li past"><span class="tm">07:00</span><span class="k">Szentmise</span><span class="tag m">mise</span></div><div class="li"><span class="tm">17:00</span><span class="k">Gyóntatás<small>a sekrestyénél</small></span><span class="tag c">gyónás</span></div><div class="li"><span class="tm">18:00</span><span class="k">Szentmise</span><span class="tag m">mise</span></div></div>
+ <div class="acc"><div>Heti rend <span>›</span></div><div>Ünnepek és advent <span>3 ›</span></div><div>Események <span>2 ›</span></div></div>
+</div></div>
+<p class="n">Top to bottom: is it open, the next Mass in big type, four quick actions, a 7-day strip with that day's times. The weekly table, feasts/Rorate, events and notes fold into rows you tap to open, so the page is short. "Javítás" opens the correction form in a sheet. ♡ saves the church to Mentett.</p></div>
+</div>
+</body></html>

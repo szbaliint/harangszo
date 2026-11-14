@@ -1,0 +1,49 @@
+{
+  "id": 1043,
+  "osm_type": "way",
+  "osm_id": 104300001,
+  "name": "Szent Anna-templom",
+  "city": "Eger",
+  "address": "Szent Anna utca 1.",
+  "rite": "rk",
+  "lat": 47.9025,
+  "lon": 20.3772,
+  "website": "https://example.org/szent-anna",
+  "phone": "+36 36 123 456",
+  "notes": null,
+  "open_only_services": false,
+  "feast_sunday": ["jan6"],
+  "importance_auto": 60,
+  "importance_manual": null,
+  "schedule_note": "Nyári szünetben a hétköznapi esti mise elmarad.",
+  "schedule_source": null,
+  "schedule_source_url": null,
+  "schedule_updated": null,
+  "source_ref": null,
+  "location_approx": false,
+  "schedule_locked": true,
+  "created_by": null,
+  "match_confirmed": false,
+  "published": true,
+  "parish_updated_at": "2026-10-20T09:15:00+00:00",
+  "parish_updated_by": "00000000-0000-4000-8000-000000000001",
+  "created_at": "2025-01-10T12:00:00+00:00",
+  "updated_at": "2026-10-20T09:15:00+00:00",
+  "opening_hours": [
+    { "id": 501, "church_id": 1043, "days": [1, 2, 3, 4, 5, 6], "opens": "08:00:00", "closes": "18:00:00" },
+    { "id": 502, "church_id": 1043, "days": [0], "opens": "07:00:00", "closes": "20:00:00" }
+  ],
+  "services": [
+    { "id": 9001, "church_id": 1043, "kind": "mass", "days": [1, 2, 3, 4, 5], "start_time": "07:00:00", "end_time": null, "note": null, "period": "all", "valid": null, "weeks": null, "feast": null, "every": null, "anchor": null, "tags": null, "celebrant": null, "place": null, "place_church_id": null, "feast_skip": false },
+    { "id": 9002, "church_id": 1043, "kind": "mass", "days": [1, 2, 3, 4, 5, 6], "start_time": "18:00:00", "end_time": null, "note": null, "period": "school", "valid": null, "weeks": null, "feast": null, "every": null, "anchor": null, "tags": null, "celebrant": null, "place": null, "place_church_id": null, "feast_skip": false },
+    { "id": 9003, "church_id": 1043, "kind": "mass", "days": [0], "start_time": "08:00:00", "end_time": null, "note": null, "period": "all", "valid": null, "weeks": null, "feast": null, "every": null, "anchor": null, "tags": ["organ"], "celebrant": null, "place": null, "place_church_id": null, "feast_skip": false },
+    { "id": 9004, "church_id": 1043, "kind": "mass", "days": [0], "start_time": "10:00:00", "end_time": null, "note": "Családos mise", "period": "all", "valid": null, "weeks": null, "feast": null, "every": null, "anchor": null, "tags": ["family", "choir"], "celebrant": null, "place": null, "place_church_id": null, "feast_skip": false },
+    { "id": 9005, "church_id": 1043, "kind": "mass", "days": [0], "start_time": "18:00:00", "end_time": null, "note": null, "period": "all", "valid": null, "weeks": null, "feast": null, "every": null, "anchor": null, "tags": ["youth"], "celebrant": null, "place": null, "place_church_id": null, "feast_skip": false },
+    { "id": 9006, "church_id": 1043, "kind": "confession", "days": [5], "start_time": "17:00:00", "end_time": "17:50:00", "note": null, "period": "all", "valid": null, "weeks": null, "feast": null, "every": null, "anchor": null, "tags": null, "celebrant": null, "place": null, "place_church_id": null, "feast_skip": false },
+    { "id": 9007, "church_id": 1043, "kind": "adoration", "days": [4], "start_time": "18:30:00", "end_time": "19:30:00", "note": null, "period": "all", "valid": null, "weeks": [1], "feast": null, "every": null, "anchor": null, "tags": ["silent"], "celebrant": null, "place": null, "place_church_id": null, "feast_skip": false },
+    { "id": 9008, "church_id": 1043, "kind": "mass", "days": [], "start_time": "09:00:00", "end_time": null, "note": "Ünnepi szentmise", "period": "all", "valid": null, "weeks": null, "feast": "aug15", "every": null, "anchor": null, "tags": ["solemn"], "celebrant": null, "place": null, "place_church_id": null, "feast_skip": false }
+  ],
+  "events": [
+    { "id": 7001, "church_id": 1043, "date": "2026-11-22", "start_time": "16:00:00", "title": "Templombúcsú – Krisztus Király", "note": "Utána agapé a plébánián." }
+  ]
+}
