@@ -1,0 +1,16 @@
+{
+  "user": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "iroda@szentanna.example",
+    "email_confirmed_at": "2026-01-05T10:00:00Z",
+    "app_metadata": { "provider": "email", "providers": ["email"] },
+    "user_metadata": { "name": "Kovács Mária" },
+    "created_at": "2026-01-05T10:00:00Z"
+  },
+  "staff": { "user_id": "00000000-0000-4000-8000-000000000001", "role": "parish", "display_name": "Kovács Mária", "email": "iroda@szentanna.example" },
+  "staff_churches": [
+    { "user_id": "00000000-0000-4000-8000-000000000001", "church_id": 1043, "churches": { "id": 1043, "name": "Szent Anna-templom", "city": "Eger" } }
+  ]
+}

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Jogi információk – Harangszó</title>
+<meta name="description" content="A Harangszó impresszuma, adatkezelési tájékoztatója és felhasználási feltételei.">
+<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icons/bell.svg" type="image/svg+xml">
+<style>*,*::before,*::after{box-sizing:border-box} body{margin:0} [hidden]{display:none!important}</style>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* A plain reading page in the map's world: one white column, ink and greys, hairlines, the platform font. */
+html,body{height:auto}
+body{overflow:auto;line-height:1.6}
+.lg{max-width:720px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-left,0px)) 80px}
+.lg-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin-bottom:20px}
+.lg-brand{font:700 var(--fs-3)/1.2 var(--f-body);color:var(--ink);text-decoration:none}
+.lg-back{display:inline-flex;align-items:center;min-height:44px;color:var(--ink);font-weight:600}
+.lg h1{margin:0 0 4px;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;text-wrap:balance}
+.lg h2{margin:44px 0 10px;padding-top:20px;border-top:1px solid var(--line);font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;scroll-margin-top:16px}
+.lg h3{margin:26px 0 6px;font:700 var(--fs-3)/1.3 var(--f-body)}
+.lg p,.lg li{color:var(--ink-2)}
+.lg p{margin:0 0 12px}
+.lg ul{margin:0 0 12px;padding-left:20px}
+.lg li{margin:4px 0}
+.lg a{color:var(--ink)}
+.lg strong{color:var(--ink)}
+.lg-meta{color:var(--ink-3);font-size:var(--fs-1)}
+.lg .lg-toc{margin:18px 0 6px;padding:0;list-style:none;border-top:1px solid var(--line)}
+.lg .lg-toc li{margin:0}
+.lg-toc+h2{margin-top:36px;padding-top:0;border-top:0}
+.lg-toc a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;border-bottom:1px solid var(--line);color:var(--ink);font-weight:600;text-decoration:none}
+.lg-toc a::after{content:"›";color:var(--ink-3);font-weight:400;font-size:var(--fs-3)}
+.lg-box{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r)}
+.lg-box p:last-child{margin-bottom:0}
+.lg-table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:var(--fs-2)}
+.lg-table th,.lg-table td{padding:9px 10px 9px 0;border-top:1px solid var(--line);text-align:left;vertical-align:top;color:var(--ink-2)}
+.lg-table tr:last-child>*{border-bottom:1px solid var(--line)}
+.lg-table th{color:var(--ink);font-weight:600;width:34%}
+.lg-table code{font-family:var(--f-body);font-size:var(--fs-1);overflow-wrap:anywhere}
+@media (max-width:560px){.lg-table,.lg-table tbody,.lg-table tr,.lg-table th,.lg-table td{display:block;width:auto}.lg-table th{padding-bottom:0}.lg-table td{border-top:0}.lg-table tr:last-child>*{border-bottom:0}.lg-table tr:last-child>td{border-bottom:1px solid var(--line)}}
+/* Still to be filled in by the operator: marked, not hidden */
+.lg-todo{padding:0 4px;border-radius:4px;background:var(--sunken);color:var(--ink);font-weight:600}
+.lg-opt{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.lg-opt p{flex:1 1 260px}
+</style>
+</head>
+<body>
+<main class="lg">
+  <div class="lg-top"><a class="lg-brand" href="./">Harangszó</a><a class="lg-back" href="./">‹ Vissza a térképhez</a></div>
+  <h1>Jogi információk</h1>
+  <p class="lg-meta">Hatályos: 2026. november 14-től.</p>
+  <ul class="lg-toc">
+    <li><a href="#impresszum">Impresszum</a></li>
+    <li><a href="#adatkezeles">Adatkezelési tájékoztató</a></li>
+    <li><a href="#feltetelek">Felhasználási feltételek</a></li>
+  </ul>
+
+  <!-- ===================================================================== -->
+  <h2 id="impresszum">Impresszum</h2>
+  <p>A Harangszó egy ingyenes, nem kereskedelmi célú, önkéntes alapon működő weboldal, amely a magyarországi katolikus
+    templomok szentmise-, gyóntatási és szentségimádási időpontjait mutatja térképen.</p>
+  <table class="lg-table">
+    <tr><th>Üzemeltető</th><td><span class="lg-todo" data-op="name">[ÜZEMELTETŐ NEVE]</span>, magánszemély</td></tr>
+    <tr><th>Kapcsolat</th><td><span class="lg-todo" data-op="email">[KAPCSOLATI E-MAIL CÍM]</span></td></tr>
+    <tr><th>Tárhelyszolgáltató</th><td>GitHub, Inc. (GitHub Pages) – 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, USA – <a href="https://support.github.com/contact" rel="noopener">support.github.com/contact</a></td></tr>
+    <tr><th>Adatbázis-szolgáltató</th><td>Supabase, Inc. – 970 Toa Payoh North #07-04, Singapore 318992 – <a href="https://supabase.com" rel="noopener">supabase.com</a>; az adatok az Európai Unióban (Írország) tárolt szerveren vannak.</td></tr>
+  </table>
+  <p>A Harangszó nem a Magyar Katolikus Egyház, egy egyházmegye vagy plébánia hivatalos oldala. Az időpontok forrása
+    a plébániák saját feltöltése, a hívek javaslatai és nyilvános források (lásd a Felhasználási feltételeknél).</p>
+
+  <!-- ===================================================================== -->
+  <h2 id="adatkezeles">Adatkezelési tájékoztató</h2>
+  <p>Ez a tájékoztató az Európai Parlament és a Tanács (EU) 2016/679 rendelete (GDPR) és az információs önrendelkezési
+    jogról és az információszabadságról szóló 2011. évi CXII. törvény (Infotv.) alapján készült. Röviden: <strong>a térkép
+    használatához nem kell regisztrálni, nem használunk sütiket, és a látogatókat nem azonosítjuk.</strong></p>
+
+  <h3>Adatkezelő</h3>
+  <p>Az Impresszumban megnevezett üzemeltető. Adatvédelmi kérdésben a fenti kapcsolati e-mail címen érhető el.</p>
+
+  <h3>1. A térkép böngészése</h3>
+  <p>A térkép megnyitásakor a böngésződ közvetlenül tölti le az oldalt és a hozzá szükséges részeket a lent felsorolt
+    szolgáltatóktól. Ilyenkor ezek a szolgáltatók – mint minden weboldalnál – technikailag megkapják az IP-címedet és a
+    böngésződ adatait, és saját szabályaik szerint rövid ideig naplózhatják. Ezekhez az adatokhoz mi nem férünk hozzá.</p>
+  <ul>
+    <li><strong>GitHub Pages</strong> (GitHub, Inc.): az oldal kiszolgálása.</li>
+    <li><strong>Google Maps</strong> (Google Ireland Ltd.): a térkép.
+      <a href="https://policies.google.com/privacy?hl=hu" rel="noopener">A Google adatvédelmi irányelvei</a>.</li>
+    <li><strong>Supabase</strong> (Supabase, Inc.): a templomok adatai, és a plébániák által feltöltött templomfotók
+      (Supabase Storage, uniós szerveren).</li>
+    <li><strong>Wikimedia Commons</strong> (Wikimedia Foundation, Inc.): a templomfotók egy része közvetlenül a
+      Wikimedia Commonsról töltődik be (<code>upload.wikimedia.org</code>, <code>commons.wikimedia.org</code>). Mint
+      minden képletöltésnél, a Wikimedia szerverei is megkapják az IP-címedet és a böngésződ adatait.
+      <a href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" rel="noopener">A Wikimedia adatvédelmi irányelvei</a>.</li>
+    <li>Tartalékként, ha a Google térkép nem elérhető: <strong>CARTO</strong> térképcsempék és az <strong>unpkg</strong> /
+      <strong>jsDelivr</strong> tartalomszolgáltatók.</li>
+  </ul>
+  <p>Jogalap: az oldal működtetéséhez fűződő jogos érdek (GDPR 6. cikk (1) bekezdés f) pont).</p>
+
+  <h3>2. Saját helyzet</h3>
+  <p>Ha a „Saját helyzetem” gombot használod, a böngésződ engedélyt kér a helymeghatározáshoz. A pozíciódat csak a
+    telefonod vagy számítógéped használja a távolságok kiszámításához; <strong>nem küldjük el és nem tároljuk</strong>.</p>
+
+  <h3>3. Névtelen látogatási statisztika</h3>
+  <p>Hogy lássuk, mire használják az oldalt és hol hiányoznak adatok, napi összesített számlálókat vezetünk, például:
+    „ma 120 látogatás”, „a 1043-as templom oldalát 15-ször nyitották meg”, „a <em>Gyóntatás</em> szűrőt 40-szer
+    kapcsolták be”, „erre a keresőszóra nem volt találat”. Nem tárolunk IP-címet, sütit, eszköz- vagy
+    felhasználóazonosítót, és két esemény nem kapcsolható össze ugyanazzal a látogatóval.</p>
+  <p>A napi látogatók számához a böngésződ a saját tárhelyén megjegyzi, melyik napon számolt utoljára (lásd lent), ezt
+    az adatot nem küldi el. A keresőszavak közül csak a rövid, tisztított szöveget őrizzük meg, naponta legfeljebb 500
+    különbözőt. Kérjük, a keresőbe ne írj személyes adatot.</p>
+  <p>Nem számolunk, ha a böngésződben be van kapcsolva a „Ne kövessenek” (Do Not Track) vagy a Global Privacy Control
+    beállítás. Ezen az eszközön itt is kikapcsolhatod:</p>
+  <div class="lg-box lg-opt"><p id="track-state">A statisztika ezen az eszközön be van kapcsolva.</p>
+    <button class="ui-btn secondary" type="button" id="track-toggle">Kikapcsolom</button></div>
+  <p>Jogalap: jogos érdek (GDPR 6. cikk (1) f) pont) – a szolgáltatás javítása; az összesített számlálók nem minősülnek
+    személyes adatnak. Megőrzés: legfeljebb 2 évig.</p>
+
+  <h3>4. A böngésződben tárolt adatok</h3>
+  <p>Sütiket nem használunk. A böngésző saját tárhelyén (localStorage, sessionStorage) az alábbiakat tároljuk, ezek az
+    eszközödön maradnak, és bármikor törölheted őket a böngésző beállításaiban:</p>
+  <table class="lg-table">
+    <tr><th><code>harangszo-data-v2</code></th><td>A templomlista másolata, hogy az oldal gyorsan és internet nélkül is betöltsön.</td></tr>
+    <tr><th><code>harangszo.saved.v1</code></th><td>A ♡ gombbal mentett templomaid.</td></tr>
+    <tr><th><code>harangszo</code></th><td>A kiválasztott város a távolságokhoz.</td></tr>
+    <tr><th><code>harangszo.seen</code>, <code>harangszo.visit</code></th><td>A statisztikához: melyik napon számolt utoljára ez az eszköz, illetve hogy az aktuális böngészőlapon már számolt-e.</td></tr>
+    <tr><th><code>harangszo.notrack</code></th><td>Ha kikapcsoltad a statisztikát.</td></tr>
+    <tr><th>Plébániai és adminisztrátori felület</th><td>A bejelentkezéshez szükséges munkamenet (Supabase), a szűrők beállítása és az űrlapba beírt név a lap bezárásáig.</td></tr>
+  </table>
+  <p>Ezek a szolgáltatás működéséhez, illetve a te kifejezett kérésedre (például mentés) szükségesek. Az alkalmazás
+    telepítésekor a böngésző az oldal fájljait is tárolja, hogy internet nélkül is megnyíljon.</p>
+
+  <h3>5. Javaslat beküldése</h3>
+  <p>A templom oldalán a „Javítás” gombbal elküldött szöveget, és ha megadod, az elérhetőségedet (e-mail vagy telefon)
+    tároljuk. A szöveget az időpontok javítására használjuk; az elérhetőséget csak arra, hogy szükség esetén
+    visszakérdezzünk. Jogalap: a hozzájárulásod (GDPR 6. cikk (1) a) pont), amelyet a beküldéssel adsz meg, és bármikor
+    visszavonhatsz. Megőrzés: a javaslat elbírálása után legfeljebb 1 évig, az elérhetőséget kérésre azonnal töröljük.</p>
+
+  <h3>6. Plébániai fiókok</h3>
+  <p>A plébániai felületen regisztrálók e-mail címét és jelszavát (titkosítva) a Supabase hitelesítési szolgáltatása
+    kezeli. A hozzáférési kérelemben megadott nevet, beosztást, telefonszámot és üzenetet az adminisztrátor a kérelem
+    elbírálásához látja. Mentéskor rögzítjük, ki és mikor módosította a templom adatait. Jogalap: a szolgáltatás
+    nyújtása a felhasználó kérésére (GDPR 6. cikk (1) b) pont) és jogos érdek a változások nyomon követéséhez
+    (f) pont). Megőrzés: a fiók törléséig; a fiók törlését a kapcsolati e-mail címen kérheted.</p>
+  <p>Ha a plébánia fotót tölt fel a templomról, azt a Supabase tárhelyén (Supabase Storage, az Európai Unióban)
+    tároljuk, és a térképen a templom oldalán bárki számára látható, „Fotó: a plébánia” jelöléssel. Kérjük, olyan fotót
+    válassz, amelyen nincsenek felismerhető emberek. A fotót a plébániai felületen bármikor törölheted vagy lecserélheted;
+    ilyenkor a korábbi fájlt is töröljük.</p>
+
+  <h3>7. Adatfeldolgozók és adattovábbítás</h3>
+  <p>Adatfeldolgozóként a Supabase, Inc. (adatbázis, bejelentkezés és a feltöltött fotók tárhelye, uniós szerveren) és
+    a GitHub, Inc. (tárhely) működik közre. Egyes szolgáltatók amerikai cégek; az adattovábbítás az EU–USA adatvédelmi keretrendszer, illetve az
+    Európai Bizottság általános szerződési feltételei alapján történik. Adatot nem adunk el, és hirdetési célra nem
+    használunk.</p>
+
+  <h3>8. Jogaid</h3>
+  <p>Kérheted, hogy tájékoztassunk a rólad kezelt adatokról, helyesbítsük vagy töröljük azokat, korlátozzuk a
+    kezelésüket, illetve tiltakozhatsz a jogos érdeken alapuló adatkezelés ellen, és kérheted az adataid hordozható
+    formában történő kiadását. Kérésedre legfeljebb egy hónapon belül válaszolunk. Ha úgy érzed, hogy megsértettük a
+    jogaidat, panaszt tehetsz a <strong>Nemzeti Adatvédelmi és Információszabadság Hatóságnál</strong> (NAIH,
+    1055 Budapest, Falk Miksa utca 9–11.; postacím: 1363 Budapest, Pf. 9.; telefon: +36 1 391 1400;
+    <a href="https://www.naih.hu" rel="noopener">www.naih.hu</a>; ugyfelszolgalat@naih.hu), vagy bírósághoz fordulhatsz.</p>
+
+  <!-- ===================================================================== -->
+  <h2 id="feltetelek">Felhasználási feltételek</h2>
+  <h3>Az oldal jellege</h3>
+  <p>A Harangszó ingyenes, tájékoztató jellegű szolgáltatás. Az időpontokat a plébániák, a hívek és nyilvános források
+    alapján gyűjtjük, de <strong>nem tudjuk garantálni, hogy mindig pontosak és teljesek</strong>: a miserend
+    változhat, ünnepnapokon, szünidőben vagy egyéb okból eltérhet. Indulás előtt, különösen fontos alkalomra, ellenőrizd
+    a plébánián vagy a templom saját honlapján. Az oldal használatából eredő károkért – a jogszabály által megengedett
+    mértékben – nem vállalunk felelősséget.</p>
+  <h3>Javaslatok</h3>
+  <p>A beküldött javaslatokat ellenőrzés után felhasználhatjuk az adatok javítására. Kérjük, csak valós, a templomra
+    vonatkozó információt küldj; sértő, reklám vagy személyes adatot tartalmazó szöveget nem teszünk közzé.</p>
+  <h3>Plébániai fiókok</h3>
+  <p>A plébániai felületet csak a templomot képviselő, arra jogosult személy használhatja. Hozzáférést az
+    adminisztrátor jóváhagyása után kapsz, és csak a hozzád rendelt templom adatait szerkesztheted. A fiók
+    adataiért és a feltöltött időpontokért a fiók használója felel. Fotót csak az töltsön fel, aki maga készítette, vagy
+    akinek a szerzője engedélyt adott rá; a feltöltéssel hozzájárulsz, hogy a Harangszó a fotót a templom oldalán
+    megjelenítse. Visszaélés esetén a hozzáférést megvonhatjuk.</p>
+  <h3>Források és szerzői jog</h3>
+  <ul>
+    <li>Templomhelyek: © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>-közreműködők, ODbL licenc alatt.</li>
+    <li>Miserendek egy része a <a href="https://miserend.hu" rel="noopener">miserend.hu</a> nyilvános adataiból, egyházmegyék és szerzetesrendek honlapjairól és a plébániák saját feltöltéséből származik.</li>
+    <li>Térkép: © Google; tartalék térkép: © <a href="https://carto.com/attributions" rel="noopener">CARTO</a>, © OpenStreetMap.</li>
+    <li>Templomfotók: a <a href="https://commons.wikimedia.org" rel="noopener">Wikimedia Commons</a> szabad licencű
+      képei (a szerzőt és a licencet minden fotón feltüntetjük, a felirat a fotó forrásoldalára visz), illetve a
+      plébániák saját feltöltései.</li>
+  </ul>
+  <p>Ha egy forrás jogosultja kifogásolja az adat felhasználását, írj a kapcsolati címre, és intézkedünk.</p>
+  <h3>Változások</h3>
+  <p>Ezt az oldalt szükség esetén frissítjük; a hatályos változat mindig itt olvasható, a fenti dátummal.</p>
+</main>
+<script>
+// Statistics opt-out for this device (the same flag analytics.js checks).
+(function () {
+  const btn = document.getElementById("track-toggle"), st = document.getElementById("track-state");
+  const get = () => { try { return localStorage.getItem("harangszo.notrack") === "1"; } catch (e) { return null; } };
+  const dnt = navigator.doNotTrack === "1" || window.doNotTrack === "1" || navigator.globalPrivacyControl === true;
+  function show() {
+    const off = get();
+    if (off === null) { st.textContent = "A böngésződ nem enged helyi tárolást, ezért a látogatók napi számlálása itt nem működik."; btn.hidden = true; return; }
+    if (dnt && !off) { st.textContent = "A böngésződ „Ne kövessenek” beállítása miatt ezen az eszközön nem számolunk."; btn.hidden = true; return; }
+    st.textContent = off ? "A statisztika ezen az eszközön ki van kapcsolva." : "A statisztika ezen az eszközön be van kapcsolva.";
+    btn.textContent = off ? "Visszakapcsolom" : "Kikapcsolom";
+  }
+  btn.addEventListener("click", () => { try { get() ? localStorage.removeItem("harangszo.notrack") : localStorage.setItem("harangszo.notrack", "1"); } catch (e) { } show(); });
+  show();
+})();
+</script>
+</body>
+</html>

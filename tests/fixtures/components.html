@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ui- components</title>
+<script>/* ?theme=dark before first paint */ if (/[?&]theme=dark\b/.test(location.search)) document.documentElement.dataset.theme = "dark";</script>
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  /* Fixture layout only: styles.css locks the body for the map page. */
+  html, body { height: auto; }
+  body { overflow: auto; margin: 0; padding: 16px 16px 180px; }
+  main { max-width: 760px; margin: 0 auto; display: grid; gap: 22px; }
+  h1 { font: 700 28px/1.1 var(--f-display); margin: 0; }
+  h2 { font: 600 12px var(--f-body); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 8px; }
+  .wrap { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .stack { display: grid; gap: 10px; }
+  .card-title { font: 600 18px/1.2 var(--f-display); margin: 0 0 4px; }
+  .muted { color: var(--ink-3); font-size: 13.5px; margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <div class="wrap" style="justify-content:space-between">
+    <h1>Komponensek</h1>
+    <button class="ui-btn secondary" id="theme" type="button">Sötét / világos</button>
+  </div>
+
+  <section><h2>Gombok</h2>
+    <div class="wrap">
+      <button class="ui-btn primary" type="button">Mentés</button>
+      <button class="ui-btn secondary" type="button">Előnézet</button>
+      <button class="ui-btn quiet" type="button">Mégse</button>
+      <button class="ui-btn danger" type="button">Törlés</button>
+      <button class="ui-btn primary" type="button" disabled>Letiltva</button>
+    </div>
+  </section>
+
+  <section><h2>Szűrők</h2>
+    <div class="wrap">
+      <button class="ui-chip" type="button" aria-pressed="true"><span class="dot" style="background:var(--accent)"></span>Mise</button>
+      <button class="ui-chip" type="button" aria-pressed="false"><span class="dot" style="background:var(--penance)"></span>Gyónás</button>
+      <button class="ui-chip" type="button" aria-pressed="false"><span class="dot" style="background:var(--gold)"></span>Szentségimádás</button>
+      <button class="ui-chip" type="button" aria-pressed="false"><span class="dot" style="background:var(--open)"></span>Nyitva</button>
+    </div>
+  </section>
+
+  <section><h2>Címkék</h2>
+    <div class="wrap">
+      <span class="ui-tag t-mass">mise 18:00</span>
+      <span class="ui-tag t-conf">gyónás 17:30</span>
+      <span class="ui-tag t-ador">szentségimádás</span>
+      <span class="ui-tag t-open">nyitva</span>
+      <span class="ui-tag t-muted">zárva</span>
+      <span class="ui-tag t-warn">nem publikus</span>
+    </div>
+  </section>
+
+  <section><h2>Kapcsolók</h2>
+    <div class="stack">
+      <div class="ui-seg" role="group" aria-label="Nézet">
+        <button type="button" aria-pressed="false">Szerkesztés</button>
+        <button type="button" aria-pressed="true">Így látják a hívek</button>
+      </div>
+      <label class="wrap"><input class="ui-toggle" type="checkbox" checked> Látható a térképen</label>
+      <label class="wrap"><input class="ui-toggle" type="checkbox"> Ünnepi rend</label>
+    </div>
+  </section>
+
+  <section><h2>Mezők</h2>
+    <div class="stack">
+      <label class="ui-field"><span>Templom neve</span><input type="text" value="Budavári Nagyboldogasszony-templom"><small>Így jelenik meg a térképen.</small></label>
+      <label class="ui-field"><span>Időpont</span><input type="time" value="18:00"></label>
+      <label class="ui-field err"><span>E-mail</span><input type="email" value="plebania@"><small>Hibás e-mail-cím.</small></label>
+      <label class="ui-field"><span>Időszak</span><select><option>Egész évben</option><option>Nyári időszámítás</option><option>Advent</option></select></label>
+      <label class="ui-field"><span>Megjegyzés</span><textarea rows="3">Diákmise a tanévben.</textarea></label>
+    </div>
+  </section>
+
+  <section><h2>Napok</h2>
+    <div class="ui-daypick" role="group" aria-label="Mely napokon?">
+      <button type="button" aria-pressed="true">H</button><button type="button" aria-pressed="true">K</button><button type="button" aria-pressed="true">Sze</button><button type="button" aria-pressed="true">Cs</button><button type="button" aria-pressed="true">P</button><button type="button" aria-pressed="false">Szo</button><button type="button" aria-pressed="false">V</button>
+    </div>
+  </section>
+
+  <section><h2>Kártyák</h2>
+    <div class="stack">
+      <div class="ui-hero"><small>Következő mise</small><div class="t">18:00</div><div class="w">ma · magyar nyelvű</div><span class="in">1 ó 20 p múlva</span></div>
+      <article class="ui-card">
+        <h3 class="card-title">Budapest-Belvárosi Nagyboldogasszony Főplébánia-templom (Belvárosi templom)</h3>
+        <p class="muted">Budapest V., Március 15. tér · 350 m</p>
+        <div class="wrap" style="margin-top:8px"><span class="ui-tag t-mass">mise 18:00</span><span class="ui-tag t-open">nyitva</span></div>
+      </article>
+      <div class="ui-glist">
+        <div class="ui-row"><b>07:00</b><span>mise</span></div>
+        <div class="ui-row"><b>17:30</b><span>gyónás</span></div>
+        <div class="ui-row"><b>18:00</b><span>mise · latin</span></div>
+      </div>
+      <div class="ui-glist">
+        <details class="ui-fold"><summary>A heti rend <span class="count">12 alkalom</span></summary><div class="ui-row">Hétfő 07:00 mise · 17:00 gyónás</div><div class="ui-row">Kedd 18:00 mise</div></details>
+        <details class="ui-fold" open><summary>Nyitvatartás <span class="count">ma 7–19</span></summary><p>Hétköznap 7:00–19:00, vasárnap 8:00–20:00.</p></details>
+      </div>
+      <details class="ui-fold"><summary>Egyéb adatok <span class="count">3</span></summary><p>Kerekesszékkel megközelíthető.</p></details>
+      <div class="ui-empty"><strong>Nincs időpont</strong><p>Ehhez a templomhoz még nincs feltöltött időpont.</p></div>
+    </div>
+  </section>
+
+  <section><h2>Lapfülek</h2>
+    <nav class="ui-tabbar" aria-label="Részek">
+      <button class="ui-tab" type="button" aria-pressed="true">Heti rend</button>
+      <button class="ui-tab" type="button" aria-pressed="false">Ünnepek</button>
+      <button class="ui-tab" type="button" aria-pressed="false">Események</button>
+      <button class="ui-tab" type="button" aria-pressed="false">Adatok</button>
+    </nav>
+  </section>
+
+  <section><h2>Párbeszéd</h2>
+    <button class="ui-btn secondary" id="openSheet" type="button">Új időpont</button>
+  </section>
+</main>
+
+<dialog class="ui-sheet" id="sheet">
+  <header><h2>Új időpont</h2><button class="ui-btn quiet" type="button" data-close>Mégse</button></header>
+  <div class="body">
+    <div class="ui-seg" role="group" aria-label="Mi lesz?"><button type="button" aria-pressed="true">Mise</button><button type="button" aria-pressed="false">Gyóntatás</button><button type="button" aria-pressed="false">Imaóra</button></div>
+    <label class="ui-field"><span>Hánykor?</span><input type="time" value="18:00"></label>
+    <div class="ui-daypick" role="group" aria-label="Mely napokon?"><button type="button" aria-pressed="true">H</button><button type="button" aria-pressed="true">K</button><button type="button" aria-pressed="true">Sze</button><button type="button" aria-pressed="true">Cs</button><button type="button" aria-pressed="true">P</button><button type="button" aria-pressed="false">Szo</button><button type="button" aria-pressed="false">V</button></div>
+    <p class="muted">Hétköznap (hétfőtől péntekig) 18:00-kor mise, minden héten, egész évben.</p>
+  </div>
+  <footer><button class="ui-btn danger" type="button" data-close>Törlés</button><button class="ui-btn primary" type="button" data-close>Hozzáadás</button></footer>
+</dialog>
+
+<div class="ui-savebar on" role="status"><span>2 nem mentett változás</span><button class="ui-btn quiet" type="button">Előnézet</button><button class="ui-btn" type="button">Mentés</button></div>
+<div class="ui-toast on" role="status">✓ Elmentve · már látszik a térképen</div>
+
+<script>
+  const root = document.documentElement;
+  document.getElementById("theme").onclick = () => { root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark"; };
+  const sheet = document.getElementById("sheet");
+  document.getElementById("openSheet").onclick = () => sheet.showModal();
+  sheet.querySelectorAll("[data-close]").forEach(b => b.onclick = () => sheet.close());
+  document.querySelectorAll("[aria-pressed]").forEach(b => b.addEventListener("click", () => {
+    const group = b.closest(".ui-seg, .ui-tabbar");
+    if (group) group.querySelectorAll("[aria-pressed]").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+    else b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+  }));
+</script>
+</body>
+</html>

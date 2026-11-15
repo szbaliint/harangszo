@@ -1,0 +1,8 @@
+{
+  "name": "harangszo",
+  "private": true,
+  "description": "Harangszó: Catholic church map for Hungary. Static site, no build step; tests only.",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\""
+  }
+}

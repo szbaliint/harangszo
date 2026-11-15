@@ -5,59 +5,88 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Harangszó</title>
 <meta name="description" content="Katolikus templomok térképe Magyarországon: misék, gyóntatás, nyitvatartás, események.">
-<meta name="theme-color" content="#23408e">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/bell.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+<link rel="preconnect" href="https://commons.wikimedia.org">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 *,*::before,*::after{box-sizing:border-box}
-:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{color-scheme:light dark}
 body{margin:0}
 [hidden]{display:none!important}
 </style>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="app" id="app">
+<div class="app" id="app" data-tab="most">
   <div id="map" role="application" aria-label="Magyarország térképe templomokkal"></div>
 
-  <div class="topbar">
-    <button class="brandchip" id="menu-btn" aria-expanded="false" aria-controls="menu"><span class="bname">Harangszó</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr">Menü</span></button>
-    <div class="maphint" id="maphint" role="status" hidden></div>
-  </div>
-  <div class="menu" id="menu" hidden>
-    <p class="menu-sub">templomok · misék · gyóntatás</p>
-    <div class="notice" id="notice"></div>
-    <div class="legend"><span><i class="mk mk-mass">18:00</i>mise</span><span><i class="mk mk-conf">17:30</i>gyóntatás</span><span><i class="mk mk-none">–</i>aznap nincs ismert alkalom</span></div>
-    <a class="btn" href="plebania.html">Plébániáknak: miserend feltöltése</a>
-  </div>
-
-  <div class="ctrls" aria-label="Térkép vezérlői">
-    <button class="cbtn" id="filter-btn" aria-label="Szűrők"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg><b class="badge" id="filter-count" hidden></b></button>
-    <button class="cbtn" id="locate-btn" aria-label="Saját helyzetem"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
-    <span class="csep" aria-hidden="true"></span>
-    <button class="cbtn" id="zoom-in" aria-label="Nagyítás"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button class="cbtn" id="zoom-out" aria-label="Kicsinyítés"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+  <!-- Térkép tab (phone): search field over the map, map controls, the bottom panel with the selected or next church -->
+  <div class="mapui" id="mapui">
+    <button class="mapsearch" id="map-search" type="button" aria-haspopup="dialog"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span id="map-search-text">Templom vagy település</span></button>
+    <div class="ctrls" aria-label="Térkép vezérlői">
+      <button class="cbtn" id="locate-btn" type="button" aria-label="Saját helyzetem"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+      <button class="cbtn" id="zoom-in" type="button" aria-label="Nagyítás"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="cbtn" id="zoom-out" type="button" aria-label="Kicsinyítés"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    </div>
+    <section class="mapcard" id="mapcard" aria-label="Kiválasztott templom" aria-live="polite"></section>
   </div>
 
-  <div class="dock">
-    <div class="nearest" id="nearest" aria-label="Legközelebbi templomok"></div>
-    <nav class="tabbar" aria-label="Nézetek">
-      <button class="tab" data-tab="map" aria-pressed="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg><span>Térkép</span></button>
-      <button class="tab" data-tab="list" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="18" r="1" fill="currentColor"/></svg><span>Lista</span></button>
-      <button class="tab" data-tab="search" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Keresés</span></button>
-    </nav>
-  </div>
-
-  <section class="sheet" id="sheet" data-state="closed" aria-label="Templomok">
-    <div class="grab" id="grab" role="button" tabindex="0" aria-label="Lap méretének váltása"><span></span></div>
-    <div class="panel" id="panel" aria-live="polite"></div>
+  <!-- The white column: Most, a church page, Mentett (phone: full screen; desktop: 420px on the left) -->
+  <section class="col" id="col" aria-label="Templomok">
+    <div class="panel" id="panel"></div>
+    <footer class="about" id="about">
+      <p class="notice" id="notice"></p>
+      <button class="ui-btn secondary" id="install-btn" type="button" hidden>Telepítés a kezdőképernyőre</button>
+      <p><a href="plebania.html">Plébániáknak: miserend feltöltése</a></p>
+      <p class="about-priv">Az oldal névtelen látogatási statisztikát készít, sütik és azonosítók nélkül. <a href="jogi.html">Impresszum, adatkezelés, feltételek</a></p>
+    </footer>
   </section>
+
+  <nav class="tabs" id="tabs" aria-label="Nézetek">
+    <button class="tab" type="button" data-tab="most" aria-pressed="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg><span>Most</span></button>
+    <button class="tab" type="button" data-tab="map" aria-pressed="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg><span>Térkép</span></button>
+    <button class="tab" type="button" data-tab="saved" aria-pressed="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Mentett</span></button>
+  </nav>
+
+  <!-- Search: a full-height white panel with the field, the filters and the results -->
+  <section class="search" id="search" role="dialog" aria-modal="true" aria-label="Keresés" data-open="false" inert>
+    <div class="s-head">
+      <label class="s-field" for="q"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Templom vagy település" autocomplete="off" enterkeyhint="search"><span class="sr">Keresés</span></label>
+      <button class="s-done" id="search-done" type="button">Kész</button>
+    </div>
+    <div class="s-scroll" id="s-scroll">
+      <div class="s-filters" id="s-filters"></div>
+      <div class="s-results" id="s-results" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <div class="offnote" id="offnote" role="status" hidden>Nincs internet · a lista működik</div>
 </div>
+<dialog class="ui-sheet" id="suggest" aria-labelledby="suggest-h">
+  <header><h2 id="suggest-h">Pontosítás vagy új időpont</h2><button class="ui-btn quiet" id="suggest-done" type="button">Bezárás</button></header>
+  <div class="body" id="suggest-body"></div>
+</dialog>
+<dialog class="ui-sheet" id="install" aria-labelledby="install-h">
+  <header><h2 id="install-h">Telepítés iPhone-ra</h2><button class="ui-btn quiet" id="install-done" type="button">Bezárás</button></header>
+  <div class="body">
+    <ol class="steps">
+      <li><span class="n" aria-hidden="true">1</span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg><p>Koppints a <b>Megosztás</b> gombra a Safari alsó sávjában.</p></li>
+      <li><span class="n" aria-hidden="true">2</span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg><p>Válaszd: <b>Főképernyőhöz adás</b>.</p></li>
+    </ol>
+  </div>
+</dialog>
+<div class="ui-toast" id="toast" role="status" aria-live="polite"></div>
+<div class="ui-toast action" id="update" role="status" aria-live="polite"><span>Új verzió érhető el ·</span><button class="ui-btn quiet" id="update-btn" type="button">Frissítés</button><button class="x" id="update-x" type="button" aria-label="Bezárás"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="config.js"></script>
 <script src="data.js"></script>
 <script src="calendar.js"></script>
+<script src="analytics.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="hu"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#d9d6cf;font-family:"Source Sans 3",system-ui,sans-serif;font-variant-numeric:tabular-nums;padding:32px;color:#1d1a16;
+--bg:#f6f3ec;--surface:#fffdf8;--sunken:#efe9dc;--line:#e6dfd0;--border:#cfc5b1;--ink:#1d1a16;--ink2:#5b5447;--ink3:#857c6c;--accent:#233f8c;--accent-soft:#e6e9f4;--gold:#9a6b10;--gold-soft:#f5ead2;--violet:#6a2e8c;--violet-soft:#f0e6f4;--open:#1d7a4c;--open-soft:#e0f0e6;--glass:rgb(255 253 248/.9)}
+h1{font:600 22px/1.2 "Source Sans 3";margin:0 0 4px}
+.sub{color:#5b5447;margin:0 0 22px;font-size:14.5px;max-width:1150px}
+.row{display:flex;gap:34px;align-items:flex-start}
+.col h2{font:600 15px "Source Sans 3";margin:0 0 10px}
+.col p.n{font-size:13.5px;color:#5b5447;margin:10px 0 0;max-width:340px;line-height:1.45}
+.phone{width:340px;height:720px;border-radius:44px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgb(0 0 0/.25),0 0 0 10px #111;background:var(--bg)}
+.hd{padding:50px 18px 8px}
+.hd small{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.hd h3{margin:2px 0 0;font:600 25px/1.1 "EB Garamond"}
+.state{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--ink2)}
+.state i{width:8px;height:8px;border-radius:50%;background:var(--open)}
+.days{padding:6px 12px 150px;display:grid;gap:8px}
+.dc{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:10px 12px}
+.dc h4{margin:0 0 8px;font:600 17px "EB Garamond";display:flex;justify-content:space-between}
+.dc h4 span{font:400 12.5px "Source Sans 3";color:var(--ink3)}
+.dc.sun h4{color:var(--gold)}
+.ts{display:flex;gap:6px;flex-wrap:wrap}
+.t{border-radius:12px;padding:6px 10px;font-size:13px;line-height:1.2}
+.t b{display:block;font-size:16px}
+.t.m{background:var(--accent-soft);color:var(--accent)}.t.c{background:var(--violet-soft);color:var(--violet)}.t.a{background:var(--gold-soft);color:var(--gold)}
+.t.add{border:1.5px dashed var(--border);color:var(--accent);display:grid;place-items:center;font-weight:600;padding:6px 12px}
+.save{position:absolute;left:12px;right:12px;bottom:84px;border-radius:18px;background:var(--ink);color:#f6f3ec;padding:10px 10px 10px 16px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:0 10px 30px rgb(0 0 0/.25)}
+.save .b{margin-left:auto;background:#f6f3ec;color:var(--ink);border-radius:999px;padding:8px 16px;font-weight:700}
+.save .p{color:#cfc5b1;text-decoration:underline}
+.tabs{position:absolute;left:12px;right:12px;bottom:22px;display:flex;border-radius:999px;padding:5px;background:var(--glass);border:1px solid var(--line);box-shadow:0 6px 24px rgb(40 30 10/.16)}
+.tabs span{flex:1;text-align:center;padding:9px 0;border-radius:999px;font-size:13px;color:var(--ink2)}
+.tabs span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+/* editor sheet */
+.dim{position:absolute;inset:0;background:rgb(29 26 22/.4)}
+.sheet{position:absolute;left:0;right:0;bottom:0;top:58px;background:var(--surface);border-radius:26px 26px 0 0;padding:10px 18px}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--border);margin:0 auto 12px}
+.sheet h3{margin:0 0 14px;font:600 23px "EB Garamond";display:flex;justify-content:space-between;align-items:center}
+.sheet h3 span{font:600 14px "Source Sans 3";color:var(--accent)}
+.q{margin-bottom:13px}
+.q p{margin:0 0 7px;font-weight:700;font-size:15px}
+.q small{display:block;color:var(--ink3);font-size:12.5px;margin:-4px 0 7px}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:7px 13px;font-size:14px;color:var(--ink2)}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.pill.on.v{background:var(--violet);border-color:var(--violet)}
+.time{display:flex;gap:10px;align-items:center}
+.time .in{height:50px;width:110px;border-radius:14px;border:2px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft);display:grid;place-items:center;font-size:24px;font-weight:700}
+.time .in.o{border:1px solid var(--border);box-shadow:none;color:var(--ink3);font-weight:400;font-size:15px;width:130px}
+.dp{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.dp span{height:40px;border-radius:12px;border:1px solid var(--line);background:var(--bg);display:grid;place-items:center;font-size:13.5px;color:var(--ink2)}
+.dp span.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.more{color:var(--accent);font-weight:600;font-size:14.5px;padding:8px 0;border-top:1px solid var(--line)}
+.foot{position:absolute;left:18px;right:18px;bottom:26px;display:flex;gap:8px}
+.foot span{flex:1;height:48px;border-radius:999px;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.foot .p{background:var(--accent);color:#fff}.foot .s{border:1px solid var(--line);color:#a2361f;flex:.6}
+.sum{background:var(--accent-soft);color:var(--accent);border-radius:14px;padding:10px 12px;font-size:14px;margin-bottom:14px}
+/* preview */
+.pv{padding:50px 16px 0}
+.pv .seg{display:flex;background:var(--sunken);border-radius:999px;padding:3px;margin-bottom:14px}
+.pv .seg span{flex:1;text-align:center;padding:8px 0;border-radius:999px;font-size:13.5px;color:var(--ink2)}
+.pv .seg span.on{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 3px rgb(0 0 0/.12)}
+.pv h4{margin:0 0 8px;font:600 12px "Source Sans 3";letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.wk{background:var(--surface);border:1px solid var(--line);border-radius:18px}
+.wr{display:grid;grid-template-columns:72px 1fr;gap:8px;padding:10px 14px;border-top:1px solid var(--line);font-size:14.5px}
+.wr:first-child{border-top:0}
+.wr .d{color:var(--ink3);font-size:13px}.wr .d b{display:block;color:var(--ink);font-size:14.5px}
+.wr .f{display:block;color:var(--gold);font-size:12.5px}
+.toast{position:absolute;left:50%;transform:translateX(-50%);bottom:90px;background:var(--ink);color:#f6f3ec;border-radius:14px;padding:10px 16px;font-size:14.5px;white-space:nowrap;box-shadow:0 10px 30px rgb(0 0 0/.25)}
+</style></head><body>
+<h1>3 · Parish portal (phone)</h1>
+<p class="sub">Same flow as today (sign in → ask for access → admin approves → edit), rebuilt in the new look and made for a phone first. Sections move from a top strip into the same floating tab bar the map uses; the time editor becomes plain questions with big tap targets; unsaved changes always show in one bar.</p>
+<div class="row">
+<div class="col"><h2>Week board</h2>
+<div class="phone">
+ <div class="hd"><small>Plébánia · szerkesztés</small><h3>Budavári Nagyboldogasszony-templom</h3><div class="state"><i></i>Látható a térképen · utoljára mentve tegnap</div></div>
+ <div class="days">
+  <div class="dc sun"><h4>Vasárnap <span>4 alkalom</span></h4><div class="ts"><span class="t m"><b>08:00</b>mise</span><span class="t m"><b>10:00</b>mise · latin</span><span class="t m"><b>18:00</b>mise</span><span class="t c"><b>17:30</b>gyónás</span><span class="t add">＋</span></div></div>
+  <div class="dc"><h4>Hétfő <span>2 alkalom</span></h4><div class="ts"><span class="t m"><b>07:00</b>mise</span><span class="t c"><b>17:00</b>gyónás</span><span class="t add">＋</span></div></div>
+  <div class="dc"><h4>Kedd <span>1 alkalom</span></h4><div class="ts"><span class="t m"><b>18:00</b>mise</span><span class="t add">＋</span></div></div>
+  <div class="dc"><h4>Szerda <span>2 alkalom</span></h4><div class="ts"><span class="t m"><b>07:00</b>mise</span><span class="t a"><b>18:30</b>szentségimádás</span><span class="t add">＋</span></div></div>
+ </div>
+ <div class="save">2 nem mentett változás <span class="p">Előnézet</span><span class="b">Mentés</span></div>
+ <div class="tabs"><span class="on">Heti rend</span><span>Ünnepek</span><span>Események</span><span>Adatok</span></div>
+</div>
+<p class="n">One card per day, Sunday first and in gold. Each time is a coloured tile (blue Mass, violet confession, gold adoration); tap to edit, ＋ to add. The dark bar appears only when something isn't saved yet, so it's never unclear whether a change went through.</p></div>
+
+<div class="col"><h2>Adding or editing a time</h2>
+<div class="phone">
+ <div class="hd"><small>Plébánia · szerkesztés</small><h3>Budavári Nagyboldogasszony-templom</h3></div>
+ <div class="dim"></div>
+ <div class="sheet"><div class="grab"></div>
+  <h3>Új időpont <span>Mégse</span></h3>
+  <div class="q"><p>Mi lesz?</p><div class="pills"><span class="pill on">Mise</span><span class="pill">Gyóntatás</span><span class="pill">Szentségimádás</span><span class="pill">Imaóra</span></div></div>
+  <div class="q"><p>Hánykor?</p><div class="time"><span class="in">18:00</span><span style="color:var(--ink3)">–</span><span class="in o">vége: –</span></div></div>
+  <div class="q"><p>Mely napokon?</p><div class="dp"><span class="on">H</span><span class="on">K</span><span class="on">Sze</span><span class="on">Cs</span><span class="on">P</span><span>Szo</span><span>V</span></div></div>
+  <div class="q"><p>Milyen gyakran?</p><div class="pills"><span class="pill on">Minden héten</span><span class="pill">Kéthetente</span><span class="pill">A hónap … hetében</span></div></div>
+  <div class="sum">Hétköznap (hétfőtől péntekig) 18:00-kor mise, minden héten, egész évben.</div>
+  <div class="more">Időszak, nyelv, ki mutatja be, máshol tartják ›</div>
+  <div class="foot"><span class="p">Hozzáadás</span></div>
+ </div>
+</div>
+<p class="n">Four plain questions, each answered with one tap. Under them, the time is written back as one Hungarian sentence, so staff can check what they set. Season, language/tags, celebrant and "held elsewhere" stay one tap away under "more", as today.</p></div>
+
+<div class="col"><h2>Preview and save</h2>
+<div class="phone">
+ <div class="pv">
+  <div class="seg"><span>Szerkesztés</span><span class="on">Így látják a hívek</span></div>
+  <h4>A következő 7 nap</h4>
+  <div class="wk">
+   <div class="wr"><span class="d"><b>Hétfő</b>nov. 9.</span><span>07:00 mise · 17:00 gyónás</span></div>
+   <div class="wr"><span class="d"><b>Kedd</b>nov. 10.</span><span>18:00 mise</span></div>
+   <div class="wr"><span class="d"><b>Szerda</b>nov. 11.</span><span>07:00 mise · 18:30 szentségimádás<span class="f">Szent Márton püspök</span></span></div>
+   <div class="wr"><span class="d"><b>Csütörtök</b>nov. 12.</span><span>18:00 mise</span></div>
+   <div class="wr"><span class="d"><b>Péntek</b>nov. 13.</span><span>18:00 mise</span></div>
+   <div class="wr"><span class="d"><b>Szombat</b>nov. 14.</span><span>18:00 mise (előesti)</span></div>
+   <div class="wr"><span class="d"><b>Vasárnap</b>nov. 15.</span><span>08:00 · 10:00 · 18:00 mise · 17:30 gyónás</span></div>
+  </div>
+ </div>
+ <div class="toast">✓ Elmentve · már látszik a térképen</div>
+ <div class="tabs"><span class="on">Heti rend</span><span>Ünnepek</span><span>Események</span><span>Adatok</span></div>
+</div>
+<p class="n">On a phone, the live preview is a switch at the top ("Szerkesztés / Így látják a hívek") instead of a side column. After saving, a toast confirms it's live. On a laptop the preview stays beside the editor, as today.</p></div>
+</div>
+</body></html>

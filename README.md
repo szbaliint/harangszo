@@ -13,6 +13,8 @@ A map of Catholic churches in Hungary with Mass and confession times, opening ho
 |------|--------------|
 | `index.html`, `app.js`, `styles.css` | Public map and list. Reads everything in one call (`public_data`) and sends corrections to the database. |
 | `admin.html`, `admin.js` | Editor panel: log in, edit churches, opening hours, Masses, confession, adoration, events; approve or reject corrections. |
+| `plebania.html`, `plebania.js` | Parish portal: a parish edits its own church (week board, feasts, events, details, photo). |
+| `schedule-editor.js`, `church-photo.js` | Shared by the portal and the admin: the week board and time editor; the church photo upload. |
 | `supabase/schema.sql` | Database tables, access rules and functions. |
 | `scripts/import-osm.mjs` | Imports Catholic churches in Hungary from OpenStreetMap. |
 | `.github/workflows/pages.yml` | Publishes the site and fills `config.js` from repository secrets. |
@@ -69,6 +71,10 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/008_dated_services.sql` | times for given dates from a parish's own weekly schedule (Ferenciek tere) |
 | `supabase/migrations/009_celebrant_place_feasts.sql` | who celebrates, Masses held elsewhere, "ünnepnapokon nincs", one rule for all holy days / public holidays, calendar summer/winter and Christmas time, the "ünnepi" tag |
 | `supabase/migrations/010_parish_portal.sql` | parish portal: access requests and approval, editors list, edit history, admin-only fields protected, parish edits locked and stamped |
+| `supabase/migrations/011_analytics.sql` | anonymous usage statistics: daily counters, `track()` for the map, `analytics_report()` for the admin's Statisztika page |
+| `supabase/migrations/012_retention.sql` | deletes statistics older than 2 years and suggestions decided over a year ago, as the privacy notice promises |
+| `supabase/migrations/013_photos.sql` | church photos: Wikimedia Commons photos from the photo import, or the parish's own upload (`church-photos` storage bucket, `set_church_photo()`); `public_data()` returns `photo_url`, `photo_credit` and `photo_page` |
+| `supabase/migrations/014_track_most.sql` | statistics: `track()` also counts the map's new home tab, "Most" (Most · Térkép · Mentett) |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
@@ -130,6 +136,12 @@ public page shows these times ("A templom heti miserendje szerint", with a link 
 the church page lists the coming days. Who celebrates each Mass is stored as on the parish's own schedule; Mass intentions and the confessors' names are never read. If the PDF's
 layout changes, the run fails without writing anything. The parser is `scripts/lib/ferences.mjs`.
 
+## Church photos from Wikimedia Commons
+
+**Actions → Import church photos from Wikimedia Commons → Run workflow** (after migration 013; leave "Only look the photos up" ticked the first time). For churches imported from OpenStreetMap, most important first, `scripts/import-photos.mjs` takes the photo the map object names (`wikimedia_commons` / `image`) or its Wikidata item's image (P18), keeps it only under CC0, public domain, CC BY or CC BY-SA, and stores a 1000 px thumbnail with the credit "Fotó: <szerző> · <licenc> · Wikimedia Commons". A parish's own photo is never replaced; a Commons photo whose file is gone or no longer free is removed. Run it again now and then to pick up new photos. `tests/sql/photos.pglite.mjs` checks the database side (see its header for how to run it).
+
+Parishes (and the admin) can also put their own photo on a church: **Adatok → Fotó → Fotó feltöltése** on plebania.html or in the admin's church editor. `church-photo.js` makes it smaller in the browser (at most 1600 px on the long edge, JPEG), stores it in the public `church-photos` bucket as `<church id>/<timestamp>.jpg` and sets it with `set_church_photo()`; the database accepts only that church's folder and credits it "Fotó: a plébánia". It is saved at once, and the previous file is deleted from the bucket. A parish can replace a Commons photo but not remove it; the admin can.
+
 ## Parish editors (plebania.html)
 
 Parishes keep their own times up to date on **plebania.html** (linked from the map's menu as "Plébániáknak"). It shows one church at a time: the week as a board (tap a time to change it, "+ Időpont" to add one, several days at once), feast days, events and the church's details, with a live "Így látják a hívek" preview of the next seven days. Every question is asked in plain words (Milyen gyakran? Az év melyik részében? Ki tartja? Hol?).
@@ -160,4 +172,4 @@ Open http://localhost:8000. To test against your database, temporarily paste the
 
 ## Data and credits
 
-Church locations: © OpenStreetMap contributors, ODbL. Schedules come from [miserend.hu](https://miserend.hu), the Székesfehérvár diocese, editors and the community; each church's page names its source.
+Church locations: © OpenStreetMap contributors, ODbL. Schedules come from [miserend.hu](https://miserend.hu), the Székesfehérvár diocese, editors and the community; each church's page names its source. Church photos come from Wikimedia Commons (each with its author and licence) or from the parish itself.

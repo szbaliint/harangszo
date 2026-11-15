@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="hu"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#d9d6cf;font-family:"Source Sans 3",system-ui,sans-serif;font-variant-numeric:tabular-nums;padding:32px;color:#1d1a16;
+--bg:#f6f3ec;--surface:#fffdf8;--sunken:#efe9dc;--line:#e6dfd0;--border:#cfc5b1;--ink:#1d1a16;--ink2:#5b5447;--ink3:#857c6c;--accent:#233f8c;--accent-soft:#e6e9f4;--gold:#9a6b10;--gold-soft:#f5ead2;--violet:#6a2e8c;--violet-soft:#f0e6f4;--open:#1d7a4c;--open-soft:#e0f0e6;--closed:#a2361f;--closed-soft:#f6e3dd}
+h1{font:600 22px/1.2 "Source Sans 3";margin:0 0 4px}
+.sub{color:#5b5447;margin:0 0 22px;font-size:14.5px;max-width:1240px}
+.win{width:1240px;height:760px;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgb(0 0 0/.25);background:var(--bg);display:grid;grid-template-columns:200px 330px 1fr}
+.rail{background:var(--sunken);padding:18px 12px;display:flex;flex-direction:column;gap:4px}
+.rail .logo{font:700 22px "EB Garamond";padding:0 10px 14px}
+.rail .logo small{display:block;font:600 11px "Source Sans 3";letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.nav{display:flex;justify-content:space-between;padding:9px 10px;border-radius:10px;font-size:14.5px;color:var(--ink2)}
+.nav.on{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 3px rgb(0 0 0/.08)}
+.nav b{background:var(--violet);color:#fff;border-radius:999px;font-size:11.5px;padding:1px 7px}
+.rail .me{margin-top:auto;font-size:12.5px;color:var(--ink3);padding:0 10px}
+.list{border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.search{height:40px;border-radius:12px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;padding:0 12px;color:var(--ink3);font-size:14.5px}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12.5px;color:var(--ink2)}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.cnt{font-size:12.5px;color:var(--ink3)}
+.it{padding:9px 10px;border-radius:12px;display:grid;gap:2px}
+.it.on{background:var(--surface);box-shadow:0 0 0 1.5px var(--accent)}
+.it h4{margin:0;font:600 16.5px "EB Garamond"}
+.it p{margin:0;font-size:12.5px;color:var(--ink3);display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 8px}
+.tag.o{background:var(--open-soft);color:var(--open)}.tag.c{background:var(--violet-soft);color:var(--violet)}.tag.g{background:var(--gold-soft);color:var(--gold)}.tag.x{background:var(--closed-soft);color:var(--closed)}.tag.s{background:var(--sunken);color:var(--ink2)}
+.main{display:flex;flex-direction:column;overflow:hidden}
+.mh{padding:18px 24px 0;display:flex;align-items:flex-start;gap:12px}
+.mh h2{margin:0;font:600 28px/1.1 "EB Garamond"}
+.mh p{margin:4px 0 0;font-size:13.5px;color:var(--ink3)}
+.mh .sp{flex:1}
+.b{height:38px;border-radius:999px;padding:0 15px;display:inline-grid;place-items:center;font-weight:700;font-size:14px;border:1px solid var(--line);background:var(--surface)}
+.b.p{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sw{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--ink2)}
+.tog{width:38px;height:22px;border-radius:999px;background:var(--open);position:relative}.tog::after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff}
+.tabs{display:flex;gap:2px;padding:14px 24px 0;border-bottom:1px solid var(--line)}
+.tabs span{padding:9px 14px;font-size:14.5px;color:var(--ink2);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+.tabs span.on{color:var(--ink);font-weight:700;border-color:var(--accent)}
+.body{display:grid;grid-template-columns:1fr 290px;gap:18px;padding:16px 24px;overflow:hidden}
+.dc{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:9px 12px;margin-bottom:7px;display:grid;grid-template-columns:96px 1fr;align-items:center}
+.dc h5{margin:0;font:600 16.5px "EB Garamond"}.dc.sun h5{color:var(--gold)}
+.ts{display:flex;gap:6px;flex-wrap:wrap}
+.t{border-radius:10px;padding:4px 9px;font-size:12.5px;line-height:1.15}
+.t b{font-size:15px;margin-right:4px}
+.t.m{background:var(--accent-soft);color:var(--accent)}.t.c{background:var(--violet-soft);color:var(--violet)}.t.a{background:var(--gold-soft);color:var(--gold)}
+.t.add{border:1.5px dashed var(--border);color:var(--accent);font-weight:700}
+.side{display:grid;gap:12px;align-content:start}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+.box h6{margin:0 0 8px;font:700 11.5px "Source Sans 3";letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.kv{display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0;border-top:1px solid var(--line)}
+.kv:first-of-type{border-top:0}.kv span{color:var(--ink3)}
+.sug{font-size:13.5px;line-height:1.4}
+.sug .acts{display:flex;gap:6px;margin-top:8px}
+.sug .acts span{flex:1;height:32px;border-radius:999px;display:grid;place-items:center;font-weight:700;font-size:13px;border:1px solid var(--line)}
+.sug .acts .y{background:var(--accent);color:#fff;border-color:var(--accent)}
+.n{font-size:13.5px;color:#5b5447;margin:12px 0 0;line-height:1.45;max-width:1240px}
+</style></head><body>
+<h1>4 · Admin (laptop)</h1>
+<p class="sub">Three columns: a left rail for the sections, the church list in the middle, the church on the right. The schedule uses the <b>same week board and time editor as the parish portal</b>, so you see exactly what the parish sees; admin-only fields sit in the right column.</p>
+<div class="win">
+ <div class="rail">
+  <div class="logo">Harangszó<small>Adminisztráció</small></div>
+  <div class="nav on">Templomok <span style="color:var(--ink3);font-weight:400">4 799</span></div>
+  <div class="nav">Javaslatok <b>6</b></div>
+  <div class="nav">Hozzáférések <b>2</b></div>
+  <div class="nav">Összevonás</div>
+  <div class="me">szbalint · admin<br>Kijelentkezés</div>
+ </div>
+ <div class="list">
+  <div class="search">⌕ Név, település, azonosító</div>
+  <div class="chips"><span class="chip on">Nincs miserend</span><span class="chip">Javaslattal</span><span class="chip">Plébánia kezeli</span><span class="chip">Rejtett</span><span class="chip">Budapest ▾</span></div>
+  <div class="cnt">312 találat</div>
+  <div class="it on"><h4>Budavári Nagyboldogasszony-templom</h4><p>Budapest I. <span class="tag o">plébánia kezeli</span><span class="tag c">2 javaslat</span></p></div>
+  <div class="it"><h4>Szent Anna-templom</h4><p>Budapest I. <span class="tag s">miserend.hu</span></p></div>
+  <div class="it"><h4>Krisztinavárosi Havas Boldogasszony</h4><p>Budapest I. <span class="tag x">nincs időpont</span></p></div>
+  <div class="it"><h4>Szent Ferenc sebei templom</h4><p>Budapest I. <span class="tag s">ferences PDF</span></p></div>
+  <div class="it"><h4>Kapucinus Szent Erzsébet-templom</h4><p>Budapest I. <span class="tag g">ünnepi rend</span></p></div>
+  <div class="it"><h4>Tabáni Alexandriai Szent Katalin</h4><p>Budapest I. <span class="tag x">hely bizonytalan</span></p></div>
+ </div>
+ <div class="main">
+  <div class="mh"><div><h2>Budavári Nagyboldogasszony-templom</h2><p>Szentháromság tér 2 · #1043 · utoljára mentette: plébánia, tegnap 21:14</p></div><span class="sp"></span><span class="sw">Közzétéve <span class="tog"></span></span><span class="b">Megnyitás a térképen</span><span class="b p">Mentés</span></div>
+  <div class="tabs"><span class="on">Miserend</span><span>Ünnepek</span><span>Események</span><span>Adatok</span><span>Szerkesztők</span><span>Előzmények</span></div>
+  <div class="body">
+   <div>
+    <div class="dc sun"><h5>Vasárnap</h5><div class="ts"><span class="t m"><b>08:00</b>mise</span><span class="t m"><b>10:00</b>latin</span><span class="t m"><b>18:00</b>mise</span><span class="t c"><b>17:30</b>gyónás</span><span class="t add">＋</span></div></div>
+    <div class="dc"><h5>Hétfő</h5><div class="ts"><span class="t m"><b>07:00</b>mise</span><span class="t c"><b>17:00</b>gyónás</span><span class="t add">＋</span></div></div>
+    <div class="dc"><h5>Kedd</h5><div class="ts"><span class="t m"><b>18:00</b>mise</span><span class="t add">＋</span></div></div>
+    <div class="dc"><h5>Szerda</h5><div class="ts"><span class="t m"><b>07:00</b>mise</span><span class="t a"><b>18:30</b>szentségimádás</span><span class="t add">＋</span></div></div>
+    <div class="dc"><h5>Csütörtök</h5><div class="ts"><span class="t m"><b>18:00</b>mise</span><span class="t add">＋</span></div></div>
+    <div class="dc"><h5>Péntek</h5><div class="ts"><span class="t m"><b>18:00</b>mise</span><span class="t a"><b>17:00</b>keresztút · nagyböjt</span><span class="t add">＋</span></div></div>
+    <div class="dc"><h5>Szombat</h5><div class="ts"><span class="t m"><b>18:00</b>előesti</span><span class="t add">＋</span></div></div>
+   </div>
+   <div class="side">
+    <div class="box sug"><h6>Javaslat ehhez a templomhoz · 2</h6>„Kedden 18:00 helyett 18:30 van a mise novembertől.”<div style="color:var(--ink3);font-size:12.5px;margin-top:4px">hívő · 3 napja</div><div class="acts"><span class="y">Átveszem</span><span>Elutasítom</span></div></div>
+    <div class="box"><h6>Csak admin</h6>
+     <div class="kv"><span>Fontosság</span>3 · plébániatemplom</div>
+     <div class="kv"><span>miserend.hu</span>#2211</div>
+     <div class="kv"><span>OSM</span>way/41208833</div>
+     <div class="kv"><span>Importálás</span>zárolva (plébánia mentett)</div>
+    </div>
+    <div class="box"><h6>Szerkesztők</h6><div class="kv"><span>plebania.budavar@…</span>jóváhagyva</div></div>
+   </div>
+  </div>
+ </div>
+</div>
+<p class="n">Everything the admin does today stays (filters, suggestions, access requests, merge, per-church editors, edit history), each in its own place instead of one long form. The one real change: the old row-of-fields schedule editor is replaced by the parish portal's board + question sheet, with an "Haladó" (advanced) section in the sheet for the raw fields only admin uses (date ranges, nth week, every N weeks, feast_skip). On a phone the three columns stack: sections → list → church.</p>
+</body></html>
