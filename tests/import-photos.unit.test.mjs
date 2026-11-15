@@ -75,6 +75,8 @@ test("HTML is stripped from the author", () => {
 test("credit line", () => {
   assert.equal(formatCredit('<a href="#">Kovács János</a>', "CC BY-SA 4.0"), "Fotó: Kovács János · CC BY-SA 4.0 · Wikimedia Commons");
   assert.equal(formatCredit("", "CC0"), "Fotó: CC0 · Wikimedia Commons");
+  assert.equal(formatCredit("No machine-readable author provided. Csanády assumed (based on copyright claims).", "Public domain"), "Fotó: Csanády · Public domain · Wikimedia Commons");
+  assert.equal(formatCredit("No machine-readable author provided.", "CC0"), "Fotó: CC0 · Wikimedia Commons");
   const long = formatCredit("Szó ".repeat(60), "CC BY 4.0");
   assert.ok(long.length < 170 && long.includes("… · CC BY 4.0 · Wikimedia Commons"), long);
   assert.equal(licenceLabel("", "cc-by-sa-4.0"), "CC BY-SA 4.0");
