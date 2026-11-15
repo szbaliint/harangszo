@@ -13,7 +13,9 @@ import {
   USER_AGENT, chunk, overpassQuery, osmFile, osmWikidata, wikidataImage, photoFromImageInfo, pagesByTitle, byImportance,
 } from "./lib/photos.mjs";
 
-const OVERPASS = process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter";
+// Overpass mirrors, tried in turn for each batch (the main one sometimes refuses whole cloud networks).
+const OVERPASS = process.env.OVERPASS_URL ? [process.env.OVERPASS_URL]
+  : ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
 const WIKIDATA = "https://www.wikidata.org/w/api.php";
 const COMMONS = "https://commons.wikimedia.org/w/api.php";
 const OSM_BATCH = 200, WIKI_BATCH = 50, OVERPASS_PAUSE_MS = 5000, WIKIMEDIA_GAP_MS = 1000;
@@ -33,14 +35,18 @@ async function api(path, opts = {}) {
 // Wikimedia calls are spaced at least a second apart. (No maxlag: these are reads, and Wikidata's maxlag also counts
 // the query service's lag, which often refuses every request for minutes.)
 let lastWikimedia = 0;
+// fetch() only says "fetch failed"; the cause (ECONNRESET, ENOTFOUND, a TLS error…) is what helps.
+const netError = e => new Error(`${e.message}${e.cause ? ` (${e.cause.code || e.cause.message})` : ""}`);
+
 async function politeFetch(target, init = {}, { wikimedia = false, tries = 5 } = {}) {
   let lastErr;
   for (let attempt = 1; attempt <= tries; attempt++) {
     if (wikimedia) { const wait = lastWikimedia + WIKIMEDIA_GAP_MS - Date.now(); if (wait > 0) await sleep(wait); lastWikimedia = Date.now(); }
     let res;
     try {
-      res = await fetch(target, { ...init, headers: { "User-Agent": USER_AGENT, "Api-User-Agent": USER_AGENT, Accept: "application/json", ...(init.headers || {}) } });
-    } catch (e) { lastErr = e; }
+      const base = wikimedia ? { "User-Agent": USER_AGENT, "Api-User-Agent": USER_AGENT, Accept: "application/json" } : { "User-Agent": USER_AGENT };
+      res = await fetch(target, { ...init, headers: { ...base, ...(init.headers || {}) } });
+    } catch (e) { lastErr = netError(e); }
     if (res?.ok) {
       const body = await res.json();
       if (body?.error) throw new Error(`${new URL(target).host}: ${body.error.code} ${String(body.error.info || "").slice(0, 200)}`);
@@ -76,11 +82,20 @@ async function osmTags(churches, stats) {
   const batches = chunk(churches, OSM_BATCH);
   for (const [i, batch] of batches.entries()) {
     if (i) await sleep(OVERPASS_PAUSE_MS);
-    try {
-      const body = await politeFetch(OVERPASS, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "data=" + encodeURIComponent(overpassQuery(batch)) });
+    let body, errs = [];
+    for (const endpoint of OVERPASS) {
+      try {
+        body = await politeFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "data=" + encodeURIComponent(overpassQuery(batch)) }, { tries: 3 });
+        break;
+      } catch (e) { errs.push(`${new URL(endpoint).host}: ${e.message}`); }
+    }
+    if (body) {
       for (const c of batch) tags.set(`${c.osm_type}/${c.osm_id}`, {});
       for (const el of body.elements || []) tags.set(`${el.type}/${el.id}`, el.tags || {});
-    } catch (e) { stats.failed += batch.length; console.warn(`  Overpass batch ${i + 1}/${batches.length} failed, skipped: ${e.message}`); }
+    } else {
+      stats.failed += batch.length; console.warn(`  Overpass batch ${i + 1}/${batches.length} failed, skipped: ${errs.join("; ")}`);
+      if (i === 2 && tags.size === 0) throw new Error("The first three Overpass batches all failed on every mirror; stopping instead of waiting out the rest.");
+    }
     console.log(`  OpenStreetMap ${Math.min((i + 1) * OSM_BATCH, churches.length)}/${churches.length}`);
   }
   return tags;
