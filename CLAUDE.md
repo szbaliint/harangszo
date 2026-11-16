@@ -58,6 +58,9 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   school, holiday…), `valid` (MM-DD/MM-DD), `weeks[]` (nth week of month), `every`+`anchor` (fortnightly…), `tags[]`,
   `celebrant`, `place`/`place_church_id` (held elsewhere), `feast_skip`, `feast` (row only on that feast/group).
   `churches.feast_sunday[]` = feasts that follow the Sunday order.
+- `churches.own_feasts` (migration 015) = the church's own feasts, a fixed date every year:
+  `[{key: "own_1", name: "Szent Anna búcsú", md: "07-26"}]` (≤10, checked by `own_feasts_ok`; 02-29 only in leap years).
+  Their keys work like built-in feast keys (`feast_sunday`, `services.feast`); editable by parishes; `LitCal.ownFeastsOn`.
 - `dated_services` – times for specific dates from a parish's own weekly schedule; on those dates they replace the rules.
 - `opening_hours`, `events`, `suggestions`, `staff` (admin/parish), `staff_churches`, `access_requests`, `church_edits`.
 - `analytics_daily` – anonymous counters per (day, event, key), written only by `track()`, read only by
@@ -65,8 +68,8 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
 - RPCs: `public_data` (everything the map needs), `save_church`, `insert_services`, `import_church_schedule`,
   `import_dated_services`, `merge_churches`, `approve_access`, `track`, `analytics_report`, `set_church_photo`,
   `import_church_photos` (secret key).
-- Order of precedence on a day (app.js `dayInfo`, plebania.js `dayList`): dated rows → a feast's own rows → a feast
-  group's rows → feast_sunday (Sunday order) → regular rules (season, weeks, every, rorate only in Advent, feast_skip).
+- Order of precedence on a day (app.js `dayInfo`, plebania.js `dayList`): dated rows → the church's own feast (its rows,
+  or its Sunday order) → a feast's own rows → a feast group's rows → feast_sunday (Sunday order) → regular rules (season, weeks, every, rorate only in Advent, feast_skip).
 
 ## Imports (`scripts/`, Node 22, run as GitHub Actions with `SUPABASE_URL` + `SUPABASE_SECRET_KEY`)
 
