@@ -1,9 +1,26 @@
 /* Harangszó — "The church first" (see .impeccable/surfaces/index-html.md).
    White ground, near-black ink, two greys, hairlines, ONE red that only means "the next one / what applies now".
-   The platform's own type (SF on Apple, Roboto elsewhere), tabular figures for every time and distance, one scale
+   Type like a printed parish bulletin, self-hosted from fonts/: church names and headings in Newsreader (a text
+   serif, 500, optical size follows the font size), everything else (data, labels, controls, times) in Source Sans 3
+   at 400 and 600 only (300 for the big times). Times are 600 with tabular figures, the kind after them grey regular at
+   the same size. Status words are plain grey text joined with " · " (a problem first, in red), never pills. One scale
    13/15/17/22/64 (+40 for a secondary big time). No gradients, glow, textures, blur on content or drop shadows.
    Radius: 10px for buttons and fields, 0 for rows. Layout: phone = one white column over the map (Térkép shows the
    map); desktop = a 420px white column on the left, the grey map to the right. */
+
+/* Self-hosted fonts (fonts/, SIL Open Font License 1.1; no request leaves the site): the latin and latin-ext subsets as
+   Google Fonts cuts them (Hungarian ő ű are in latin-ext), each loaded only when a page uses its characters.
+   Newsreader: variable, optical size 6–72, weight trimmed to 400–500 with fontTools. Source Sans 3: variable 200–900,
+   unmodified. index.html preloads the two latin files; sw.js keeps all four for the map. */
+@font-face{font-family:"Newsreader";font-style:normal;font-weight:400 500;font-display:swap;src:url(fonts/newsreader-latin.woff2) format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Newsreader";font-style:normal;font-weight:400 500;font-display:swap;src:url(fonts/newsreader-latin-ext.woff2) format("woff2");
+  unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Source Sans 3";font-style:normal;font-weight:200 900;font-display:swap;src:url(fonts/source-sans-3-latin.woff2) format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Source Sans 3";font-style:normal;font-weight:200 900;font-display:swap;src:url(fonts/source-sans-3-latin-ext.woff2) format("woff2");
+  unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF}
+
 :root{
   --bg:#ffffff; --surface:#ffffff; --sunken:#f4f4f4; --line:#e6e6e6; --border:#d4d4d4;
   --ink:#111111; --ink-2:#555555; --ink-3:#767676;   /* brief #8a8a8a, darkened to reach 4.5:1 on white */
@@ -14,8 +31,8 @@
   --gold:#555555; --gold-soft:#f0f0f0;
   --open:#111111; --open-soft:#f0f0f0; --closed:#b4232a;
   --land:#f2f2f2; --water:#dcdcdc;
-  --f-body:-apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
-  --f-display:-apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
+  --f-body:"Source Sans 3", system-ui, sans-serif;   /* data, labels, controls, times */
+  --f-display:"Newsreader", Georgia, serif;          /* church names and headings, 500 */
   --fs-1:13px; --fs-2:15px; --fs-3:17px; --fs-4:22px; --fs-mid:40px; --fs-big:64px;
   --r:10px; --ease:cubic-bezier(.2,.8,.2,1); --dur:280ms;
   --tabbar-h:calc(56px + env(safe-area-inset-bottom,0px)); --mapcard-h:120px;
@@ -41,8 +58,13 @@
 
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:var(--fs-2);line-height:1.4;font-variant-numeric:tabular-nums;
-  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overflow:hidden}
+  font-synthesis-weight:none;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overflow:hidden}
 button,input,select,textarea{font:inherit;color:inherit}
+/* Two weights for the sans (400, 600), one for the serif (500): no 700 anywhere, no faux bold. A heading is
+   Newsreader 500 unless its own rule says otherwise. */
+b,strong,th{font-weight:600}
+h1,h2,h3,h4,h5,h6{font-family:var(--f-display);font-weight:500}
+code,kbd,samp,pre{font-family:var(--f-body)}
 /* Tabular figures for every time and distance (the font shorthand would otherwise reset them). */
 *,*::before,*::after{font-variant-numeric:tabular-nums!important}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
@@ -85,8 +107,8 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
 .tabs{position:fixed;z-index:30;left:0;right:0;bottom:0;height:var(--tabbar-h);display:flex;padding:0 8px env(safe-area-inset-bottom,0px);
   border-top:1px solid var(--line);background:var(--bg)}
 .tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;border:0;background:none;
-  color:var(--ink-3);font:500 var(--fs-1)/1 var(--f-body);cursor:pointer;touch-action:manipulation}
-.tab[aria-pressed="true"]{color:var(--ink);font-weight:700}
+  color:var(--ink-3);font:400 var(--fs-1)/1 var(--f-body);cursor:pointer;touch-action:manipulation}
+.tab[aria-pressed="true"]{color:var(--ink);font-weight:600}
 .tab:active svg{transform:scale(.92)}
 .tab svg{transition:transform .12s var(--ease)}
 /* About (bottom of Most and Mentett): the notice, install, parishes, privacy */
@@ -106,7 +128,7 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
 a.ph-credit{text-decoration:none}
 /* Pills over the photo: white, ink, 40px drawn (the ::before keeps 44px to tap) */
 .pill{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;min-width:40px;padding:0 16px;border-radius:20px;
-  border:1px solid var(--line);background:var(--bg);color:var(--ink);font:500 var(--fs-2)/1 var(--f-body);cursor:pointer;touch-action:manipulation;transition:transform .12s var(--ease)}
+  border:1px solid var(--line);background:var(--bg);color:var(--ink);font:600 var(--fs-2)/1 var(--f-body);cursor:pointer;touch-action:manipulation;transition:transform .12s var(--ease)}
 .pill::before{content:"";position:absolute;inset:-2px}
 .pill.round{width:40px;padding:0}
 .pill:active{transform:scale(.96)}
@@ -118,15 +140,15 @@ a.ph-credit{text-decoration:none}
 .when{display:flex;align-items:baseline;gap:12px;margin-top:6px;min-width:0}
 .big{flex:none;font:300 var(--fs-big)/.95 var(--f-body);letter-spacing:-.035em;color:var(--ink)}
 .when-side{min-width:0;font-size:var(--fs-3);line-height:1.3;color:var(--ink-2);overflow-wrap:anywhere}
-.when-side em{display:block;font-style:normal;font-weight:700;color:var(--ink)}
+.when-side em{display:block;font-style:normal;font-weight:600;color:var(--ink)}
 .when-side em.now{color:var(--red)}
-.cname,.d-name{margin:12px 0 0;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;color:var(--ink);text-wrap:balance;overflow-wrap:anywhere;hyphens:auto}
+.cname,.d-name{margin:12px 0 0;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em;color:var(--ink);text-wrap:balance;overflow-wrap:anywhere;hyphens:auto}
 .addr,.d-where{margin:4px 0 0;font-size:var(--fs-2);color:var(--ink-2)}
 .d-tags{margin:2px 0 0;font-size:var(--fs-1);color:var(--ink-3)}
 .d-tags:empty{display:none}
 .acts{display:flex;gap:8px;margin-top:16px}
 .acts .btn{flex:1 1 0;min-width:0;padding:0 6px}
-.sec{margin:28px 0 0;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.sec{margin:28px 0 0;font:500 var(--fs-3)/1.3 var(--f-display);color:var(--ink)}
 .m-empty{margin:14px 0 0;max-width:34em;font-size:var(--fs-3);line-height:1.45;color:var(--ink-2)}
 .m-origin{display:flex;flex-wrap:wrap;align-items:center;gap:0 6px;margin:6px 0 0;font-size:var(--fs-1);color:var(--ink-3)}
 .m-origin .link{color:var(--ink-2)}
@@ -141,13 +163,13 @@ ul.rows.pad{padding-left:20px;padding-right:20px}
 .row[aria-current="true"] .r-name{text-decoration:underline;text-underline-offset:3px}
 .r-t{font-weight:600}
 .r-n{min-width:0}
-.r-name{overflow-wrap:anywhere;hyphens:auto}
+.r-name{font:500 var(--fs-3)/1.25 var(--f-display);overflow-wrap:anywhere;hyphens:auto}
 .r-n small{display:block;margin-top:1px;font-size:var(--fs-1);color:var(--ink-3)}
 .r-d{color:var(--ink-2);white-space:nowrap}
 .rows>li.ui-empty{border:0}
 .lhead{display:grid;gap:2px}
 .top-gap{padding-top:calc(16px + env(safe-area-inset-top,0px))}
-.sec-h{margin:0;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em}
+.sec-h{margin:0;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em}
 
 /* ===== Térkép (phone): search field, controls, bottom panel ===== */
 .mapui{position:absolute;inset:0;z-index:5;pointer-events:none}
@@ -165,7 +187,7 @@ ul.rows.pad{padding-left:20px;padding-right:20px}
 .mc-main{display:flex;align-items:baseline;gap:12px;width:100%;min-height:44px;padding:0;border:0;background:none;color:var(--ink);text-align:left;cursor:pointer}
 .mid{flex:none;font:300 var(--fs-mid)/1 var(--f-body);letter-spacing:-.03em}
 .mc-t{min-width:0;font-size:var(--fs-2);line-height:1.3;color:var(--ink-2)}
-.mc-t strong{display:block;font-size:var(--fs-3);font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.mc-t strong{display:block;font:500 var(--fs-3)/1.25 var(--f-display);color:var(--ink);overflow-wrap:anywhere}
 .mc-row{display:flex;justify-content:space-between;gap:10px;width:100%;min-height:44px;margin-top:10px;padding:10px 0 0;border:0;border-top:1px solid var(--line);
   background:none;color:var(--ink-2);font-size:var(--fs-2);text-align:left;cursor:pointer}
 .mc-row b{margin-right:8px;color:var(--ink);font-weight:600}
@@ -219,10 +241,10 @@ ul.rows.pad{padding-left:20px;padding-right:20px}
 /* 7 days as plain text buttons; the selected one underlined in ink */
 .d-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-top:24px;border-bottom:1px solid var(--line)}
 .d-days button{display:grid;justify-items:center;gap:2px;min-width:0;min-height:52px;padding:6px 0 8px;border:0;background:none;color:var(--ink-3);
-  font:500 var(--fs-1)/1.2 var(--f-body);cursor:pointer;box-shadow:inset 0 -2px 0 transparent;transition:box-shadow .15s var(--ease),color .15s var(--ease)}
-.d-days b{font:500 var(--fs-3)/1.15 var(--f-body);color:var(--ink-2)}
+  font:400 var(--fs-1)/1.2 var(--f-body);cursor:pointer;box-shadow:inset 0 -2px 0 transparent;transition:box-shadow .15s var(--ease),color .15s var(--ease)}
+.d-days b{font:400 var(--fs-3)/1.15 var(--f-body);color:var(--ink-2)}
 .d-days button[aria-pressed="true"]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
-.d-days button[aria-pressed="true"] b{color:var(--ink);font-weight:700}
+.d-days button[aria-pressed="true"] b{color:var(--ink);font-weight:600}
 .d-feast{margin:12px 0 0;font-size:var(--fs-1);color:var(--ink-2)}
 .d-list{margin:0;padding:0;list-style:none}
 .d-row{display:flex;align-items:baseline;gap:10px;min-height:44px;padding:11px 0;border-bottom:1px solid var(--line);font-size:var(--fs-2);line-height:1.3}
@@ -233,7 +255,7 @@ ul.rows.pad{padding-left:20px;padding-right:20px}
 .d-row.d-none{color:var(--ink-3)}
 .d-folds{margin-top:24px;border-top:1px solid var(--line)}
 .d-fold{display:grid;gap:10px;font-size:var(--fs-2);line-height:1.45}
-.d-sub{margin:6px 0 -4px;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.d-sub{margin:6px 0 -4px;font:500 var(--fs-2)/1.3 var(--f-display);color:var(--ink)}
 .d-mini{margin:0;padding:0;list-style:none}
 .d-mini li{display:flex;align-items:baseline;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
 .d-mini li:first-child{border-top:0}
@@ -246,15 +268,17 @@ ul.rows.pad{padding-left:20px;padding-right:20px}
 .ev .date{line-height:1}
 .ev .date b{display:block;font:300 var(--fs-4)/1 var(--f-body)}
 .ev .date small{font-size:var(--fs-1);color:var(--ink-3)}
-.ev h5{margin:0;font:600 var(--fs-2)/1.3 var(--f-body);color:var(--ink)}
+.ev h5{margin:0;font:500 var(--fs-3)/1.25 var(--f-display);color:var(--ink)}
 .ev .muted{font-size:var(--fs-1)}
 .feast-times{margin-top:2px;font-size:var(--fs-1);color:var(--ink-2)}
 /* Week table */
 .week{overflow-x:auto}
 .week table{width:100%;border-collapse:collapse;font-size:var(--fs-2)}
 .week th,.week td{padding:9px 8px 9px 0;border-top:1px solid var(--line);text-align:left;vertical-align:top}
-.week thead th{border-top:0;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
-.week tbody th{width:3.6rem;white-space:nowrap;font-weight:600;color:var(--ink)}
+.week thead th{border-top:0;font:600 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+/* A timetable: the day in grey regular, the times in 600 ink (as on the week board) */
+.week tbody th{width:3.6rem;white-space:nowrap;font-weight:400;color:var(--ink-2)}
+.week tbody tr.today th{color:var(--ink)}
 .week tbody th small{display:block;font-weight:400;font-size:var(--fs-1);color:var(--ink-3)}
 .week td .t{font-weight:600}
 .week td .wt{display:block}
@@ -270,7 +294,7 @@ ul.rows.pad{padding-left:20px;padding-right:20px}
 /* Install sheet (iPhone): numbered steps */
 .steps{display:grid;gap:12px;margin:0;padding:0;list-style:none}
 .steps li{display:flex;align-items:center;gap:12px;font-size:var(--fs-2);line-height:1.4}
-.steps .n{flex:none;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:var(--fs-1)}
+.steps .n{flex:none;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:var(--fs-1)}
 .steps p{margin:0}
 /* Javítás sheet */
 .s-church{margin:-6px 0 0;color:var(--ink-3);font-size:var(--fs-1)}
@@ -373,7 +397,7 @@ form.suggest .muted{margin:0}
 
 /* Tag: small label, square-ish, no colour coding by kind */
 .ui-tag{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border:1px solid var(--line);border-radius:4px;background:transparent;color:var(--ink-2);
-  font:500 var(--fs-1)/1.25 var(--f-body);font-variant-numeric:tabular-nums;white-space:nowrap}
+  font:400 var(--fs-1)/1.25 var(--f-body);font-variant-numeric:tabular-nums;white-space:nowrap}
 .ui-tag.t-mass,.ui-tag.t-conf,.ui-tag.t-ador,.ui-tag.t-muted{color:var(--ink-2)}
 .ui-tag.t-open{color:var(--ink);border-color:var(--ink)}
 .ui-tag.t-warn{color:var(--closed);border-color:currentColor}
@@ -381,7 +405,7 @@ form.suggest .muted{margin:0}
 /* Segmented control: hairline box, the pressed segment in ink */
 .ui-seg{display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
 .ui-seg button{flex:1 1 0;min-width:0;line-height:1.15;text-wrap:balance;min-height:44px;padding:0 10px;border:0;background:transparent;color:var(--ink-2);
-  font:500 var(--fs-2)/1.2 var(--f-body);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color .15s var(--ease),color .15s var(--ease)}
+  font:400 var(--fs-2)/1.2 var(--f-body);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color .15s var(--ease),color .15s var(--ease)}
 .ui-seg button+button{border-left:1px solid var(--border)}
 .ui-seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);font-weight:600}
 
@@ -409,7 +433,7 @@ form.suggest .muted{margin:0}
 .ui-daypick{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
 .ui-daypick button{min-width:0;min-height:44px;padding:0 2px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--ink-2);
   font:400 14px/1 var(--f-body);cursor:pointer;transition:background-color .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease)}
-.ui-daypick button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);font-weight:700}
+.ui-daypick button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);font-weight:600}
 
 /* Card (portal and admin), grouped list and fold-out row: hairlines, rows square */
 .ui-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;min-width:0}
@@ -418,9 +442,9 @@ form.suggest .muted{margin:0}
 .ui-glist>.ui-row:first-child,.ui-fold>summary+.ui-row{border-top:0}
 a.ui-row,button.ui-row{width:100%;border-left:0;border-right:0;border-bottom:0;background:none;font:inherit;text-align:left;text-decoration:none;cursor:pointer}
 .ui-fold{border-bottom:1px solid var(--line)}
-.ui-fold>summary{display:flex;align-items:center;gap:10px;min-height:48px;padding:12px 0;list-style:none;font-weight:600;font-size:var(--fs-3);cursor:pointer}
+.ui-fold>summary{display:flex;align-items:center;gap:10px;min-height:48px;padding:12px 0;list-style:none;font:500 var(--fs-3)/1.3 var(--f-display);cursor:pointer}
 .ui-fold>summary::-webkit-details-marker{display:none}
-.ui-fold>summary .count{margin-left:auto;color:var(--ink-3);font-weight:400;font-size:var(--fs-2);font-variant-numeric:tabular-nums}
+.ui-fold>summary .count{margin-left:auto;color:var(--ink-3);font:400 var(--fs-2)/1.3 var(--f-body);font-variant-numeric:tabular-nums}
 .ui-fold>summary::after{content:"";flex:none;width:7px;height:7px;margin:0 4px 3px 0;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);transform:rotate(45deg);
   transition:transform .2s var(--ease)}
 .ui-fold>summary:not(:has(.count))::after{margin-left:auto}
@@ -434,9 +458,9 @@ a.ui-row,button.ui-row{width:100%;border-left:0;border-right:0;border-bottom:0;b
 /* Tab row (portal sections, admin): a hairline row, the pressed tab underlined in ink */
 .ui-tabbar{display:flex;gap:0;border-bottom:1px solid var(--line);background:var(--bg)}
 .ui-tab{flex:1 1 0;min-width:0;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--ink-2);
-  font:500 var(--fs-2)/1.15 var(--f-body);text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
+  font:400 var(--fs-2)/1.15 var(--f-body);text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
   box-shadow:inset 0 -2px 0 transparent;transition:box-shadow .15s var(--ease),color .15s var(--ease)}
-.ui-tab[aria-pressed="true"]{color:var(--ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--ink)}
+.ui-tab[aria-pressed="true"]{color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--ink)}
 
 /* Sheet: <dialog> — bottom sheet on phones, centred panel from 640px; header / .body (scrolls) / footer */
 dialog.ui-sheet{position:fixed;inset:0;margin:auto 0 0;width:100%;max-width:100%;max-height:calc(100dvh - 48px);padding:0;border:0;border-top:1px solid var(--line);
@@ -449,7 +473,7 @@ dialog.ui-sheet::backdrop{background:rgb(0 0 0 / .35);opacity:0;transition:opaci
 dialog.ui-sheet[open]::backdrop{opacity:1}
 @starting-style{dialog.ui-sheet[open]::backdrop{opacity:0}}
 .ui-sheet>header{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 8px}
-.ui-sheet>header :is(h2,h3){margin:0;min-width:0;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;text-transform:none;color:var(--ink);text-wrap:balance}
+.ui-sheet>header :is(h2,h3){margin:0;min-width:0;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em;text-transform:none;color:var(--ink);text-wrap:balance}
 .ui-sheet>header .ui-btn.quiet{margin-right:-10px}
 .ui-sheet>.body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 20px calc(20px + env(safe-area-inset-bottom,0px));display:grid;gap:14px;align-content:start;grid-auto-rows:max-content}
 .ui-sheet>footer{flex:none;display:flex;gap:8px;padding:12px 20px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
@@ -484,18 +508,18 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
 /* Toast with actions (.action): stays until used; a text button and a close button */
 .ui-toast.action{display:flex;align-items:center;gap:2px;padding:0 4px 0 16px}
 .ui-toast.action.on{pointer-events:auto}
-.ui-toast.action .ui-btn.quiet{padding:0 10px;color:inherit;font-weight:700}
+.ui-toast.action .ui-btn.quiet{padding:0 10px;color:inherit;font-weight:600}
 @media (hover:hover){.ui-toast.action .ui-btn.quiet:hover:not(:disabled){background:color-mix(in srgb,currentColor 14%,transparent)}}
 .ui-toast.action .x{flex:none;width:44px;height:44px;display:grid;place-items:center;padding:0;border:0;background:none;color:inherit;opacity:.75;cursor:pointer}
 
 /* Empty state */
 .ui-empty{padding:28px 20px;text-align:center;color:var(--ink-2);font-size:var(--fs-2);line-height:1.45}
-.ui-empty strong{display:block;margin-bottom:4px;font:700 var(--fs-3)/1.2 var(--f-body);color:var(--ink)}
+.ui-empty strong{display:block;margin-bottom:4px;font:500 var(--fs-3)/1.2 var(--f-display);color:var(--ink)}
 .ui-empty p{margin:0 auto;max-width:34ch}
 
 /* Hero (portal preview): the next time as plain ink type */
 .ui-hero{position:relative;padding:4px 0;color:var(--ink);font-variant-numeric:tabular-nums}
-.ui-hero small{display:block;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.ui-hero small{display:block;font:600 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
 .ui-hero .t{margin:4px 0 2px;font:300 var(--fs-mid)/1 var(--f-body);letter-spacing:-.03em}
 .ui-hero .w{font-size:var(--fs-2);color:var(--ink-2)}
 .ui-hero .in{display:block;margin-top:2px;font-size:var(--fs-1);color:var(--ink-2)}
@@ -508,7 +532,7 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
    apart by their word ("mise", "gyónás"…), never by colour. */
 .se-board{container-type:inline-size;display:grid;min-width:0;border-top:1px solid var(--line)}
 .se-day{padding:12px 0 14px;border-bottom:1px solid var(--line);min-width:0}
-.se-dh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 10px;font:700 var(--fs-3)/1.2 var(--f-body);color:var(--ink)}
+.se-dh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 10px;font:600 var(--fs-3)/1.2 var(--f-body);color:var(--ink)}
 .se-dh small{font:400 var(--fs-1)/1.2 var(--f-body);color:var(--ink-3);white-space:nowrap}
 .se-tiles{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
 .se-tile{position:relative;display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-width:44px;min-height:44px;max-width:100%;
@@ -536,7 +560,7 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
 .se-sheet>.body{grid-auto-rows:max-content}
 .se-sheet>footer{flex-wrap:wrap}
 .se-q{display:grid;gap:8px;min-width:0}
-.se-ql{margin:0;font:700 var(--fs-2)/1.3 var(--f-body);color:var(--ink)}
+.se-ql{margin:0;font:600 var(--fs-2)/1.3 var(--f-body);color:var(--ink)}
 .se-ql-s{font-weight:600}
 .se-pills{display:flex;flex-wrap:wrap;gap:10px 6px;min-width:0}
 .se-hint{margin:0;font-size:var(--fs-1);line-height:1.35;color:var(--ink-3)}

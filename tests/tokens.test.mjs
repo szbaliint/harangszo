@@ -1,4 +1,4 @@
-// "The church first" tokens, WCAG AA contrast, the platform font, and the test harness itself.
+// "The church first" tokens, WCAG AA contrast, the self-hosted fonts, and the test harness itself.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -36,14 +36,13 @@ const lum = c => {
 };
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-const STACK = '-apple-system, "sf pro text", roboto, system-ui, sans-serif';
 test("church-first tokens", () => {
   assert.deepEqual([light["--bg"], light["--ink"], light["--ink-2"], light["--line"], light["--red"]], ["#ffffff", "#111111", "#555555", "#e6e6e6", "#b4232a"]);
   assert.equal(light["--accent"], light["--ink"], "controls are ink, not a colour");
   for (const [name, t] of [["media query", darkMedia], ["[data-theme=dark]", darkAttr]])
     assert.deepEqual([t["--bg"], t["--ink"], t["--ink-2"], t["--ink-3"], t["--line"], t["--red"]], ["#0e0e0e", "#f1f1f1", "#a3a3a3", "#7d7d7d", "#262626", "#ff5a5f"], `dark (${name})`);
-  assert.equal(light["--f-display"], STACK);
-  assert.equal(light["--f-body"], STACK);
+  assert.equal(light["--f-display"], '"newsreader", georgia, serif');
+  assert.equal(light["--f-body"], '"source sans 3", system-ui, sans-serif');
   assert.deepEqual(["--fs-1", "--fs-2", "--fs-3", "--fs-4", "--fs-mid", "--fs-big"].map(k => light[k]), ["13px", "15px", "17px", "22px", "40px", "64px"]);
   assert.equal(light["--r"], "10px");
   assert.ok(!("--f-mono" in light), "--f-mono is removed");
@@ -73,17 +72,42 @@ let server, browser;
 before(async () => { server = await startServer(); browser = await chromium.launch(); });
 after(async () => { await browser?.close(); await server?.stop(); });
 
-test("pages use the platform font; the map loads no web font", async () => {
-  for (const file of ["index.html", "plebania.html", "admin.html"]) {
+// Self-hosted type: every @font-face file is in fonts/ with its licence, deployed, small, and the only place fonts come from.
+const FACES = [...css.matchAll(/@font-face\{([^}]*)\}/g)].map(m => ({
+  family: /font-family:"([^"]+)"/.exec(m[1])[1], file: /url\(([^)]+)\)/.exec(m[1])[1], display: /font-display:(\w+)/.exec(m[1])?.[1], range: /unicode-range:/.test(m[1]) }));
+test("fonts: Newsreader and Source Sans 3, latin + latin-ext, self-hosted with their licences", () => {
+  assert.deepEqual([...new Set(FACES.map(f => f.family))].sort(), ["Newsreader", "Source Sans 3"]);
+  assert.deepEqual(FACES.map(f => f.file).sort(), ["fonts/newsreader-latin-ext.woff2", "fonts/newsreader-latin.woff2", "fonts/source-sans-3-latin-ext.woff2", "fonts/source-sans-3-latin.woff2"]);
+  for (const f of FACES) {
+    assert.equal(f.display, "swap", f.file); assert.ok(f.range, `${f.file}: unicode-range`);
+    const head = fs.readFileSync(path.join(ROOT, f.file)).subarray(0, 4).toString("latin1");
+    assert.equal(head, "wOF2", `${f.file} is a woff2 file`);
+  }
+  const total = FACES.reduce((n, f) => n + fs.statSync(path.join(ROOT, f.file)).size, 0);
+  assert.ok(total < 250 * 1024, `fonts total ${Math.round(total / 1024)} KB`);
+  for (const lic of ["fonts/OFL-Newsreader.txt", "fonts/OFL-SourceSans3.txt"]) assert.match(fs.readFileSync(path.join(ROOT, lic), "utf8"), /SIL Open Font License, Version 1\.1/);
+  const yml = fs.readFileSync(path.join(ROOT, ".github/workflows/pages.yml"), "utf8");
+  assert.match(yml, /^\s*cp -r [^\n]*\bfonts\b[^\n]*_site\/?\s*$/m, "pages.yml deploys fonts/");
+  const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
+  for (const f of FACES) assert.ok(sw.includes(`"${f.file}"`), `sw.js keeps ${f.file} for the map`);
+  const index = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  for (const f of ["fonts/source-sans-3-latin.woff2", "fonts/newsreader-latin.woff2"])
+    assert.match(index, new RegExp(`<link rel="preload" href="${f}" as="font" type="font/woff2" crossorigin>`), `index.html preloads ${f}`);
+});
+
+test("pages use the self-hosted fonts and nothing from Google Fonts", async () => {
+  for (const file of ["index.html", "plebania.html", "admin.html", "jogi.html"]) {
     const page = await browser.newPage();
+    const external = [];
+    page.on("request", r => { if (/fonts\.(googleapis|gstatic)\.com/.test(r.url())) external.push(r.url()); });
     try {
-      await page.goto(`${server.url}/${file}`, { waitUntil: "domcontentloaded" });
-      if (file === "index.html") {
-        const links = await page.$$eval('link[rel="stylesheet"]', ls => ls.map(l => l.href));
-        assert.ok(!links.some(h => h.includes("fonts.googleapis.com")), "index.html: no Google Fonts stylesheet");
-      }
+      await mockSupabase(page, {});
+      await page.goto(`${server.url}/${file}`, { waitUntil: "load" });
+      await page.evaluate(() => document.fonts.ready);
       const family = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-      assert.match(family, /^-apple-system, "SF Pro Text", Roboto, system-ui, sans-serif$/, `${file}: body font is ${family}`);
+      assert.match(family, /^"Source Sans 3", system-ui, sans-serif$/, `${file}: body font is ${family}`);
+      assert.ok(await page.evaluate(() => document.fonts.check('400 15px "Source Sans 3"')), `${file}: Source Sans 3 loaded`);
+      assert.deepEqual(external, [], `${file}: no Google Fonts requests`);
     } finally { await page.close(); }
   }
 });

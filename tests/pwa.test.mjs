@@ -124,6 +124,8 @@ test("offline: admin and the parish portal are never served from the cache", asy
       return out;
     });
     assert.ok(cached.includes("/app.js"), "the shell is precached");
+    for (const f of ["source-sans-3-latin", "source-sans-3-latin-ext", "newsreader-latin", "newsreader-latin-ext"])
+      assert.ok(cached.includes(`/fonts/${f}.woff2`), `${f} is precached`);
     for (const k of cached) assert.doesNotMatch(k, /admin|plebania|schedule-editor/, `cached: ${k}`);
     // Online, the portal's shared files come from the network, not from the map's cache.
     const fromSw = {};
@@ -258,6 +260,6 @@ test("sw.js and pages.yml", () => {
   const yml = readFileSync(path.join(ROOT, ".github/workflows/pages.yml"), "utf8");
   const cp = yml.split("\n").find(l => /^\s*cp index\.html /.test(l));
   for (const f of ["sw.js", "manifest.webmanifest", "schedule-editor.js"]) assert.ok(cp.split(/\s+/).includes(f), `cp line lacks ${f}`);
-  assert.match(yml, /^\s*cp -r icons _site\/?\s*$/m);
+  assert.match(yml, /^\s*cp -r icons fonts _site\/?\s*$/m);
   assert.match(yml, /_site\/sw\.js.*replace\("__BUILD__".*\$GITHUB_SHA/);
 });

@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="styles.css">
 <style>
 /* Parish portal: one church at a time, phone first, in the map's world: white page, ink, hairline sections, black
-   primary buttons, the platform font. Shared parts (ui-*, the week board se-*, the photo cp-*) come from styles.css;
+   primary buttons; church names and headings in Newsreader, the rest in Source Sans 3. Shared parts (ui-*, the week board se-*, the photo cp-*) come from styles.css;
    only this page's layout lives here. Below 980px the four sections are a tab bar at the bottom (like the map's) and
    the preview is a switch; from 980px the tabs sit under the header and the preview is a column on the right. */
 html,body{height:auto}
@@ -21,11 +21,11 @@ body{overflow:auto}
 
 /* Header: the name on the sign-in screens, the church on the editor */
 .pp-top{max-width:1160px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top,0px)) 20px 10px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px 20px}
-.pp-brand{display:inline-flex;align-items:baseline;gap:8px;min-height:44px;padding-top:11px;font:700 var(--fs-3)/1.2 var(--f-body);color:var(--ink);text-decoration:none}
+.pp-brand{display:inline-flex;align-items:baseline;gap:8px;min-height:44px;padding-top:11px;font:500 var(--fs-3)/1.2 var(--f-display);color:var(--ink);text-decoration:none}
 .pp-brand small{font:400 var(--fs-1)/1.2 var(--f-body);color:var(--ink-3)}
 .pp-head{flex:1 1 320px;min-width:0;display:grid;gap:4px;padding-top:6px}
-.pp-kicker{font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
-.pp-name{margin:0;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;color:var(--ink);text-wrap:balance;overflow-wrap:anywhere;hyphens:auto}
+.pp-kicker{font:600 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.pp-name{margin:0;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em;color:var(--ink);text-wrap:balance;overflow-wrap:anywhere;hyphens:auto}
 .pp-state{margin:0;font-size:var(--fs-1);line-height:1.35;color:var(--ink-2)}
 .pp-who{display:flex;flex-wrap:wrap;align-items:center;gap:0 2px;margin-left:auto;font-size:var(--fs-1);color:var(--ink-3)}
 .pp-who .em{margin-right:6px;overflow-wrap:anywhere}
@@ -62,7 +62,7 @@ body{overflow:auto}
 .pp-card{display:grid;gap:12px;min-width:0;padding:16px 0 18px;border-bottom:1px solid var(--line)}
 .pp-sec>.pp-list:first-child{border-top:0}
 .pp-sec>.pp-list:first-child>.pp-card:first-child{padding-top:0}
-.pp-card h3{margin:0;font:700 var(--fs-3)/1.25 var(--f-body);color:var(--ink)}
+.pp-card h3{margin:0;font:500 var(--fs-3)/1.25 var(--f-display);color:var(--ink)}
 .pp-card .when{display:block;margin-top:2px;color:var(--ink-3);font-size:var(--fs-1)}
 .pp-line{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
 .pp-line .ui-field{flex:1 1 140px}
@@ -80,14 +80,14 @@ body{overflow:auto}
 .pp-card>.ui-seg button{padding:0 6px;line-height:1.15}
 .pp-hours .ui-daypick{max-width:440px}
 /* Ünnepek: a long list of the same three-way choice; the chosen one is outlined, not filled, so the page stays calm */
-.pp-card>.ui-seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);font-weight:700;box-shadow:inset 0 0 0 1px var(--ink)}
+.pp-card>.ui-seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px var(--ink)}
 .pp-muted{margin:0;color:var(--ink-3);font-size:var(--fs-1);line-height:1.45}
 .pp-list>.pp-muted{padding:14px 0;border-bottom:1px solid var(--line)}
 
 /* What the faithful will see */
 .pp-pv{min-width:0}
-.pp-pv h2{margin:0;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;color:var(--ink)}
-.pv-kicker{margin:4px 0 10px;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.pp-pv h2{margin:0;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em;color:var(--ink)}
+.pv-kicker{margin:4px 0 10px;font:600 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
 .pv-note{margin:-4px 0 10px;color:var(--ink-3);font-size:var(--fs-1)}
 .ui-row.pv-row{display:grid;grid-template-columns:88px minmax(0,1fr);gap:8px;align-items:baseline}
 .pv-row .d{color:var(--ink-3);font-size:var(--fs-1)}
@@ -99,8 +99,8 @@ body{overflow:auto}
 
 /* Sign-in, choosing a church, asking for access: one plain column */
 .pp-narrow{max-width:440px;margin:12px auto 0;display:grid;gap:16px}
-.pp-title{margin:0;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
-.pp-narrow h2{margin:0;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.pp-title{margin:0;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
+.pp-narrow h2{margin:0;font:500 var(--fs-3)/1.3 var(--f-display);color:var(--ink)}
 .pp-narrow .pp-lead{margin:0}
 .pp-msg{margin:0;font-size:var(--fs-2)}
 .pp-msg:empty{display:none}
@@ -110,10 +110,11 @@ body{overflow:auto}
 .pp-results{max-height:50vh;overflow:auto}
 .pp-results:empty{display:none}
 .pp-results .ui-row{display:grid;gap:1px;justify-items:start}
+.pp-results .ui-row b,.pp-req b{font:500 var(--fs-3)/1.3 var(--f-display)}
 .pp-results .ui-row small{color:var(--ink-3);font-size:var(--fs-1)}
 .pp-results .ui-row{position:relative;padding-right:40px}
 .pp-results .ui-row[aria-pressed="true"]{background:var(--accent-soft);padding-left:12px}
-.pp-results .ui-row[aria-pressed="true"]::after{content:"✓";position:absolute;right:14px;top:50%;transform:translateY(-50%);font-weight:700;color:var(--ink)}
+.pp-results .ui-row[aria-pressed="true"]::after{content:"✓";position:absolute;right:14px;top:50%;transform:translateY(-50%);font-weight:600;color:var(--ink)}
 .pp-results .ui-row:first-child{border-top:0}
 .pp-reqs{display:grid;gap:6px}
 .pp-req{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 10px}

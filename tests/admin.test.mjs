@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { chromium } from "./helpers/playwright.mjs";
 import { startServer } from "./helpers/server.mjs";
 import { mockSupabase, SUPABASE_URL } from "./helpers/supabase-mock.mjs";
+import { typeProblems } from "./helpers/type-check.mjs";
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
 const LAPTOP = { viewport: { width: 1440, height: 900 } };
@@ -165,6 +166,7 @@ test("Haladó: every 2 with an anchor ends up in the save_church payload", async
     await sheet(page).locator(".se-adv summary").click();
     await sheet(page).locator('input[data-buf="every"]').fill("2");
     await sheet(page).locator('input[data-buf="every"]').press("Tab");
+    assert.deepEqual(await typeProblems(page), [], "admin church page");
     await sheet(page).locator('input[data-f="anchor"]').fill("2026-11-16");
     assert.match(await sheet(page).locator(".se-sum").textContent(), /kéthetente/);
     await sheet(page).locator("[data-act=save]").click();

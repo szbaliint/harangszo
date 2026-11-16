@@ -6,6 +6,7 @@ import path from "node:path";
 import { chromium, devices } from "./helpers/playwright.mjs";
 import { startServer, ROOT } from "./helpers/server.mjs";
 import { mockSupabase } from "./helpers/supabase-mock.mjs";
+import { typeProblems } from "./helpers/type-check.mjs";
 
 const { defaultBrowserType: _, ...IPHONE } = devices["iPhone 13"];
 let server, browser;
@@ -23,6 +24,7 @@ test("the legal page has the three sections and fits a phone", async () => {
       "Wikimedia Commons", "upload.wikimedia.org", "commons.wikimedia.org", "Supabase Storage", "Fotó: a plébánia"]) assert.ok(text.toLowerCase().includes(s.toLowerCase()), s);
     assert.ok(!text.includes("Google Fonts"), "no page loads Google Fonts any more");
     assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
+    assert.deepEqual(await typeProblems(p), [], "headings in Newsreader, text in Source Sans 3");
     assert.deepEqual(errors, []);
   } finally { await c.close(); }
 });

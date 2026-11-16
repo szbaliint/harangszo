@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="styles.css">
 <style>
 /* Admin: rail · church list · the open church, in the map's world: white, ink, hairline rows and sections, black
-   primary buttons, the platform font; nothing boxed but the fields. Shared parts (ui-*, the week board se-*, the
+   primary buttons; church names and headings in Newsreader, the rest in Source Sans 3; nothing boxed but the fields. Shared parts (ui-*, the week board se-*, the
    photo cp-*) come from styles.css; only this page's layout lives here. ≥1100px three columns, each scrolling on its
    own; 720–1100px the rail is a tab bar on top and the list and the church sit side by side; below 720px one column:
    tab bar, then the list or the church. */
@@ -24,7 +24,7 @@ body{overflow:auto}
 
 /* Rail: a top bar with a tab bar below 1100px, a column from 1100px */
 .ad-rail{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;padding:8px 16px 0;background:var(--bg);border-bottom:1px solid var(--line);min-width:0}
-.ad-logo{margin:0;font:700 var(--fs-3)/1.2 var(--f-body);color:var(--ink)}
+.ad-logo{margin:0;font:500 var(--fs-3)/1.2 var(--f-display);color:var(--ink)}
 .ad-logo small{display:block;margin-top:1px;font:400 var(--fs-1)/1.3 var(--f-body);color:var(--ink-3)}
 .ad-nav.ui-tabbar{flex:1 1 auto;max-width:640px;border-bottom:0;background:transparent}
 .ad-nav .ui-tab{flex:1 1 auto;padding:0 10px;white-space:nowrap}
@@ -76,7 +76,7 @@ body{overflow:auto}
 .ad-ch{display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px 16px;padding:20px 24px 0}
 .ad-back{display:none;margin:-6px 0 -4px -10px;padding:0 10px}
 .ad-cht{flex:1 1 300px;min-width:0}
-.ad-name{margin:0;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;color:var(--ink);overflow-wrap:anywhere;hyphens:auto;text-wrap:balance}
+.ad-name{margin:0;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em;color:var(--ink);overflow-wrap:anywhere;hyphens:auto;text-wrap:balance}
 .ad-meta{margin:4px 0 0;font-size:var(--fs-1);line-height:1.4;color:var(--ink-3);overflow-wrap:anywhere;text-wrap:pretty}
 .ad-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .ad-pub{display:flex;align-items:center;gap:8px;min-height:44px;padding-right:6px;font-size:var(--fs-1);color:var(--ink-2);cursor:pointer}
@@ -85,7 +85,7 @@ body{overflow:auto}
 .ad-tab{flex:none;min-height:44px;padding:0 12px;border:0;border-radius:0;background:none;color:var(--ink-2);font:400 var(--fs-2)/1.2 var(--f-body);cursor:pointer;
   -webkit-tap-highlight-color:transparent;box-shadow:inset 0 -2px 0 transparent;transition:color .15s var(--ease),box-shadow .15s var(--ease)}
 .ad-tab:first-child{margin-left:-12px}
-.ad-tab[aria-pressed="true"]{color:var(--ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--ink)}
+.ad-tab[aria-pressed="true"]{color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--ink)}
 @media (hover:hover){.ad-tab:hover{color:var(--ink)}}
 .ad-body{padding:20px 24px}
 .ad-loading{margin:0;padding:24px;color:var(--ink-3)}
@@ -94,7 +94,7 @@ body{overflow:auto}
 .ad-sched{display:grid;gap:24px;grid-template-columns:minmax(0,1fr)}
 .ad-side{display:grid;align-content:start;min-width:0;border-top:1px solid var(--line)}
 .ad-box{display:grid;gap:8px;padding:14px 0 16px;border-bottom:1px solid var(--line);min-width:0}
-.ad-box h2{margin:0 0 2px;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.ad-box h2{margin:0 0 2px;font:500 var(--fs-3)/1.3 var(--f-display);color:var(--ink)}
 .ad-kv{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:36px;padding:4px 0;border-top:1px solid var(--line);font-size:var(--fs-1);line-height:1.35;color:var(--ink)}
 .ad-box h2+.ad-kv{border-top:0}
 .ad-kv>span:first-child{color:var(--ink-3)}
@@ -133,7 +133,7 @@ body{overflow:auto}
 .ad-lead a{color:var(--ink)}
 .ad-card{display:grid;gap:12px;min-width:0;padding-top:16px;border-top:1px solid var(--line)}
 .ad-stack>.ad-card:first-child{padding-top:0;border-top:0}
-.ad-card h3{margin:0;font:700 var(--fs-3)/1.25 var(--f-body);color:var(--ink)}
+.ad-card h3{margin:0;font:500 var(--fs-3)/1.25 var(--f-display);color:var(--ink)}
 .ad-cardh{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 12px}
 .ad-when{display:block;margin-top:2px;color:var(--ink-3);font-size:var(--fs-1)}
 .ad-line{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
@@ -153,7 +153,7 @@ body{overflow:auto}
 .ad-card>.ui-seg{max-width:420px}
 .ad-hint{margin:0;color:var(--ink-2);font-size:var(--fs-1);align-self:center}
 .ad-muted{margin:0;color:var(--ink-3);font-size:var(--fs-2);line-height:1.45}
-.ad-h2{margin:12px 0 0;font:700 var(--fs-3)/1.25 var(--f-body);color:var(--ink)}
+.ad-h2{margin:12px 0 0;font:500 var(--fs-3)/1.25 var(--f-display);color:var(--ink)}
 .ad-danger{display:flex;flex-wrap:wrap;gap:8px}
 .ad-row2{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px}
 .ad-row2 .who{min-width:0;overflow-wrap:anywhere}
@@ -165,7 +165,7 @@ body{overflow:auto}
 
 /* Pages: Javaslatok, Hozzáférések, Összevonás, Statisztika — items are hairline rows */
 .ad-page{display:grid;gap:14px;max-width:860px;padding:24px}
-.ad-ptitle{margin:0;font:700 var(--fs-4)/1.2 var(--f-body);letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
+.ad-ptitle{margin:0;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
 .ad-page>.ad-lead{margin:0}
 .ad-seg.ui-seg{max-width:460px}
 .ad-cards{display:grid;border-top:1px solid var(--line)}
@@ -185,7 +185,7 @@ body{overflow:auto}
 .ad-cmp{display:grid;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
 .ad-cmp>p{margin:0}
 .ad-fs{display:grid;gap:0;margin:0;padding:6px 14px;border:1px solid var(--line);border-radius:var(--r)}
-.ad-fs legend{padding:0 4px;font-size:var(--fs-1);font-weight:700;color:var(--ink-2)}
+.ad-fs legend{padding:0 4px;font-size:var(--fs-1);font-weight:600;color:var(--ink-2)}
 .ad-radio{display:flex;align-items:center;gap:10px;min-height:44px;font-size:var(--fs-2);cursor:pointer}
 .ad-radio input{flex:none;width:18px;height:18px;margin:0;accent-color:var(--ink)}
 
@@ -231,7 +231,7 @@ code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:v
   .ad-logo{padding:0 12px 16px}
   .ad-nav.ui-tabbar{flex:none;flex-direction:column;gap:2px;max-width:none;padding:0;border:0}
   .ad-nav .ui-tab{flex:none;justify-content:space-between;padding:0 12px;border-radius:var(--r);text-align:left;box-shadow:none}
-  .ad-nav .ui-tab[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);font-weight:700;box-shadow:none}
+  .ad-nav .ui-tab[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);font-weight:600;box-shadow:none}
   @media (hover:hover){.ad-nav .ui-tab:hover:not([aria-pressed="true"]){background:var(--sunken)}}
   .ad-me{flex-direction:column;align-items:flex-start;margin:auto 0 0;padding:0 12px}
   .ad-me .ui-btn{margin-left:-10px;min-height:36px}
@@ -247,14 +247,14 @@ code.snip{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:v
 #st-days button{white-space:nowrap}
 .st-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 24px}
 .st-tile{padding:12px 0 14px;border-top:1px solid var(--line);min-width:0}
-.st-tile small{display:block;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.st-tile small{display:block;font:600 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
 .st-tile b{display:block;margin-top:4px;font:300 var(--fs-mid)/1.05 var(--f-body);letter-spacing:-.03em;color:var(--ink)}
 .st-tile span{display:block;margin-top:4px;font-size:var(--fs-1);color:var(--ink-3)}
 .st-grid{display:grid;gap:0 40px;grid-template-columns:minmax(0,1fr)}
 @media (min-width:900px){.st-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.st-wide{grid-column:1/-1}}
 .st-box{padding:16px 0 20px;display:grid;gap:10px;align-content:start;min-width:0;border-top:1px solid var(--line)}
-.st-box h2{margin:0;font:700 var(--fs-3)/1.25 var(--f-body)}
-.st-box h3{margin:8px 0 0;font:700 var(--fs-1)/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.st-box h2{margin:0;font:500 var(--fs-3)/1.25 var(--f-display)}
+.st-box h3{margin:8px 0 0;font:500 var(--fs-2)/1.3 var(--f-display);color:var(--ink)}
 .st-sub{margin:-6px 0 0;font-size:var(--fs-1);color:var(--ink-3)}
 .st-chart{position:relative}
 .st-chart svg{display:block;width:100%;height:auto;overflow:visible}
