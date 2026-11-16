@@ -45,7 +45,8 @@ function whenText(t) {
 const ago = t => { const n = dayDiff(t); return n <= 0 ? "ma" : n === 1 ? "tegnap" : n < 30 ? `${n} napja` : whenText(t); };
 const fullWhen = t => new Date(t).toLocaleString("hu-HU", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 const shortWhen = t => new Date(t).toLocaleString("hu-HU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-const tag = (cls, text, title = "") => `<span class="ui-tag ${cls}"${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</span>`;
+// One word of a meta line (.ui-meta): plain grey, "w" = a problem (red), "on" = waiting for a decision (ink).
+const word = (cls, text, title = "") => `<span${cls ? ` class="${cls}"` : ""}${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</span>`;
 const narrow = () => matchMedia("(max-width: 719.98px)").matches;
 let toastT;
 function toast(text) {
@@ -171,20 +172,23 @@ function buildQuery(from) {
   if (order[0] !== "name") q = q.order("name", { ascending: true });
   return q.range(from, from + PAGE - 1);
 }
+// The name, then one grey line: problems first (red), the town, then what else is worth knowing.
 function itemHTML(c) {
-  const tags = [
-    A.parishIds.has(c.id) ? tag("t-open", "plébánia kezeli") : "",
-    c.n_pending ? tag("t-conf", `${c.n_pending} javaslat`) : "",
-    c.n_services ? "" : tag("t-warn", "nincs időpont"),
-    c.location_approx ? tag("t-warn", "hely bizonytalan") : "",
-    c.near_duplicate ? tag("t-warn", "duplikátum?", "130 m-en belül van egy másik templom is") : "",
-    c.has_feast ? tag("t-ador", "ünnepi rend") : "",
-    c.schedule_source ? tag("t-muted", (SOURCE_TAG[c.schedule_source] || c.schedule_source) + (c.schedule_locked ? " · zárolt" : ""), "Az időpontok importból származnak") : "",
-    c.published ? "" : tag("t-muted", "rejtett"),
-    A.f.sort === "imp" || A.f.imp ? tag("t-muted", `★ ${c.importance}${c.importance_manual != null ? " (kézi)" : ""}`, "Fontosság") : "",
+  const problems = [
+    c.n_services ? "" : word("w", "nincs időpont"),
+    c.location_approx ? word("w", "hely bizonytalan") : "",
+    c.near_duplicate ? word("w", "duplikátum?", "130 m-en belül van egy másik templom is") : "",
+  ].join("");
+  const rest = [
+    c.n_pending ? word("on", `${c.n_pending} javaslat`) : "",
+    A.parishIds.has(c.id) ? word("", "plébánia kezeli") : "",
+    c.has_feast ? word("", "ünnepi rend") : "",
+    c.schedule_source ? word("", (SOURCE_TAG[c.schedule_source] || c.schedule_source) + (c.schedule_locked ? " · zárolt" : ""), "Az időpontok importból származnak") : "",
+    c.published ? "" : word("", "rejtett"),
+    A.f.sort === "imp" || A.f.imp ? word("", `★ ${c.importance}${c.importance_manual != null ? " (kézi)" : ""}`, "Fontosság") : "",
   ].join("");
   return `<li><button type="button" class="ad-it" data-id="${c.id}" aria-current="${A.sel === c.id}"><span class="nm">${esc(c.name)}</span>
-    <span class="sub"><span>${esc(c.city || "– település nincs megadva –")}</span>${tags}</span></button></li>`;
+    <span class="sub ui-meta">${problems}<span>${esc(c.city || "– település nincs megadva –")}</span>${rest}</span></button></li>`;
 }
 const renderItems = () => { $("#clist").innerHTML = A.list.map(itemHTML).join("") || `<li class="ad-empty">Nincs a szűrőknek megfelelő templom.</li>`; };
 let listToken = 0;
@@ -432,11 +436,11 @@ function adminBoxHTML() {
     <label class="ad-tg" for="f-approx"><span>Hely bizonytalan<small>A nyilvános oldalon figyelmeztetés látszik.</small></span><input type="checkbox" class="ui-toggle" id="f-approx" data-k="location_approx" ${c.location_approx ? "checked" : ""}></label>
   </section>`;
 }
-const REQ_STATUS = { pending: ["jóváhagyásra vár", "t-conf"], approved: ["jóváhagyva", "t-open"], rejected: ["elutasítva", "t-muted"] };
+const REQ_STATUS = { pending: ["jóváhagyásra vár", "on"], approved: ["jóváhagyva", ""], rejected: ["elutasítva", ""] };
 function editorsBoxHTML() {
   const eds = A.meta?.editors || [], pend = (A.meta?.requests || []).filter(r => r.status === "pending");
-  const rows = [...eds.map(e => `<div class="ad-kv"><span title="${esc(e.email || "")}">${esc(e.display_name || e.email || e.user_id)}</span>${tag("t-open", "jóváhagyva")}</div>`),
-    ...pend.map(r => `<div class="ad-kv"><span title="${esc(r.email || "")}">${esc(r.name)}</span>${tag("t-conf", "jóváhagyásra vár")}</div>`)];
+  const rows = [...eds.map(e => `<div class="ad-kv"><span title="${esc(e.email || "")}">${esc(e.display_name || e.email || e.user_id)}</span><span class="ui-meta">${word("", "jóváhagyva")}</span></div>`),
+    ...pend.map(r => `<div class="ad-kv"><span title="${esc(r.email || "")}">${esc(r.name)}</span><span class="ui-meta">${word("on", "jóváhagyásra vár")}</span></div>`)];
   return `<section class="ad-box" id="side-editors"><h2>Szerkesztők</h2>
     ${rows.join("") || `<p class="ad-muted">Ehhez a templomhoz még nincs plébániai szerkesztő.</p>`}
     <a class="ui-btn quiet ad-link" href="plebania.html?templom=${A.draft.id}" target="_blank" rel="noopener">Megnyitás a plébániai felületen</a>
@@ -545,11 +549,11 @@ function renderEditors(box) {
   box.innerHTML = `<div class="ad-stack">
     <p class="ad-lead">Akik ezt a templomot a plébániai felületen szerkeszthetik. A hozzáférést a plébánia kéri a plebania.html oldalon; jóváhagyás után csak ezt a templomot szerkesztheti.</p>
     ${m.editors.length ? `<ul class="ui-glist">${m.editors.map(e => `<li class="ui-row ad-row2"><span class="who"><b>${esc(e.display_name || e.email || e.user_id)}</b>${e.email ? `<small>${esc(e.email)}</small>` : ""}</span>
-      <span class="ad-cacts">${tag("t-open", "jóváhagyva")}<button type="button" class="ui-btn danger" data-revoke="${esc(e.user_id)}" data-c="${cid}">Hozzáférés megvonása</button></span></li>`).join("")}</ul>`
+      <span class="ad-cacts"><span class="ui-meta">${word("", "jóváhagyva")}</span><button type="button" class="ui-btn danger" data-revoke="${esc(e.user_id)}" data-c="${cid}">Hozzáférés megvonása</button></span></li>`).join("")}</ul>`
       : `<p class="ad-muted">Ehhez a templomhoz még nincs plébániai szerkesztő.</p>`}
     <h2 class="ad-h2">Hozzáférési kérések</h2>
     ${m.requests.length ? `<div class="ad-cards">` + m.requests.map(r => `<article class="ad-sgcard">
-      <div class="ad-cmeta">${tag(REQ_STATUS[r.status]?.[1] || "t-muted", REQ_STATUS[r.status]?.[0] || r.status)}<span>${esc(shortWhen(r.created_at))}</span></div>
+      <div class="ad-cmeta ui-meta">${word(REQ_STATUS[r.status]?.[1] || "", REQ_STATUS[r.status]?.[0] || r.status)}<span>${esc(shortWhen(r.created_at))}</span></div>
       <h3 class="ad-ctitle">${esc(r.name)}${r.position ? " – " + esc(r.position) : ""}</h3>
       <p class="ad-muted">${[r.email, r.phone].filter(Boolean).map(esc).join(" · ")}</p>
       ${r.message ? `<p>${esc(r.message)}</p>` : ""}
@@ -752,7 +756,7 @@ async function refreshSuggCount() {
 }
 // "Templom megnyitása" on the Javaslatok and Hozzáférések pages.
 function openFromPage(id) { setTab("churches", { render: false }); renderChurches(); openChurch(id); }
-const SUGG_STATUS = { pending: ["Döntésre vár", "t-conf"], approved: ["Elfogadva", "t-open"], rejected: ["Elutasítva", "t-muted"] };
+const SUGG_STATUS = { pending: ["Döntésre vár", "on"], approved: ["Elfogadva", ""], rejected: ["Elutasítva", ""] };
 async function renderSuggestions() {
   main.innerHTML = `<div class="ad-page">
     <h1 class="ad-ptitle">Beküldött javaslatok</h1>
@@ -763,7 +767,7 @@ async function renderSuggestions() {
   if (A.page !== "sugg" || !$("#slist")) return;
   if (error) { $("#slist").innerHTML = `<p class="ad-msg err">Nem sikerült betölteni: ${esc(error.message)}</p>`; return; }
   $("#slist").innerHTML = (data || []).map(s => `<article class="ad-sgcard">
-      <div class="ad-cmeta">${tag(SUGG_STATUS[s.status]?.[1] || "t-muted", SUGG_STATUS[s.status]?.[0] || s.status)}<span>${esc(TYPES[s.type] || s.type)}</span><span>${esc(shortWhen(s.created_at))}</span></div>
+      <div class="ad-cmeta ui-meta">${word(SUGG_STATUS[s.status]?.[1] || "", SUGG_STATUS[s.status]?.[0] || s.status)}<span>${esc(TYPES[s.type] || s.type)}</span><span>${esc(shortWhen(s.created_at))}</span></div>
       <h2 class="ad-ctitle">${esc(s.churches ? s.churches.name + " (" + s.churches.city + ")" : "Ismeretlen templom")}</h2>
       <p>${esc(s.text)}</p>
       ${s.contact ? `<p class="ad-muted">Kapcsolat: ${esc(s.contact)}</p>` : ""}
@@ -794,7 +798,7 @@ async function renderAccess() {
   if (error) { $("#alist").innerHTML = `<p class="ad-msg err">${/access_requests/.test(error.message) ? "Futtasd le a 010-es adatbázis-frissítést (supabase/migrations/010_parish_portal.sql)." : esc(error.message)}</p>`; return; }
   const pend = (reqs || []).filter(r => r.status === "pending"), done = (reqs || []).filter(r => r.status !== "pending").slice(0, 30);
   $("#alist").innerHTML = [...pend, ...done].map(r => `<article class="ad-sgcard">
-      <div class="ad-cmeta">${tag(SUGG_STATUS[r.status]?.[1] || "t-muted", { pending: "Döntésre vár", approved: "Jóváhagyva", rejected: "Elutasítva" }[r.status] || r.status)}<span>${esc(shortWhen(r.created_at))}</span></div>
+      <div class="ad-cmeta ui-meta">${word(SUGG_STATUS[r.status]?.[1] || "", { pending: "Döntésre vár", approved: "Jóváhagyva", rejected: "Elutasítva" }[r.status] || r.status)}<span>${esc(shortWhen(r.created_at))}</span></div>
       <h2 class="ad-ctitle">${esc(r.name)}${r.position ? " – " + esc(r.position) : ""}</h2>
       <p>${esc(r.churches ? r.churches.name + (r.churches.city ? " (" + r.churches.city + ")" : "") : "#" + r.church_id)}</p>
       <p class="ad-muted">${[r.email, r.phone].filter(Boolean).map(esc).join(" · ")}</p>
@@ -851,7 +855,7 @@ async function openMerge() {
     if (!$("#mlist")) return;
     if (error) { $("#mlist").innerHTML = `<li class="ad-empty ad-msg err">${esc(error.message)}</li>`; return; }
     const list = (data || []).map(o => ({ ...o, d: mkm(c, o) })).sort((a, b) => a.d - b.d).slice(0, 15);
-    $("#mlist").innerHTML = list.map(o => `<li><button type="button" class="ad-it" data-mid="${o.id}"><span class="nm">${esc(o.name)}</span><span class="sub"><span>${esc(o.city || "–")}</span><span>${distText(o.d)}</span>${o.n_services ? tag("t-muted", o.n_services + " időpont") : tag("t-warn", "nincs időpont")}${o.location_approx ? tag("t-warn", "hely pontosítandó") : ""}${o.schedule_source ? tag("t-muted", "import") : ""}</span></button></li>`).join("") || `<li class="ad-empty">Nincs találat.</li>`;
+    $("#mlist").innerHTML = list.map(o => `<li><button type="button" class="ad-it" data-mid="${o.id}"><span class="nm">${esc(o.name)}</span><span class="sub ui-meta">${o.n_services ? "" : word("w", "nincs időpont")}${o.location_approx ? word("w", "hely pontosítandó") : ""}<span>${esc(o.city || "–")}</span><span>${distText(o.d)}</span>${o.n_services ? word("", o.n_services + " időpont") : ""}${o.schedule_source ? word("", "import") : ""}</span></button></li>`).join("") || `<li class="ad-empty">Nincs találat.</li>`;
     $("#mlist").querySelectorAll("[data-mid]").forEach(b => b.addEventListener("click", () => {
       $("#mlist").querySelectorAll("[data-mid]").forEach(x => x.setAttribute("aria-current", x === b));
       compare(list.find(o => o.id === +b.dataset.mid));

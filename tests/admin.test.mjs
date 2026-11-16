@@ -96,12 +96,22 @@ test("rail: badges and count; list: tags; three columns at 1440", async () => {
     assert.deepEqual((await page.locator("#rail [data-page] > span:first-child").allTextContents()), ["Templomok", "Javaslatok", "Hozzáférések", "Összevonás", "Statisztika"]);
     assert.equal(await page.locator("#clist .ad-it").count(), 3);
     assert.equal((await page.locator("#ccount").textContent()).trim(), "3 találat");
-    await item(page, "Szent Anna").locator(".ui-tag", { hasText: "plébánia kezeli" }).waitFor();
-    assert.equal(await item(page, "Szent Anna").locator(".ui-tag.t-conf", { hasText: "2 javaslat" }).count(), 1);
-    assert.equal(await item(page, "Ciszterci").locator(".ui-tag.t-warn", { hasText: "nincs időpont" }).count(), 1);
-    assert.equal(await item(page, "Ciszterci").locator(".ui-tag.t-warn", { hasText: "hely bizonytalan" }).count(), 1);
-    assert.equal(await item(page, "Minorita").locator(".ui-tag.t-muted", { hasText: "miserend.hu" }).count(), 1);
-    assert.equal(await item(page, "Minorita").locator(".ui-tag.t-muted", { hasText: "rejtett" }).count(), 1);
+    // One plain grey line, words joined with " · ": problems first in red, the town, then the rest; no pills.
+    await item(page, "Szent Anna").locator(".ui-meta > span", { hasText: "plébánia kezeli" }).waitFor();
+    assert.equal(await item(page, "Szent Anna").locator(".ui-meta > .on", { hasText: "2 javaslat" }).count(), 1);
+    assert.equal(await item(page, "Ciszterci").locator(".ui-meta > .w", { hasText: "nincs időpont" }).count(), 1);
+    assert.equal(await item(page, "Ciszterci").locator(".ui-meta > .w", { hasText: "hely bizonytalan" }).count(), 1);
+    assert.equal(await item(page, "Minorita").locator(".ui-meta > span:not(.w):not(.on)", { hasText: "miserend.hu" }).count(), 1);
+    assert.equal(await item(page, "Minorita").locator(".ui-meta > span:not(.w):not(.on)", { hasText: "rejtett" }).count(), 1);
+    assert.equal(await item(page, "Ciszterci").locator(".ui-meta").evaluate(m => [...m.children].map((c, i) => (i ? getComputedStyle(c, "::before").content.replace(/"/g, "") : "") + c.textContent).join("")),
+      "nincs időpont · hely bizonytalan · Eger");
+    assert.equal(await page.locator(".ui-tag").count(), 0, "no outlined tags");
+    const look = await item(page, "Ciszterci").evaluate(b => {
+      const m = b.querySelector(".ui-meta"), w = m.querySelector(".w"), s = getComputedStyle(w);
+      return { size: getComputedStyle(m).fontSize, border: s.borderTopStyle, red: s.color,
+        name: getComputedStyle(b.querySelector(".nm")).fontFamily.split(",")[0], weight: getComputedStyle(b.querySelector(".nm")).fontWeight };
+    });
+    assert.deepEqual(look, { size: "13px", border: "none", red: "rgb(180, 35, 42)", name: "Newsreader", weight: "500" });
     const [r, l, m] = await Promise.all(["#rail", "#listcol", "#main"].map(s => page.locator(s).boundingBox()));
     assert.ok(Math.abs(r.width - 200) < 1 && Math.abs(l.width - 330) < 1, `rail ${r.width}, list ${l.width}`);
     assert.ok(r.x < l.x && l.x < m.x && Math.abs(r.y - l.y) < 1 && Math.abs(l.y - m.y) < 1, "side by side");
@@ -139,6 +149,10 @@ test("clicking a church shows its header, tabs, the week board and the side boxe
     assert.equal((await page.locator("h1.ad-name").textContent()).trim(), d.church.name);
     assert.match(await page.locator("#ch-meta").textContent(), /Szent Anna utca 1\. · #1043 · utoljára mentette: Szent Anna plébánia, tegnap 21:14/);
     assert.equal(await item(page, "Szent Anna").getAttribute("aria-current"), "true");
+    // The open church's row: sunken, a 2px ink bar at the left, the name not underlined.
+    const sel = await item(page, "Szent Anna").evaluate(b => { const s = getComputedStyle(b); return { shadow: s.boxShadow, line: getComputedStyle(b.querySelector(".nm")).textDecorationLine }; });
+    assert.match(sel.shadow, /^rgb\(17, 17, 17\) 2px 0px 0px 0px inset$/);
+    assert.equal(sel.line, "none");
     assert.deepEqual((await page.locator(".ad-tabs .ad-tab").allTextContents()).map(s => s.trim()), ["Miserend", "Ünnepek", "Események", "Adatok", "Szerkesztők", "Előzmények"]);
     assert.equal(await page.locator(".se-day").count(), 7);
     assert.deepEqual(await day(page, "Vasárnap").locator(".se-tile:not(.se-add) b").allTextContents(), ["08:00", "10:00", "18:00"]);
@@ -152,6 +166,7 @@ test("clicking a church shows its header, tabs, the week board and the side boxe
     // Side boxes sit to the right of the board.
     const board = await page.locator("#board").boundingBox(), side = await page.locator(".ad-side").boundingBox();
     assert.ok(side.x > board.x + board.width - 1 && Math.abs(side.width - 290) < 1, "side column beside the board");
+    assert.deepEqual(await typeProblems(page), [], "admin church page");
     assert.equal(await page.locator("#savebar.on").count(), 0);
     assert.deepEqual(errors, []);
   } finally { await close(); }
@@ -166,7 +181,6 @@ test("Haladó: every 2 with an anchor ends up in the save_church payload", async
     await sheet(page).locator(".se-adv summary").click();
     await sheet(page).locator('input[data-buf="every"]').fill("2");
     await sheet(page).locator('input[data-buf="every"]').press("Tab");
-    assert.deepEqual(await typeProblems(page), [], "admin church page");
     await sheet(page).locator('input[data-f="anchor"]').fill("2026-11-16");
     assert.match(await sheet(page).locator(".se-sum").textContent(), /kéthetente/);
     await sheet(page).locator("[data-act=save]").click();

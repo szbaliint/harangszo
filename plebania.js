@@ -166,12 +166,12 @@ async function renderRequest() {
   leaveChurch("request");
   const { data: mine } = await sb.from("access_requests").select("id,status,created_at,church_id,churches(name,city)").order("created_at", { ascending: false });
   const name = (() => { try { return sessionStorage.getItem("pp-name"); } catch (_) { return ""; } })() || P.user.user_metadata?.name || "";
-  const STATUS = { pending: ["jóváhagyásra vár", "t-ador"], approved: ["jóváhagyva – frissítsd az oldalt", "t-open"], rejected: ["elutasítva", "t-muted"] };
+  const STATUS = { pending: ["jóváhagyásra vár", ""], approved: ["jóváhagyva – frissítsd az oldalt", "on"], rejected: ["elutasítva", ""] };
   let chosen = null;
   main.innerHTML = `<div class="pp-narrow">
     <h1 class="pp-title">Melyik templomot szerkesztenéd?</h1>
     <p class="pp-lead">Válaszd ki a templomot, és írd meg, ki vagy. Ha jóváhagytuk, ezen az oldalon rögtön szerkesztheted a miserendjét. Ha több templomot is gondozol (filiák), mindegyikhez kérj hozzáférést.</p>
-    ${(mine || []).length ? `<section class="pp-reqs"><h2>Eddigi kéréseid</h2><div class="ui-glist">${mine.map(r => `<div class="ui-row pp-req"><span><b>${esc(r.churches?.name || "#" + r.church_id)}</b> <span class="muted">${esc(r.churches?.city || "")}</span></span><span class="ui-tag ${STATUS[r.status]?.[1] || "t-muted"}">${STATUS[r.status]?.[0] || esc(r.status)}</span></div>`).join("")}</div></section>` : ""}
+    ${(mine || []).length ? `<section class="pp-reqs"><h2>Eddigi kéréseid</h2><div class="ui-glist">${mine.map(r => `<div class="ui-row pp-req"><span><b>${esc(r.churches?.name || "#" + r.church_id)}</b> <span class="muted">${esc(r.churches?.city || "")}</span></span><span class="ui-meta"><span class="${STATUS[r.status]?.[1] || ""}">${STATUS[r.status]?.[0] || esc(r.status)}</span></span></div>`).join("")}</div></section>` : ""}
     <form class="pp-form" id="rq" novalidate>
       <label class="ui-field"><span>Templom keresése</span><input id="rq-q" type="search" autocomplete="off" placeholder="A templom neve vagy a település"></label>
       <div class="ui-glist pp-results" id="rq-list"></div>

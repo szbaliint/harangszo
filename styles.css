@@ -160,7 +160,8 @@ ul.rows.pad{padding-left:20px;padding-right:20px}
 .row{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:0 10px;align-items:baseline;width:100%;min-height:44px;padding:11px 0;border:0;background:none;
   color:var(--ink);font-size:var(--fs-2);line-height:1.3;text-align:left;cursor:pointer;touch-action:manipulation;transition:background-color .12s var(--ease)}
 .row:active{background:var(--sunken)}
-.row[aria-current="true"] .r-name{text-decoration:underline;text-underline-offset:3px}
+/* The selected church: a sunken row, edge to edge, with a 2px ink bar at the left (rows sit in a 20px gutter). */
+.row[aria-current="true"]{background:var(--sunken);box-shadow:-18px 0 0 var(--sunken),20px 0 0 var(--sunken),-20px 0 0 var(--ink)}
 .r-t{font-weight:600}
 .r-n{min-width:0}
 .r-name{font:500 var(--fs-3)/1.25 var(--f-display);overflow-wrap:anywhere;hyphens:auto}
@@ -395,12 +396,12 @@ form.suggest .muted{margin:0}
 .ui-chip .dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--ink-3)!important}
 .ui-chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink);font-weight:600}
 
-/* Tag: small label, square-ish, no colour coding by kind */
-.ui-tag{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border:1px solid var(--line);border-radius:4px;background:transparent;color:var(--ink-2);
-  font:400 var(--fs-1)/1.25 var(--f-body);font-variant-numeric:tabular-nums;white-space:nowrap}
-.ui-tag.t-mass,.ui-tag.t-conf,.ui-tag.t-ador,.ui-tag.t-muted{color:var(--ink-2)}
-.ui-tag.t-open{color:var(--ink);border-color:var(--ink)}
-.ui-tag.t-warn{color:var(--closed);border-color:currentColor}
+/* Meta line (lists in the portal and admin): plain grey 13px words joined with " · ", never pills. A problem comes
+   first, in red (.w); something waiting for a decision is ink (.on). */
+.ui-meta{display:block;min-width:0;font:400 var(--fs-1)/1.35 var(--f-body);color:var(--ink-3);overflow-wrap:anywhere}
+.ui-meta>*+*::before{content:" · ";color:var(--ink-3)}
+.ui-meta>.w{color:var(--closed)}
+.ui-meta>.on{color:var(--ink)}
 
 /* Segmented control: hairline box, the pressed segment in ink */
 .ui-seg{display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
