@@ -114,15 +114,6 @@ body{overflow:auto}
   .ad-side{border-top:0;border-left:1px solid var(--line);padding-left:20px}
   .ad-box:first-child{padding-top:0}
   .ad-box:last-child{border-bottom:0}}
-/* Narrower than the portal's laptop board: day name in a left column, tiles on one line, from 460px. */
-@container (min-width:460px){
-  .ad .se-day{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;column-gap:8px;padding:8px 0}
-  .ad .se-dh{flex-direction:column;align-items:flex-start;gap:2px;margin:0;font-size:var(--fs-2)}
-  .ad .se-tiles{row-gap:8px}
-  .ad .se-tile{flex-direction:row;align-items:baseline;gap:6px;min-height:36px;padding:7px 10px}
-  .ad .se-tile::before{content:"";position:absolute;inset:-5px 0}
-  .ad .se-tile b{font-size:var(--fs-2)}
-  .ad .se-tile.se-add{align-items:center;min-width:40px}}
 
 /* Forms (Ünnepek, Események, Adatok, Szerkesztők): hairline sections */
 .ad-stack{display:grid;gap:16px;max-width:860px}

@@ -20,7 +20,7 @@ async function open(query = "", viewport = { width: 360, height: 740 }) {
 const sheet = page => page.locator("dialog.se-sheet");
 const ruleWith = (rules, pred) => (rules || []).find(pred);
 
-test("board: a card per day, Sunday first, tiles and a ＋ per day", async () => {
+test("board: a row per day, Sunday first, times and a \"+ időpont\" per day", async () => {
   const page = await open();
   try {
     const days = await page.locator(".se-day .se-dh span").allTextContents();
@@ -28,8 +28,39 @@ test("board: a card per day, Sunday first, tiles and a ＋ per day", async () =>
     assert.equal(await page.locator(".se-day.sun").count(), 1);
     assert.equal(await page.locator(".se-tile.se-add").count(), 7);
     assert.deepEqual(await page.locator(".se-day.sun .se-tile:not(.se-add) b").allTextContents(), ["08:00", "10:00", "18:00"]);
+    // The count is for screen readers only; the add button reads "+ időpont".
     assert.equal((await page.locator(".se-day.sun .se-dh small").textContent()).trim(), "3 alkalom");
+    assert.equal(await page.locator(".se-day.sun .se-dh small").evaluate(e => e.getBoundingClientRect().width <= 1 && e.classList.contains("sr")), true);
+    assert.deepEqual(await page.locator(".se-tile.se-add").allTextContents(), Array(7).fill("+ időpont"));
     assert.deepEqual(page.errors, []);
+  } finally { await page.close(); }
+});
+
+test("board: a timetable, no boxes; day names regular grey; times 600; 44px tap areas that do not overlap", async () => {
+  const page = await open("?crowded=1");
+  try {
+    const r = await page.evaluate(() => {
+      const day = document.querySelector(".se-day.sun"), dh = getComputedStyle(day.querySelector(".se-dh"));
+      const tiles = [...day.querySelectorAll(".se-tile")], t = tiles.find(x => !x.matches(".se-add"));
+      const ts = getComputedStyle(t), probe = document.createElement("i");
+      probe.style.color = "var(--ink-2)"; document.body.append(probe); const ink2 = getComputedStyle(probe).color; probe.remove();
+      const areas = tiles.map(x => { const b = x.getBoundingClientRect(), a = getComputedStyle(x, "::before"); return { top: b.top + parseFloat(a.top), bottom: b.bottom - parseFloat(a.bottom), left: b.left, right: b.right }; });
+      const overlaps = areas.filter((a, i) => areas.some((b, j) => j > i && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5)).length;
+      return { cols: getComputedStyle(day).gridTemplateColumns.split(" ").length, dayWeight: dh.fontWeight, dayColor: dh.color, ink2, border: ts.borderTopStyle, bg: ts.backgroundColor,
+        timeWeight: getComputedStyle(t.querySelector("b")).fontWeight, minArea: Math.min(...areas.map(a => a.bottom - a.top)), overlaps };
+    });
+    assert.equal(r.cols, 2, "day name in a left column");
+    assert.equal(r.dayWeight, "400"); assert.equal(r.dayColor, r.ink2);
+    assert.equal(r.border, "none"); assert.equal(r.bg, "rgba(0, 0, 0, 0)");
+    assert.equal(r.timeWeight, "600");
+    assert.ok(r.minArea >= 44 - 0.5, `tap area ${r.minArea}px`);
+    assert.equal(r.overlaps, 0, "tap areas overlap");
+    // Keyboard focus: the sunken background and the ink focus ring.
+    await page.keyboard.press("Tab");
+    await page.waitForTimeout(250);
+    const f = await page.evaluate(() => { const a = document.activeElement, s = getComputedStyle(a); return { tile: a.matches(".se-tile"), bg: s.backgroundColor, outline: s.outlineStyle }; });
+    assert.deepEqual({ tile: f.tile, outline: f.outline }, { tile: true, outline: "solid" });
+    assert.notEqual(f.bg, "rgba(0, 0, 0, 0)");
   } finally { await page.close(); }
 });
 
@@ -295,7 +326,7 @@ test("crowded day: 8 Sunday times wrap inside the card, ＋ stays reachable", as
   } finally { await page.close(); }
 });
 
-test("laptop width: day name column, tiles on one line", async () => {
+test("laptop width: a wider day column, time and text on one line", async () => {
   const page = await open("?admin=1", { width: 1100, height: 800 });
   try {
     const r = await page.evaluate(() => {
@@ -303,7 +334,7 @@ test("laptop width: day name column, tiles on one line", async () => {
       const b = t.querySelector("b").getBoundingClientRect(), s = t.querySelector("span").getBoundingClientRect();
       return { cols: getComputedStyle(day).gridTemplateColumns, nameW: h.width, sameLine: Math.abs(b.bottom - s.bottom) < 4 && s.left > b.right };
     });
-    assert.match(r.cols, /^96px /);
+    assert.match(r.cols, /^110px /);
     assert.ok(r.sameLine, "time and text on one line");
   } finally { await page.close(); }
 });

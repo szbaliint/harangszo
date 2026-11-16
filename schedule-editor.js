@@ -1,7 +1,7 @@
 "use strict";
-/* Harangszó shared schedule editor: the week board (one row per day, a tile per time) and the question-style time
-   editor in a bottom sheet. Used by the parish portal and, with admin: true, by the admin page. It edits only the
-   regular rules it is given and hands them back through onChange; saving stays in each page (save_church).
+/* Harangszó shared schedule editor: the week board (a timetable: one row per day, a text button per time) and the
+   question-style time editor in a bottom sheet. Used by the parish portal and, with admin: true, by the admin page. It
+   edits only the regular rules it is given and hands them back through onChange; saving stays in each page (save_church).
    Rule = { kind, days[] (0 = Sunday), start, end, note, period, valid, weeks[], every, anchor, tags[], celebrant,
             place, place_church_id (number | ""), feast_skip } — the shape admin.js keeps in A.draft.services. */
 (function (root, factory) {
@@ -237,8 +237,8 @@
       el.innerHTML = `<div class="se-board">${BOARD_DAYS.map(d => {
         const list = items.filter(i => i.day === d).sort(byTime);
         return `<div class="se-day${d === 0 ? " sun" : ""}" role="group" aria-labelledby="${P}d${d}">
-          <h3 class="se-dh"><span id="${P}d${d}">${DAY_NAME[d]}</span>${list.length ? `<small>${list.length} alkalom</small>` : ""}</h3>
-          <div class="se-tiles">${list.map(i => `<button type="button" class="se-tile k-${esc(i.kind)}" data-uid="${i.uid}" title="${esc(describe({ ...i, days: daysOf.get(sig(i)) }, ctx))}"><b>${esc(i.start)}</b><span>${esc(tileText(i))}</span></button>`).join("")}<button type="button" class="se-tile se-add" data-add="${d}" aria-label="Időpont hozzáadása: ${DAY_NAME[d]}">＋</button></div>
+          <h3 class="se-dh"><span id="${P}d${d}">${DAY_NAME[d]}</span>${list.length ? ` <small class="sr">${list.length} alkalom</small>` : ""}</h3>
+          <div class="se-tiles">${list.map(i => `<button type="button" class="se-tile k-${esc(i.kind)}" data-uid="${i.uid}" title="${esc(describe({ ...i, days: daysOf.get(sig(i)) }, ctx))}"><b>${esc(i.start)}</b><span>${esc(tileText(i))}</span></button>`).join("")}<button type="button" class="se-tile se-add" data-add="${d}" aria-label="Időpont hozzáadása: ${DAY_NAME[d]}">+ időpont</button></div>
         </div>`;
       }).join("")}</div>`;
     }

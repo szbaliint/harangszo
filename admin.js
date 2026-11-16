@@ -405,7 +405,7 @@ function unmountEditor() { if (A.se) { A.se.destroy(); A.se = null; } }
 function renderSched(box) {
   const c = A.draft;
   box.innerHTML = `<div class="ad-sched">
-    <section aria-label="Heti rend"><p class="ad-lead">Koppints egy időpontra a módosításhoz, a ＋ jellel új időpontot adsz a naphoz. A szabály nyers mezői (érvényesség, a hónap hetei, kéthetente, ünnepnapokon elmarad) az időpont „Haladó” részében vannak.</p><div id="board"></div></section>
+    <section aria-label="Heti rend"><p class="ad-lead">Koppints egy időpontra a módosításhoz, a „+ időpont” gombbal újat adsz a naphoz. A szabály nyers mezői (érvényesség, a hónap hetei, kéthetente, ünnepnapokon elmarad) az időpont „Haladó” részében vannak.</p><div id="board"></div></section>
     <aside class="ad-side" aria-label="Javaslatok, admin mezők, szerkesztők">${c.id ? suggBoxHTML() : ""}${adminBoxHTML()}${c.id ? editorsBoxHTML() : ""}</aside>
   </div>`;
   A.se = SE.mount($("#board"), { rules: c.services, admin: true, nearby: A.nearby, onChange: rules => { A.draft.services = rules; changed(); } });
