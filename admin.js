@@ -273,11 +273,11 @@ function renderChurches() {
 }
 
 /* ---------- Opening a church ---------- */
-const blankChurch = () => ({ id: null, schedule_note: "", schedule_locked: false, location_approx: false, schedule_source: null, importance_manual: "", importance_auto: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, events: [] });
+const blankChurch = () => ({ id: null, schedule_note: "", schedule_locked: false, location_approx: false, schedule_source: null, importance_manual: "", importance_auto: null, name: "", city: "", address: "", rite: "rk", lat: "", lon: "", website: "", phone: "", notes: "", open_only_services: false, published: true, hours: [], services: [], feasts: {}, own_feasts: [], events: [] });
 const noMeta = () => ({ sugg: [], editors: [], requests: [], edits: [] });
 // The regular rules and feast schedules as auto-lock compares them: the rules in the editor's joined form, so
 // splitting and joining them back (opening a tile and saving it unchanged) is no change.
-const svcKey = c => JSON.stringify([SE.join(SE.split(c.services)), c.feasts]);
+const svcKey = c => JSON.stringify([SE.join(SE.split(c.services)), c.feasts, c.own_feasts]);
 function newChurch() {
   if (A.dirty && !confirmDiscard()) return;
   A.sel = null; A.draft = blankChurch(); A.meta = noMeta(); A.nearby = [];
@@ -306,7 +306,11 @@ async function openChurch(id) {
     (feasts[s.feast] ||= { mode: "custom", rows: [] }).mode = "custom";
     feasts[s.feast].rows.push({ kind: s.kind, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", celebrant: s.celebrant || "", place: s.place || "" });
   }
-  A.draft = { ...data,
+  // The church's own feasts (its búcsú…) use the same modes; one with neither times nor the Sunday order shows the Sunday order.
+  const own = (data.own_feasts || []).map(f => ({ key: f.key, name: f.name, md: f.md }));
+  for (const k of Object.keys(feasts)) if (window.LitCal.isOwnKey(k) && !own.some(f => f.key === k)) delete feasts[k];
+  for (const f of own) feasts[f.key] ||= { mode: "sunday", rows: [] };
+  A.draft = { ...data, own_feasts: own,
     hours: data.opening_hours.map(h => ({ days: h.days, opens: hm(h.opens), closes: hm(h.closes) })),
     // The schedule editor's Rule shape (schedule-editor.js).
     services: data.services.filter(s => !s.feast).sort((a, b) => KORDER[a.kind] - KORDER[b.kind] || (a.period || "").localeCompare(b.period || "") || byTime(a, b))
@@ -452,17 +456,27 @@ const whoWhereFields = (s, attrs) => s.kind === "mass" || s.kind === "rorate" ||
     <label class="ui-field"><span>${s.kind === "confession" ? "Ki gyóntat" : "Ki tartja"}</span><input ${attrs} data-f="celebrant" value="${esc(s.celebrant || "")}" maxlength="80" placeholder="pl. P. Kamill, plébános, püspök" autocomplete="off"></label>
     <label class="ui-field"><span>Helyszín, ha nem a templomban</span><input ${attrs} data-f="place" value="${esc(s.place || "")}" maxlength="120" placeholder="pl. temetőkápolna, kórház" autocomplete="off"></label>` : "";
 const FEAST_KINDS = { mass: "Mise", confession: "Gyóntatás", adoration: "Szentségimádás" };
+// An own feast's day: a month and a day (02-29 is allowed; it is held in leap years only).
+const dayOptions = (m, d) => Array.from({ length: window.LitCal.MONTH_DAYS[m - 1] }, (_, i) => `<option value="${i + 1}" ${i + 1 === Math.min(d, window.LitCal.MONTH_DAYS[m - 1]) ? "selected" : ""}>${i + 1}.</option>`).join("");
+const mdFields = (attrs, md, id = "") => { const [m, d] = md.split("-").map(Number); return `
+    <label class="ui-field"${id ? ` for="${id}-m"` : ""}><span>Hónap</span><select ${attrs} data-f="m"${id ? ` id="${id}-m"` : ""}>${window.LitCal.MONTHS.map((n, i) => `<option value="${i + 1}" ${i + 1 === m ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+    <label class="ui-field ad-t"${id ? ` for="${id}-d"` : ""}><span>Nap</span><select ${attrs} data-f="d"${id ? ` id="${id}-d"` : ""}>${dayOptions(m, d)}</select></label>`; };
+const ownFieldsHTML = o => `<div class="ad-line">
+      <label class="ui-field wide"><span>Megnevezés</span><input data-own="${o.key}" data-f="name" value="${esc(o.name)}" maxlength="80" placeholder="pl. Szent Anna búcsú" autocomplete="off"></label>
+      ${mdFields(`data-own="${o.key}"`, o.md)}</div>`;
+const OWN_HINT = "Például a templom búcsúja vagy védőszentjének ünnepe. Minden évben ugyanazon a napon.";
 function renderFeasts(box) {
   const c = A.draft;
   const ALL = [...window.LitCal.FEAST_GROUPS, ...window.LitCal.FEASTS];
-  const keys = ALL.map(f => f.key).filter(k => c.feasts[k]);
-  const avail = ALL.filter(f => !c.feasts[f.key]);
+  const keys = [...c.own_feasts.map(f => f.key), ...ALL.map(f => f.key).filter(k => c.feasts[k])];
+  const avail = ALL.filter(f => !c.feasts[f.key]), ownFull = c.own_feasts.length >= window.LitCal.OWN_FEASTS_MAX;
   const now = new Date();
   const cards = keys.map(k => {
-    const f = c.feasts[k], fe = window.LitCal.FEAST_BY_KEY[k], next = window.LitCal.nextFeastDate(k, now);
+    const f = c.feasts[k], o = c.own_feasts.find(x => x.key === k), fe = o || window.LitCal.FEAST_BY_KEY[k], next = o ? window.LitCal.nextOwnFeastDate(o.md, now) : window.LitCal.nextFeastDate(k, now);
     return `<div class="ad-card" role="group" aria-labelledby="fh-${k}">
-      <div class="ad-cardh"><div><h3 id="fh-${k}">${esc(fe.name)}</h3><span class="ad-when">${next.getFullYear()}. ${next.toLocaleDateString("hu-HU", { month: "long", day: "numeric", weekday: "long" })}</span></div>
+      <div class="ad-cardh"><div><h3 id="fh-${k}">${esc(fe.name.trim() || "Saját ünnep")}</h3><span class="ad-when">${next.getFullYear()}. ${next.toLocaleDateString("hu-HU", { month: "long", day: "numeric", weekday: "long" })}${o && o.md === "02-29" ? " · csak szökőévben" : ""}</span></div>
         <button type="button" class="ui-btn danger" data-delfeast="${k}">Ünnep eltávolítása</button></div>
+      ${o ? ownFieldsHTML(o) : ""}
       <div class="ui-seg" role="group" aria-label="Rend: ${esc(fe.name)}">
         <button type="button" data-feastmode="${k}" data-v="sunday" aria-pressed="${f.mode === "sunday"}">Vasárnapi rend</button>
         <button type="button" data-feastmode="${k}" data-v="custom" aria-pressed="${f.mode === "custom"}">Egyedi időpontok</button></div>
@@ -482,6 +496,10 @@ function renderFeasts(box) {
     ${cards}
     <div class="ad-card"><div class="ad-line"><label class="ui-field wide" for="add-feast"><span>Ünnep hozzáadása</span><select id="add-feast">${avail.map(f => `<option value="${f.key}">${esc(f.name)}</option>`).join("")}</select></label>
       <button type="button" class="ui-btn secondary" id="add-feast-btn" ${avail.length ? "" : "disabled"}>Hozzáadás</button></div></div>
+    <div class="ad-card"><div class="ad-line"><label class="ui-field wide" for="own-new"><span>Saját ünnep hozzáadása</span><input id="own-new" maxlength="80" placeholder="pl. Szent Anna búcsú" autocomplete="off"></label>
+      ${mdFields("data-ownnew", "01-01", "own-new")}
+      <button type="button" class="ui-btn secondary" id="add-own-btn" ${ownFull ? "disabled" : ""}>Hozzáadás</button></div>
+      <p class="ad-muted">${ownFull ? `Legfeljebb ${window.LitCal.OWN_FEASTS_MAX} saját ünnepet vehetsz fel.` : OWN_HINT}</p></div>
   </div>`;
 }
 
@@ -571,12 +589,17 @@ function renderHistory(box) {
 }
 
 /* ---------- Editing: one set of listeners for every tab of the open church ---------- */
-const isField = el => el.dataset && (el.dataset.k || el.dataset.l || el.dataset.feast);
+const isField = el => el.dataset && (el.dataset.k || el.dataset.l || el.dataset.feast || el.dataset.own);
 function setVal(el) {
   const c = A.draft;
   if (el.dataset.k) c[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
   else if (el.dataset.l) c[el.dataset.l][+el.dataset.i][el.dataset.f] = el.value;
   else if (el.dataset.feast) c.feasts[el.dataset.feast].rows[+el.dataset.i][el.dataset.f] = el.value;
+  else if (el.dataset.own) {
+    const o = c.own_feasts.find(x => x.key === el.dataset.own), [m, d] = o.md.split("-").map(Number);
+    if (el.dataset.f === "name") { o.name = el.value; const h = $("#fh-" + o.key); if (h) h.textContent = el.value.trim() || "Saját ünnep"; }
+    else { const nm = el.dataset.f === "m" ? +el.value : m, nd = Math.min(el.dataset.f === "d" ? +el.value : d, window.LitCal.MONTH_DAYS[nm - 1]); o.md = String(nm).padStart(2, "0") + "-" + String(nd).padStart(2, "0"); }
+  }
 }
 const inChurch = el => A.draft && A.page === "churches" && el.closest?.(".ad-church");
 main.addEventListener("input", e => {
@@ -587,9 +610,11 @@ main.addEventListener("input", e => {
 });
 main.addEventListener("change", e => {
   const el = e.target;
+  // "Saját ünnep hozzáadása": the day list follows the month (not a change to the church yet).
+  if (el.dataset?.ownnew !== undefined && el.dataset.f === "m") { const d = $("#own-new-d"); d.innerHTML = dayOptions(+el.value, +d.value); return; }
   if (!inChurch(el) || !isField(el)) return;
   if (el.type === "checkbox") { setVal(el); if (el.dataset.k === "schedule_locked") A.lockTouched = true; changed(null); return; }
-  if (el.dataset.feast && el.dataset.f === "kind") renderCTab();
+  if ((el.dataset.feast && el.dataset.f === "kind") || (el.dataset.own && el.dataset.f !== "name")) renderCTab();
 });
 // Tidy a time when leaving the field: "1730" → "17:30"; mark it if it still isn't a valid 24-hour time.
 main.addEventListener("focusout", e => {
@@ -618,7 +643,15 @@ main.addEventListener("click", e => {
     changed(); return renderCTab(); }
   if (d.delrow) { c[d.delrow].splice(+d.i, 1); changed(); return renderCTab(); }
   if (b.id === "add-feast-btn") { const k = $("#add-feast").value; if (k) { c.feasts[k] = { mode: "sunday", rows: [] }; changed(); renderCTab(); } return; }
-  if (d.delfeast) { delete c.feasts[d.delfeast]; changed(); return renderCTab(); }
+  if (b.id === "add-own-btn") {
+    const name = $("#own-new").value.trim(), m = +$("#own-new-m").value, dd = +$("#own-new-d").value;
+    if (!name) { $("#own-new").closest(".ui-field").classList.add("err"); $("#own-new").focus(); return; }
+    if (c.own_feasts.length >= window.LitCal.OWN_FEASTS_MAX) return;
+    const k = window.LitCal.newOwnKey(c.own_feasts);
+    c.own_feasts.push({ key: k, name, md: String(m).padStart(2, "0") + "-" + String(dd).padStart(2, "0") });
+    c.feasts[k] = { mode: "sunday", rows: [] }; changed(); return renderCTab();
+  }
+  if (d.delfeast) { delete c.feasts[d.delfeast]; c.own_feasts = c.own_feasts.filter(x => x.key !== d.delfeast); changed(); return renderCTab(); }
   if (d.feastmode) { const fe = c.feasts[d.feastmode]; if (fe.mode === d.v) return;
     fe.mode = d.v; if (fe.mode === "custom" && !fe.rows.length) fe.rows.push({ kind: "mass", start: "", end: "", note: "" }); changed(); return renderCTab(); }
   if (d.addfeastrow) { c.feasts[d.addfeastrow].rows.push({ kind: "mass", start: "", end: "", note: "" }); changed(); return renderCTab(); }
@@ -649,8 +682,12 @@ function validate(c) {
     const wd = +s.every > 1 ? new Date(s.anchor + "T12:00").getDay() : 1;
     if (wd !== 1 && !s.days.includes(wd)) return [`${w}: a kezdő nap (anchor) hétfő legyen, vagy a kijelölt napok egyike.`, "sched"];
   }
+  for (const o of c.own_feasts) {
+    if (!o.name.trim()) return ["Saját ünnep: add meg a nevét.", "feasts"];
+    if (!window.LitCal.mdOk(o.md)) return [`${o.name.trim()}: válassz egy napot.`, "feasts"];
+  }
   for (const [k, f] of Object.entries(c.feasts)) {
-    const w = window.LitCal.FEAST_BY_KEY[k].name;
+    const w = (window.LitCal.FEAST_BY_KEY[k] || c.own_feasts.find(o => o.key === k)).name.trim();
     if (f.mode !== "custom") continue;
     if (!f.rows.length) return [`${w}: adj meg legalább egy időpontot, vagy válaszd a vasárnapi miserendet.`, "feasts"];
     for (const [i, r] of f.rows.entries()) {
@@ -682,6 +719,7 @@ async function save() {
     lat: parseFloat(String(c.lat).replace(",", ".")), lon: parseFloat(String(c.lon).replace(",", ".")),
     website: c.website || "", phone: c.phone || "", notes: c.notes || "", open_only_services: !!c.open_only_services, published: !!c.published,
     feast_sunday: Object.entries(c.feasts).filter(([, f]) => f.mode === "sunday").map(([k]) => k),
+    own_feasts: c.own_feasts.map(o => ({ key: o.key, name: o.name.trim(), md: o.md })),
     importance_manual: c.importance_manual == null || c.importance_manual === "" ? "" : Number(c.importance_manual),
     schedule_note: (c.schedule_note || "").trim(), location_approx: !!c.location_approx, schedule_locked: !!c.schedule_locked,
     hours: c.hours, services: [...regular, ...feastRows], events: c.events };

@@ -182,7 +182,7 @@ test("Haladó: every 2 with an anchor ends up in the save_church payload", async
     assert.ok(p.services.some(s => s.kind === "adoration" && JSON.stringify(s.weeks) === "[1]" && s.end === "19:30" && JSON.stringify(s.tags) === "[]"));
     assert.ok(p.services.some(s => s.feast === "aug15" && s.start === "09:00" && JSON.stringify(s.days) === "[]"));
     assert.deepEqual(Object.keys(p), ["id", "name", "city", "address", "rite", "lat", "lon", "website", "phone", "notes", "open_only_services", "published",
-      "feast_sunday", "importance_manual", "schedule_note", "location_approx", "schedule_locked", "hours", "services", "events"]);
+      "feast_sunday", "own_feasts", "importance_manual", "schedule_note", "location_approx", "schedule_locked", "hours", "services", "events"]);
     assert.deepEqual([p.id, p.feast_sunday, p.schedule_locked, p.importance_manual], [1043, ["jan6"], true, ""]);
     assert.deepEqual(p.hours, [{ days: [1, 2, 3, 4, 5, 6], opens: "08:00", closes: "18:00" }, { days: [0], opens: "07:00", closes: "20:00" }]);
     await page.waitForFunction(() => !document.querySelector("#savebar").classList.contains("on"));
