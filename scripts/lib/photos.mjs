@@ -99,6 +99,10 @@ export function licenceLabel(shortName, license) {
 /** "Fotó: <author> · <licence> · Wikimedia Commons" (the author part is left out when Commons has none). */
 export function formatCredit(author, licence) {
   let a = stripHtml(author);
+  // Commons' bot wording for files without a machine-readable author: keep only the name it assumes.
+  const assumed = a.match(/^No machine-readable author provided\.\s*(.+?)\s+assumed\b/i);
+  if (assumed) a = assumed[1];
+  else if (/^No machine-readable author provided\b/i.test(a)) a = "";
   if (a.length > 120) a = a.slice(0, 119).replace(/\s+\S*$/, "") + "…";
   const parts = [a, stripHtml(licence), "Wikimedia Commons"].filter(Boolean);
   return "Fotó: " + parts.join(" · ");
