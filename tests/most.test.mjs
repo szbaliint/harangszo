@@ -186,3 +186,22 @@ test("the liturgical week", async () => {
     });
   } finally { await close(); }
 });
+
+test("the map's red pin is the next one from the visitor's own position, never from a town's default point", async () => {
+  const context = await browser.newContext({ ...IPHONE, timezoneId: "Europe/Budapest", serviceWorkers: "block",
+    geolocation: { latitude: 47.5018, longitude: 19.0345 }, permissions: ["geolocation"] });
+  const page = await context.newPage();
+  try {
+    await mockSupabase(page, { rpc: { public_data: () => church(), track: () => null } });
+    await page.clock.setFixedTime(NOW);
+    await page.goto(server.url + "/index.html");
+    await page.locator("#m-name").waitFor({ timeout: 15000 });
+    await page.locator('.tab[data-tab="map"]').click();
+    await page.locator(".leaflet-marker-icon").first().waitFor({ state: "attached", timeout: 15000 });
+    await page.waitForTimeout(600);
+    assert.equal(await page.locator('[class*="mk-next"]').count(), 0, "from the default Budapest point nothing is red");
+    await page.locator("#locate-btn").click();
+    await page.locator(".mk-next").first().waitFor({ state: "attached", timeout: 15000 });
+    assert.match(await page.locator(".mk-next").first().textContent(), /^18:00 Mátyás-templom/);
+  } finally { await context.close(); }
+});
