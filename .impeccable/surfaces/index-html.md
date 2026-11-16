@@ -14,7 +14,7 @@ Chosen 2026-11-14 after five rounds; the owner rejected themed, atmospheric and 
 
 THESIS: The app opens on a real church, not on a map or a list. The nearest church with an upcoming Mass fills the top of the screen as an actual photograph; under it, plain typeset facts answer "when, where, how far". It refuses the category default (full-screen pin map plus bottom sheet) and every invented ornament: no gradients, glow, textures or themed objects.
 
-OWN-WORLD: White ground, near-black ink (#111), two greys (#555, #8a8a8a), hairline rules (#e6e6e6), one accent red (#b4232a) that only ever means "the next one / what applies now". Real photographs (Wikimedia Commons, credited on the image) and real OpenStreetMap streets are the only imagery. Type is the platform's own (SF on iOS, Roboto elsewhere), light weight for the big time, bold for church names, tabular figures everywhere; sizes from one scale (13/15/17/22/64). Controls are plain native ones: a black primary button, outlined secondary buttons, a hairline tab bar with line icons.
+OWN-WORLD: White ground, near-black ink (#111), two greys (#555, #8a8a8a), hairline rules (#e6e6e6), one accent red (#b4232a) that only ever means "the next one / what applies now". Real photographs (Wikimedia Commons, credited on the image) and real OpenStreetMap streets are the only imagery. Type is set like a printed parish bulletin, self-hosted (no request leaves the site): church names and headings in Newsreader, a text serif at 500 with optical sizing; data, labels, controls and times in Source Sans 3 at 400 and 600 only, light (300) for the big time; times 600 with tabular figures and the kind after them in grey regular; no bold anywhere else; status words as plain grey text joined with " · ", never pills; sizes from one scale (13/15/17/22/64). Controls are plain native ones: a black primary button, outlined secondary buttons, a hairline tab bar with line icons.
 
 STORY: The visitor sees which church, its next time and how far it is before reading anything, trusts it because the picture and the facts are real (with the source and "vasárnapra érvényes"-type notes shown), and goes: Útvonal, or the next church below.
 
@@ -26,7 +26,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 ## Related surfaces
 
-The same world extends to the map tab (real tiles, toned grey, black time pins, red for the next), the list, the church page (photo header, then the 7-day strip and the week), the parish portal, the admin and jogi.html: white, ink, hairlines, one red, the platform font.
+The same world extends to the map tab (real tiles, toned grey, black time pins, red for the next), the list, the church page (photo header, then the 7-day strip and the week), the parish portal, the admin and jogi.html: white, ink, hairlines, one red, Newsreader names over Source Sans 3 data.
 
 ## Open decisions
 

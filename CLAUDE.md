@@ -42,13 +42,19 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
 - `analytics.js` (`window.Track`) – anonymous usage counters from the map (no cookies or ids; off with Do Not Track,
   in automated browsers unless `?track=1`, and on a device where an admin opened admin.html). Admin shows them under
   "Statisztika". A new event name or key must also be allowed in the `track()` SQL function (014 added tab "most").
-- `schedule-editor.js` (`window.ScheduleEditor`) – the week board + question-style time editor shared by the parish
-  portal and admin (`admin: true` adds the raw "Haladó" fields).
+- `schedule-editor.js` (`window.ScheduleEditor`) – the week board (a timetable: day name in a grey left column, times
+  as quiet text buttons "07:00 mise", "+ időpont") + question-style time editor shared by the parish portal and admin
+  (`admin: true` adds the raw "Haladó" fields).
 - `styles.css` – the one design system for every page: white ground, ink `#111`, greys `#555`/`#767676`, hairlines
-  `#e6e6e6`, one red `#b4232a` that only means "the next one / applies now" (and errors), the platform font (no web
-  fonts, no monospace), sizes 13/15/17/22 (+40/64 for big times), radius 10 for buttons and fields, 0 for rows; light
-  and dark tokens; the `ui-` components, the week board (`se-`) and the photo block (`cp-`). Pages keep only their
-  layout in their own `<style>`. Product brief: `PRODUCT.md`; surface brief: `.impeccable/surfaces/index-html.md`.
+  `#e6e6e6`, one red `#b4232a` that only means "the next one / applies now" (and errors), sizes 13/15/17/22 (+40/64 for
+  big times), radius 10 for buttons and fields, 0 for rows; light and dark tokens; the `ui-` components, the week board
+  (`se-`) and the photo block (`cp-`). Pages keep only their layout in their own `<style>`. Type, like a printed parish
+  bulletin: church names and headings in **Newsreader** 500 (`--f-display`), everything else in **Source Sans 3**
+  (`--f-body`) at 400/600 only (300 for the big times); times 600 tabular with the kind grey after them; no 700, no
+  monospace. Status words are a plain grey `ui-meta` line joined with " · " (problems first, red), never pills. Both
+  fonts are **self-hosted** in `fonts/` (woff2, latin + latin-ext, OFL licences beside them; no Google Fonts request);
+  `index.html` preloads the two latin files and `sw.js` keeps all four in its own font cache (bump `FONT_CACHE` when a
+  file changes). Product brief: `PRODUCT.md`; surface brief: `.impeccable/surfaces/index-html.md`.
   `replica/` holds clean-room notes from an earlier layout study (never copy the reference app's assets, brand or copy).
 
 ## Data model (see `supabase/schema.sql`, the full current state)
