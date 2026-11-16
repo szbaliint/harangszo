@@ -86,6 +86,25 @@
     const a = f.date(from.getFullYear()); return a >= d0 ? a : f.date(from.getFullYear() + 1);
   }
 
+  // A church's own feasts (churches.own_feasts: [{key: "own_1", name: "Szent Anna búcsú", md: "07-26"}], its búcsú,
+  // its patron saint): the same date every year. Their keys work like the built-in feasts' keys (feast_sunday, services.feast).
+  // 02-29 is held only in leap years: in other years that feast has no day (it does not move to 28 Feb or 1 Mar).
+  const MONTHS = ["január", "február", "március", "április", "május", "június", "július", "augusztus", "szeptember", "október", "november", "december"];
+  const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const OWN_FEASTS_MAX = 10;
+  const isOwnKey = key => /^own_[0-9]{1,3}$/.test(key || "");
+  const mdOk = md => { const m = /^(\d\d)-(\d\d)$/.exec(md || ""); return !!m && +m[1] >= 1 && +m[1] <= 12 && +m[2] >= 1 && +m[2] <= MONTH_DAYS[m[1] - 1]; };
+  const ownFeastsOn = (own, date) => Array.isArray(own) ? own.filter(f => f && f.md === mdOf(date)) : [];
+  // Next day of an own feast on or after `from` (a leap day can be up to 8 years away).
+  function nextOwnFeastDate(md, from) {
+    if (!mdOk(md)) return null;
+    const [m, d] = md.split("-").map(Number), d0 = D(from.getFullYear(), from.getMonth() + 1, from.getDate());
+    for (let y = d0.getFullYear(); y <= d0.getFullYear() + 8; y++) { const x = D(y, m, d); if (x.getMonth() === m - 1 && x >= d0) return x; }
+    return null;
+  }
+  // The first key not used yet: own_1, own_2…
+  const newOwnKey = own => { for (let n = 1; ; n++) if (!(own || []).some(f => f.key === "own_" + n)) return "own_" + n; };
+
   // `valid` = "MM-DD/MM-DD[,…]" (ranges may wrap the new year): is the date inside?
   const mdOf = d => String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   function inValid(date, valid) {
@@ -145,5 +164,6 @@
   const tagLabel = t => t.startsWith("lang:") ? (LANGS[t.slice(5)] || t.slice(5)) + " nyelvű" : TAGS[t] || t;
 
   root.LitCal = { inValid, weekOk, everyOk, nextDate, mdOf, easter, adventStart, inAdvent, isSummerTime, nextClockChange, FEASTS, FEAST_GROUPS, FEAST_BY_KEY, feastsOn, isHoliday, isGroup, nextFeastDate, inChristmas, ymd, addDays,
-    PERIOD_INFO, inPeriod, TAGS, LANGS, tagLabel };
+    PERIOD_INFO, inPeriod, TAGS, LANGS, tagLabel,
+    MONTHS, MONTH_DAYS, OWN_FEASTS_MAX, isOwnKey, mdOk, ownFeastsOn, nextOwnFeastDate, newOwnKey };
 })(typeof window !== "undefined" ? window : globalThis);

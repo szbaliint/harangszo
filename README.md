@@ -75,6 +75,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/012_retention.sql` | deletes statistics older than 2 years and suggestions decided over a year ago, as the privacy notice promises |
 | `supabase/migrations/013_photos.sql` | church photos: Wikimedia Commons photos from the photo import, or the parish's own upload (`church-photos` storage bucket, `set_church_photo()`); `public_data()` returns `photo_url`, `photo_credit` and `photo_page` |
 | `supabase/migrations/014_track_most.sql` | statistics: `track()` also counts the map's new home tab, "Most" (Most · Térkép · Mentett) |
+| `supabase/migrations/015_own_feasts.sql` | a church's own feasts (`churches.own_feasts`: its búcsú, its patron saint, a fixed date every year), saved by `save_church()`, returned by `public_data()`, kept by `merge_churches()` |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 
@@ -95,6 +96,7 @@ In the admin panel, open either church and click **Összevonás egy másik templ
 - **Holy days and public holidays at once:** in "Ünnepi miserend", "Parancsolt ünnepeken" (jan. 1, jan. 6, aug. 15, nov. 1, dec. 25) and "Munkaszüneti napokon" (all public holidays, incl. márc. 15, nagypéntek, máj. 1, okt. 23, dec. 24) apply to every such weekday; a feast added by itself wins over them. Both can also be "Vasárnapi miserend szerint".
 - **Weeks of the month:** "A hónap hetei" limits a row to e.g. the 1st, or the last Saturday of the month ("Utolsó"); none selected means every week. The import recognises phrases like "minden hónap utolsó szombatján", "elsőpénteken", "1., 3. és 5. vasárnap", "2. vasárnapja kivételével".
 - **Ünnepi miserend:** per church and feast, either "Vasárnapi miserend szerint" or custom times. Custom times replace that day's regular times. Easter-based dates are calculated for every year (`calendar.js`); Ascension and Corpus Christi fall on Sunday in Hungary.
+- **Saját ünnep:** a church's own feast (its búcsú, its patron saint's day) with a name and a fixed date every year, up to 10, added in "Ünnepek" by the admin or the parish. It works like a built-in feast (Sunday order or its own times) and comes before a built-in feast on the same day; the map shows its name on that day. A 29 February feast is held in leap years only.
 - **Rorate:** a row type that only appears during Advent (first Sunday of Advent to 24 December). The public map shows a "Rorate" filter in Advent.
 - **Every n-th week:** "Ismétlődés" (kéthetente, háromhetente…) with the date of one occurrence; the site counts from it and shows the next date.
 - **Church-year and school seasons:** "Adventben", "Karácsonyi időben" (dec. 25 – Baptism of the Lord), "Nagyböjtben" (Ash Wednesday – Holy Saturday) and "Húsvéti időben" (Easter – Pentecost) move with the calendar every year; "Tanévben" (09.01–06.15) and "Nyári szünetben" (06.16–08.31) can be given their own dates.

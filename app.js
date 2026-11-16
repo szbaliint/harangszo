@@ -64,7 +64,7 @@ function fromSample(c) {
     ...Object.entries(c.feasts || {}).flatMap(([key, rows]) => rows.map(m => ({ k: m.k, d: [], t: m.t, u: m.u || null, n: m.n, p: "all", feast: key }))),
   ];
   return { id: c.id, name: c.name, city: c.city, addr: c.addr, rite: c.rite, lat: c.lat, lon: c.lon,
-    onlyServices: !c.hours, hours: c.hours || [], svc, feastSunday: c.feastSunday || [], ev: c.ev || [], imp: c.imp ?? 60,
+    onlyServices: !c.hours, hours: c.hours || [], svc, feastSunday: c.feastSunday || [], ownFeasts: c.ownFeasts || [], ev: c.ev || [], imp: c.imp ?? 60,
     web: c.web, phone: c.phone, note: c.note || "", approx: !!c.approx, photo: photoOf(c) };
 }
 function fromDb(c) {
@@ -75,6 +75,8 @@ function fromDb(c) {
       v: s.valid || null, w: s.weeks && s.weeks.length ? s.weeks : null, e: s.every || null, a: s.anchor || null, g: s.tags || [],
       cel: s.celebrant || "", pl: s.place || "", pid: s.place_id || null, skip: !!s.skip })),
     feastSunday: c.feast_sunday || [], imp: c.imp ?? 30,
+    // The church's own feasts (its búcsú…): [{key, name, md}], a fixed date every year.
+    ownFeasts: Array.isArray(c.own_feasts) ? c.own_feasts : [],
     note: c.schedule_note || "", parishUpdated: c.parish_updated || null, source: c.schedule_source || null, sourceUrl: c.schedule_source_url || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
     ev: (c.events || []).map(e => ({ date: e.date, t: e.start || "", title: e.title, n: e.note })),
     // Times for given dates from the parish's own weekly schedule; on those dates they replace the regular rules.
@@ -128,11 +130,14 @@ function dayInfo(c, ctx) {
   const dated = (c.dated || []).filter(d => d.date === ctx.key && !d.guestOf);
   const regularOn = s => isRegular(s) && seasonOk(s, ctx) && weekOk(s, ctx) && s.d.includes(ctx.dow) && (s.k !== "rorate" || ctx.advent) && !(s.skip && ctx.holiday);
   const guests = [...(c.dated || []).filter(d => d.date === ctx.key && d.guestOf), ...c.svc.filter(s => s.guestOf && regularOn(s))];
+  // The church's own feast on this day (its búcsú) comes first: its own rows, or its Sunday order, win over the calendar's feasts.
+  const mine = C.ownFeastsOn(c.ownFeasts, ctx.date), feasts = mine.length ? [...mine.map(f => f.key), ...ctx.feasts] : ctx.feasts;
   // A row for this very feast wins over a row for all holy days / public holidays.
-  const allCustom = ctx.feasts.length ? c.svc.filter(s => s.feast && !s.guestOf && ctx.feasts.includes(s.feast)) : [];
-  const own = allCustom.filter(s => !C.isGroup(s.feast)), custom = own.length ? own : allCustom;
-  const sundayFeast = ctx.feasts.find(k => c.feastSunday.includes(k) && (!custom.length || !C.isGroup(k)));
-  const feastName = ctx.feasts.length ? C.FEAST_BY_KEY[ctx.feasts[0]]?.name : null;
+  const allCustom = feasts.length ? c.svc.filter(s => s.feast && !s.guestOf && feasts.includes(s.feast)) : [];
+  const own = allCustom.filter(s => !C.isGroup(s.feast)), ofMine = own.filter(s => mine.some(f => f.key === s.feast));
+  const custom = ofMine.length ? ofMine : mine.some(f => c.feastSunday.includes(f.key)) ? [] : own.length ? own : allCustom;
+  const sundayFeast = feasts.find(k => c.feastSunday.includes(k) && (!custom.length || !C.isGroup(k)));
+  const feastName = mine.length ? mine[0].name : ctx.feasts.length ? C.FEAST_BY_KEY[ctx.feasts[0]]?.name : null;
   if (dated.length) { rows = dated; feastMode = "dated"; feast = feastName; }
   else if (custom.length) { rows = custom; feast = feastName; feastMode = "custom"; }
   else if (sundayFeast) { rows = c.svc.filter(s => isRegular(s) && !s.guestOf && s.k !== "rorate" && seasonOk(s, ctx) && !s.w && !s.e && s.d.includes(0)); feast = feastName; feastMode = "sunday"; }
@@ -665,12 +670,15 @@ function rorateHTML(c, rr = rorateRules(c)) {
   return `<h4 class="d-sub">Rorate · advent idején (${shortDate(s)} – dec. 24.)</h4><ul class="d-mini">${rr.map(r =>
     `<li><b class="t">${showT(r.t)}</b><span>${daysText(r.d)}${r.n ? `<small>${esc(r.n)}</small>` : ""}</span></li>`).join("")}</ul>`;
 }
+const ownFeastOf = (c, k) => c.ownFeasts.find(f => f.key === k);
 // Feasts in the next 120 days that have their own times here (or follow the Sunday order), one per date.
+// The church's own feasts come first on a day they share with a built-in one.
 function feastList(c) {
   const keys = new Set([...c.feastSunday, ...c.svc.filter(s => s.feast).map(s => s.feast)]);
   if (!keys.size) return [];
   const from = now(), limit = C.addDays(from, 120), seen = new Set();
-  return [...keys].map(k => ({ k, d: C.nextFeastDate(k, from) })).filter(x => x.d && x.d <= limit).sort((a, b) => a.d - b.d || C.isGroup(a.k) - C.isGroup(b.k))
+  const next = k => ownFeastOf(c, k) ? C.nextOwnFeastDate(ownFeastOf(c, k).md, from) : C.nextFeastDate(k, from), rank = k => ownFeastOf(c, k) ? 0 : C.isGroup(k) ? 2 : 1;
+  return [...keys].map(k => ({ k, d: next(k) })).filter(x => x.d && x.d <= limit).sort((a, b) => a.d - b.d || rank(a.k) - rank(b.k))
     .filter(x => !seen.has(+x.d) && seen.add(+x.d)).map(x => C.isGroup(x.k) ? { k: C.feastsOn(x.d)[0], d: x.d } : x);
 }
 function feastScheduleHTML(c, list = feastList(c)) {
@@ -678,7 +686,7 @@ function feastScheduleHTML(c, list = feastList(c)) {
   return `<h4 class="d-sub">Ünnepi miserend</h4><div class="ev-list">${list.map(({ k, d }) => {
     const di = dayInfo(c, dayContext(d));
     const times = di.items.filter(i => i.k !== "ev").map(i => `${range(showT(i.t), i.end)} ${i.k === "mass" ? "mise" : i.k === "conf" ? "gyónás" : i.k === "ador" ? "szentségimádás" : i.k === "prayer" ? esc(i.what) : "rorate"}${i.n ? " (" + esc(i.n) + ")" : ""}`).join(" · ");
-    return `<div class="ev"><div class="date"><b>${d.getDate()}</b><small>${MON[d.getMonth()]}</small></div><div><h5>${esc(C.FEAST_BY_KEY[k].name)}</h5>
+    return `<div class="ev"><div class="date"><b>${d.getDate()}</b><small>${MON[d.getMonth()]}</small></div><div><h5>${esc((ownFeastOf(c, k) || C.FEAST_BY_KEY[k]).name)}</h5>
       <div class="muted">${DAYN[d.getDay()]}${di.feastMode === "sunday" ? " · vasárnapi rend szerint" : ""}</div><div class="feast-times">${times || "–"}</div></div></div>`;
   }).join("")}</div>`;
 }
