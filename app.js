@@ -1085,10 +1085,11 @@ const shortName = n => n.length > 22 ? n.slice(0, 21).trimEnd() + "…" : n;
 function updateMarkers() {
   markerJob = null;
   if (!MapView.ready()) return;
-  const v = MapView.view(), inView = [], selId = S.sel || S.pick, nid = isToday() ? nextId() : null;
+  const v = MapView.view(), inView = [], selId = S.sel || S.pick, nid = isToday() && S.origin === "Saját helyzetem" ? nextId() : null;
   for (const r of mapRows) { const c = r.c; if (c.lat >= v.s && c.lat <= v.n && c.lon >= v.w && c.lon <= v.e) inView.push(r); }
   const dot = v.zoom < LABEL_ZOOM;
-  // The next church (the one Most shows) is labelled with that Mass: "18:00 Mátyás-templom", in red.
+  // The next church (the one Most shows) is labelled with that Mass: "18:00 Mátyás-templom", in red — only from the
+  // visitor's own position: measured from a town's default point it would always be the same church, red for everyone.
   const hero = nid ? nearby().hero : null;
   const one = (r, sel) => { const isNext = r.c.id === nid, n = isNext ? { t: showT(hero.i.t), k: hero.i.k, cls: "mass" } : nextOf(r.di);
     return { key: r.c.id, c: r.c, lat: r.c.lat, lon: r.c.lon, cls: n.cls, label: (sel || isNext) && n.k ? n.t + " " + shortName(r.c.name) : n.t, dot: dot && !sel && !isNext, sel, next: isNext && !!n.k }; };
