@@ -549,6 +549,12 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
 @media (hover:hover){.se-tile:hover{background:var(--sunken)}.se-tile.se-add:hover{color:var(--ink-2)}}
 /* Wider boards (laptop, admin): a roomier day column, as in a printed timetable. */
 @container (min-width:520px){.se-day{grid-template-columns:110px minmax(0,1fr)}}
+/* Phone-narrow board: one time per line, a list of 44px lines (each line is its own tap area, none overlap). */
+@container (max-width:519.98px){
+  .se-tiles{flex-direction:column;align-items:flex-start;gap:0}
+  .se-tile{padding:12px 8px;line-height:20px}
+  .se-tile::before{inset:0}
+  .se-dh{padding-top:12px}}
 
 /* Time editor sheet: four questions, a live summary, two folds */
 .se-sheet [hidden]{display:none!important}
