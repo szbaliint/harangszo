@@ -18,7 +18,9 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   red, name, address · distance, Útvonal / Heti rend / Honlap, then "Utána a közelben" rows. **Térkép**: grey map,
   black time pins (the next one red), search field and a bottom panel; zoomed out, churches merge into numbered
   circles (grid clustering in `updateMarkers`). **Mentett**: saved churches (localStorage). "Keresés" opens a
-  full-height search panel with filters (it counts as tab "list"). The church page: photo header, 7-day strip, week.
+  full-height search panel with filters (it counts as tab "list"). "Közel most" (beside it on Most) opens the same kind of
+  panel: the visitor's position (asked on first tap; else the chosen town, said so), then the churches nearest first that
+  still have a Mass or confession today, their next times, "most tart" in red for a confession going on now. The church page: photo header, 7-day strip, week.
   Google Maps when `GOOGLE_MAPS_KEY` is set (it is, live), otherwise Leaflet + CARTO tiles.
 - Church photos (migration 013): `churches.photo_url/photo_credit/photo_source ('commons'|'parish')/photo_page`, in
   `public_data`. Commons photos come from `scripts/import-photos.mjs` (workflow "Import church photos from Wikimedia
@@ -42,13 +44,19 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
 - `analytics.js` (`window.Track`) – anonymous usage counters from the map (no cookies or ids; off with Do Not Track,
   in automated browsers unless `?track=1`, and on a device where an admin opened admin.html). Admin shows them under
   "Statisztika". A new event name or key must also be allowed in the `track()` SQL function (014 added tab "most").
-- `schedule-editor.js` (`window.ScheduleEditor`) – the week board + question-style time editor shared by the parish
-  portal and admin (`admin: true` adds the raw "Haladó" fields).
+- `schedule-editor.js` (`window.ScheduleEditor`) – the week board (a timetable: day name in a grey left column, times
+  as quiet text buttons "07:00 mise", "+ időpont") + question-style time editor shared by the parish portal and admin
+  (`admin: true` adds the raw "Haladó" fields).
 - `styles.css` – the one design system for every page: white ground, ink `#111`, greys `#555`/`#767676`, hairlines
-  `#e6e6e6`, one red `#b4232a` that only means "the next one / applies now" (and errors), the platform font (no web
-  fonts, no monospace), sizes 13/15/17/22 (+40/64 for big times), radius 10 for buttons and fields, 0 for rows; light
-  and dark tokens; the `ui-` components, the week board (`se-`) and the photo block (`cp-`). Pages keep only their
-  layout in their own `<style>`. Product brief: `PRODUCT.md`; surface brief: `.impeccable/surfaces/index-html.md`.
+  `#e6e6e6`, one red `#b4232a` that only means "the next one / applies now" (and errors), sizes 13/15/17/22 (+40/64 for
+  big times), radius 10 for buttons and fields, 0 for rows; light and dark tokens; the `ui-` components, the week board
+  (`se-`) and the photo block (`cp-`). Pages keep only their layout in their own `<style>`. Type, like a printed parish
+  bulletin: church names and headings in **Newsreader** 500 (`--f-display`), everything else in **Source Sans 3**
+  (`--f-body`) at 400/600 only (300 for the big times); times 600 tabular with the kind grey after them; no 700, no
+  monospace. Status words are a plain grey `ui-meta` line joined with " · " (problems first, red), never pills. Both
+  fonts are **self-hosted** in `fonts/` (woff2, latin + latin-ext, OFL licences beside them; no Google Fonts request);
+  `index.html` preloads the two latin files and `sw.js` keeps all four in its own font cache (bump `FONT_CACHE` when a
+  file changes). Product brief: `PRODUCT.md`; surface brief: `.impeccable/surfaces/index-html.md`.
   `replica/` holds clean-room notes from an earlier layout study (never copy the reference app's assets, brand or copy).
 
 ## Data model (see `supabase/schema.sql`, the full current state)
@@ -58,6 +66,9 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   school, holiday…), `valid` (MM-DD/MM-DD), `weeks[]` (nth week of month), `every`+`anchor` (fortnightly…), `tags[]`,
   `celebrant`, `place`/`place_church_id` (held elsewhere), `feast_skip`, `feast` (row only on that feast/group).
   `churches.feast_sunday[]` = feasts that follow the Sunday order.
+- `churches.own_feasts` (migration 015) = the church's own feasts, a fixed date every year:
+  `[{key: "own_1", name: "Szent Anna búcsú", md: "07-26"}]` (≤10, checked by `own_feasts_ok`; 02-29 only in leap years).
+  Their keys work like built-in feast keys (`feast_sunday`, `services.feast`); editable by parishes; `LitCal.ownFeastsOn`.
 - `dated_services` – times for specific dates from a parish's own weekly schedule; on those dates they replace the rules.
 - `opening_hours`, `events`, `suggestions`, `staff` (admin/parish), `staff_churches`, `access_requests`, `church_edits`.
 - `analytics_daily` – anonymous counters per (day, event, key), written only by `track()`, read only by
@@ -65,8 +76,8 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
 - RPCs: `public_data` (everything the map needs), `save_church`, `insert_services`, `import_church_schedule`,
   `import_dated_services`, `merge_churches`, `approve_access`, `track`, `analytics_report`, `set_church_photo`,
   `import_church_photos` (secret key).
-- Order of precedence on a day (app.js `dayInfo`, plebania.js `dayList`): dated rows → a feast's own rows → a feast
-  group's rows → feast_sunday (Sunday order) → regular rules (season, weeks, every, rorate only in Advent, feast_skip).
+- Order of precedence on a day (app.js `dayInfo`, plebania.js `dayList`): dated rows → the church's own feast (its rows,
+  or its Sunday order) → a feast's own rows → a feast group's rows → feast_sunday (Sunday order) → regular rules (season, weeks, every, rorate only in Advent, feast_skip).
 
 ## Imports (`scripts/`, Node 22, run as GitHub Actions with `SUPABASE_URL` + `SUPABASE_SECRET_KEY`)
 

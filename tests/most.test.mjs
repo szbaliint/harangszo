@@ -1,5 +1,5 @@
 // "The church first": the Most home — photo (or none), credit, day line with the liturgical week, the big time,
-// red only for the next one, the platform font everywhere, the dark ground. Live mode against the fake Supabase.
+// red only for the next one, the self-hosted type (Newsreader names, Source Sans 3 data), the dark ground. Live mode against the fake Supabase.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,6 +7,7 @@ import path from "node:path";
 import { chromium, devices } from "./helpers/playwright.mjs";
 import { startServer, ROOT } from "./helpers/server.mjs";
 import { mockSupabase } from "./helpers/supabase-mock.mjs";
+import { typeProblems } from "./helpers/type-check.mjs";
 
 const { defaultBrowserType: _, ...IPHONE } = devices["iPhone 13"];
 const NOW = new Date("2026-11-14T16:40:00+01:00"); // a Saturday afternoon
@@ -161,15 +162,27 @@ test("dark mode: the dark ground, light ink, photos unchanged", async () => {
   } finally { await close(); }
 });
 
-for (const view of ["iPhone 13", "1440x900"]) test(`no element uses a serif font (${view})`, async () => {
+// Names and headings in Newsreader 500; everything else in Source Sans 3 at 300 (big times), 400 or 600; no 700.
+// Also open the search panel so its filters and fold are checked.
+for (const view of ["iPhone 13", "1440x900"]) test(`type: Newsreader only for names and headings, two sans weights (${view})`, async () => {
   const { page, close } = await open({ view: view === "1440x900" ? { viewport: { width: 1440, height: 900 } } : IPHONE });
   try {
+    assert.deepEqual(await typeProblems(page), [], "Most");
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector("#m-name")).fontFamily), "Newsreader, Georgia, serif");
+    await page.click("#m-search"); await page.locator("#s-results .row").first().waitFor();
+    assert.deepEqual(await typeProblems(page), [], "search");
+    await page.click("#search-done"); await page.locator("#search[inert]").waitFor({ state: "attached" });
     await page.click("#m-week"); await page.locator(".detail").waitFor();
-    const bad = await page.evaluate(() => [...document.querySelectorAll("body, body *")].map(e => [e.tagName + (e.id ? "#" + e.id : ""), getComputedStyle(e).fontFamily])
-      .filter(([, f]) => f.split(",").map(x => x.trim().replace(/"/g, "").toLowerCase()).some(x => x === "serif" || /garamond|georgia|times/.test(x))));
-    assert.deepEqual(bad, []);
-    assert.match(await page.evaluate(() => getComputedStyle(document.body).fontFamily), /^-apple-system, "SF Pro Text", Roboto, system-ui, sans-serif$/);
-    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector("#d-next .big")).fontVariantNumeric), "tabular-nums");
+    assert.deepEqual(await typeProblems(page), [], "church page");
+    assert.match(await page.evaluate(() => getComputedStyle(document.body).fontFamily), /^"Source Sans 3", system-ui, sans-serif$/);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".detail .d-name")).fontWeight), "500");
+    const big = await page.evaluate(() => { const s = getComputedStyle(document.querySelector("#d-next .big")); return [s.fontFamily, s.fontVariantNumeric]; });
+    assert.deepEqual(big, ['"Source Sans 3", system-ui, sans-serif', "tabular-nums"]);
+    // The faces really load, from this site.
+    await page.evaluate(() => document.fonts.ready);
+    assert.deepEqual(await page.evaluate(() => [document.fonts.check('500 22px "Newsreader"'), document.fonts.check('600 15px "Source Sans 3"')]), [true, true]);
+    const loaded = await page.evaluate(() => [...new Set([...document.fonts].filter(f => f.status === "loaded").map(f => f.family.replace(/"/g, "")))].sort());
+    assert.deepEqual(loaded, ["Newsreader", "Source Sans 3"]);
   } finally { await close(); }
 });
 

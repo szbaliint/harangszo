@@ -166,12 +166,12 @@ async function renderRequest() {
   leaveChurch("request");
   const { data: mine } = await sb.from("access_requests").select("id,status,created_at,church_id,churches(name,city)").order("created_at", { ascending: false });
   const name = (() => { try { return sessionStorage.getItem("pp-name"); } catch (_) { return ""; } })() || P.user.user_metadata?.name || "";
-  const STATUS = { pending: ["jóváhagyásra vár", "t-ador"], approved: ["jóváhagyva – frissítsd az oldalt", "t-open"], rejected: ["elutasítva", "t-muted"] };
+  const STATUS = { pending: ["jóváhagyásra vár", ""], approved: ["jóváhagyva – frissítsd az oldalt", "on"], rejected: ["elutasítva", ""] };
   let chosen = null;
   main.innerHTML = `<div class="pp-narrow">
     <h1 class="pp-title">Melyik templomot szerkesztenéd?</h1>
     <p class="pp-lead">Válaszd ki a templomot, és írd meg, ki vagy. Ha jóváhagytuk, ezen az oldalon rögtön szerkesztheted a miserendjét. Ha több templomot is gondozol (filiák), mindegyikhez kérj hozzáférést.</p>
-    ${(mine || []).length ? `<section class="pp-reqs"><h2>Eddigi kéréseid</h2><div class="ui-glist">${mine.map(r => `<div class="ui-row pp-req"><span><b>${esc(r.churches?.name || "#" + r.church_id)}</b> <span class="muted">${esc(r.churches?.city || "")}</span></span><span class="ui-tag ${STATUS[r.status]?.[1] || "t-muted"}">${STATUS[r.status]?.[0] || esc(r.status)}</span></div>`).join("")}</div></section>` : ""}
+    ${(mine || []).length ? `<section class="pp-reqs"><h2>Eddigi kéréseid</h2><div class="ui-glist">${mine.map(r => `<div class="ui-row pp-req"><span><b>${esc(r.churches?.name || "#" + r.church_id)}</b> <span class="muted">${esc(r.churches?.city || "")}</span></span><span class="ui-meta"><span class="${STATUS[r.status]?.[1] || ""}">${STATUS[r.status]?.[0] || esc(r.status)}</span></span></div>`).join("")}</div></section>` : ""}
     <form class="pp-form" id="rq" novalidate>
       <label class="ui-field"><span>Templom keresése</span><input id="rq-q" type="search" autocomplete="off" placeholder="A templom neve vagy a település"></label>
       <div class="ui-glist pp-results" id="rq-list"></div>
@@ -215,9 +215,13 @@ async function openChurch(id, { quiet = false } = {}) {
   for (const s of c.services.filter(s => s.feast).sort((a, b) => String(a.start_time).localeCompare(b.start_time))) {
     feastMode[s.feast] = "custom"; (feastRows[s.feast] ||= []).push({ uid: uid(), kind: s.kind === "rorate" ? "mass" : s.kind, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", celebrant: s.celebrant || "", place: s.place || "" });
   }
+  // The church's own feasts (its búcsú…) use the same modes; one with neither times nor the Sunday order shows the Sunday order.
+  const own = (c.own_feasts || []).map(f => ({ key: f.key, name: f.name, md: f.md }));
+  for (const k of Object.keys(feastMode)) if (C.isOwnKey(k) && !own.some(f => f.key === k)) { delete feastMode[k]; delete feastRows[k]; }
+  for (const f of own) feastMode[f.key] ||= "sunday";
   P.d = {
     rules: c.services.filter(s => !s.feast).sort((a, b) => (KORDER[a.kind] ?? 9) - (KORDER[b.kind] ?? 9) || (a.period || "").localeCompare(b.period || "") || String(a.start_time).localeCompare(String(b.start_time))).map(ruleOf),
-    feastMode, feastRows,
+    feastMode, feastRows, own,
     events: c.events.sort((a, b) => String(a.date).localeCompare(b.date)).map(e => ({ uid: uid(), date: e.date, start: hm(e.start_time), title: e.title, note: e.note || "" })),
     hours: c.opening_hours.map(h => ({ uid: uid(), days: h.days, opens: hm(h.opens), closes: hm(h.closes) })),
     phone: c.phone || "", website: c.website || "", address: c.address || "", schedule_note: c.schedule_note || "", open_only_services: !!c.open_only_services,
@@ -284,15 +288,27 @@ function renderWeek() {
 }
 
 /* ---------- Feasts ---------- */
+// The church's own feasts: a name and a day of the year (02-29 is held in leap years only).
+const dayOptions = (m, d) => Array.from({ length: C.MONTH_DAYS[m - 1] }, (_, i) => `<option value="${i + 1}" ${i + 1 === Math.min(d, C.MONTH_DAYS[m - 1]) ? "selected" : ""}>${i + 1}.</option>`).join("");
+const mdFields = (attrs, md) => { const [m, d] = md.split("-").map(Number); return `<label class="ui-field"><span>Hónap</span><select ${attrs} data-f="m">${C.MONTHS.map((n, i) => `<option value="${i + 1}" ${i + 1 === m ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      <label class="ui-field t"><span>Nap</span><select ${attrs} data-f="d">${dayOptions(m, d)}</select></label>`; };
+const mdFrom = (m, d) => String(m).padStart(2, "0") + "-" + String(Math.min(d, C.MONTH_DAYS[m - 1])).padStart(2, "0");
+const feastName = k => (C.FEAST_BY_KEY[k] || P.d.own.find(f => f.key === k) || { name: "" }).name.trim() || "Saját ünnep";
 function renderFeasts() {
   const from = today(), d = P.d;
   const list = [...C.FEAST_GROUPS.map(g => ({ key: g.key, name: g.name, group: true, next: C.nextFeastDate(g.key, from) })),
     ...C.FEASTS.map(f => ({ key: f.key, name: f.name, next: C.nextFeastDate(f.key, from) })).sort((a, b) => a.next - b.next)];
+  const own = d.own.map(f => ({ key: f.key, name: f.name.trim() || "Saját ünnep", own: f, next: C.nextOwnFeastDate(f.md, from) })), full = own.length >= C.OWN_FEASTS_MAX;
   const groupHint = { holyday: "jan. 1., jan. 6., aug. 15., nov. 1., dec. 25., ha hétköznapra esik", public: "pl. márc. 15., nagypéntek, húsvét- és pünkösdhétfő, máj. 1., aug. 20., okt. 23., dec. 24–26." };
   const rows = k => d.feastRows[k] ||= [];
-  $("#sec").innerHTML = `<p class="pp-lead">Ha egy ünnepen másképp van mise, mint egyébként azon a napon, itt add meg. Amit nem állítasz be, azon a napon a heti miserend érvényes. A két csoportos sor minden ilyen napra vonatkozik; egy külön beállított ünnep erősebb náluk.</p>
-    <div class="pp-list">${list.map(x => { const m = d.feastMode[x.key] || ""; return `<div class="pp-card" role="group" aria-labelledby="fh-${x.key}"><div><h3 id="fh-${x.key}">${esc(x.name)}</h3><span class="when">${x.group ? groupHint[x.key] : `${x.next.getFullYear()}. ${dateText(x.next)}, ${DAY_NAME[x.next.getDay()].toLowerCase()}`}</span></div>
-      <div class="ui-seg" role="group" aria-label="Rend: ${esc(x.name)}">${FEAST_MODES.map(([k, v]) => `<button type="button" data-fm="${x.key}" data-v="${k}" aria-pressed="${m === k}">${v}</button>`).join("")}</div>
+  const addOwn = `<div class="pp-card" role="group" aria-labelledby="of-h"><div><h3 id="of-h">Saját ünnep hozzáadása</h3><span class="when">${full ? `Legfeljebb ${C.OWN_FEASTS_MAX} saját ünnepet vehetsz fel.` : "Például a templom búcsúja vagy védőszentjének ünnepe. Minden évben ugyanazon a napon."}</span></div>
+      <div class="pp-line"><label class="ui-field wide"><span>Megnevezés</span><input id="of-name" maxlength="80" placeholder="pl. Szent Anna búcsú" autocomplete="off"></label>
+      ${mdFields("data-ofnew", "01-01")}</div>
+      <button type="button" class="ui-btn secondary pp-add" id="of-add" ${full ? "disabled" : ""}>＋ Saját ünnep</button></div>`;
+  const card = x => { const m = d.feastMode[x.key] || ""; return `<div class="pp-card" role="group" aria-labelledby="fh-${x.key}"><div><h3 id="fh-${x.key}">${esc(x.name)}</h3><span class="when">${x.group ? groupHint[x.key] : `${x.next.getFullYear()}. ${dateText(x.next)}, ${DAY_NAME[x.next.getDay()].toLowerCase()}${x.own && x.own.md === "02-29" ? " · csak szökőévben" : ""}`}</span></div>
+      ${x.own ? `<div class="pp-line"><label class="ui-field wide"><span>Megnevezés</span><input data-of="${x.key}" data-f="name" value="${esc(x.own.name)}" maxlength="80" placeholder="pl. Szent Anna búcsú" autocomplete="off"></label>
+      ${mdFields(`data-of="${x.key}"`, x.own.md)}</div>` : ""}
+      <div class="ui-seg" role="group" aria-label="Rend: ${esc(x.name)}">${FEAST_MODES.filter(([k]) => k || !x.own).map(([k, v]) => `<button type="button" data-fm="${x.key}" data-v="${k}" aria-pressed="${m === k}">${v}</button>`).join("")}</div>
       ${m === "custom" ? `<div class="pp-rows">${rows(x.key).map(r => `<div class="pp-line">
           <label class="ui-field"><span>Mi ez?</span><select data-fr="${x.key}" data-u="${r.uid}" data-f="kind">${Object.entries(FEAST_KIND).map(([k, v]) => `<option value="${k}" ${r.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
           <label class="ui-field t"><span>Kezdés</span><input type="time" data-fr="${x.key}" data-u="${r.uid}" data-f="start" value="${esc(r.start)}"></label>
@@ -300,14 +316,34 @@ function renderFeasts() {
           <label class="ui-field"><span>Ki tartja?</span><input data-fr="${x.key}" data-u="${r.uid}" data-f="celebrant" value="${esc(r.celebrant)}" maxlength="80"></label>
           <label class="ui-field wide"><span>Megjegyzés</span><input data-fr="${x.key}" data-u="${r.uid}" data-f="note" value="${esc(r.note)}" placeholder="${x.key === "dec24" ? "pl. éjféli mise (00:00-ként add meg)" : "pl. ünnepi nagymise"}"></label>
           <button type="button" class="ui-btn danger" data-frdel="${x.key}" data-u="${r.uid}" aria-label="Időpont törlése">Törlés</button></div>`).join("")}</div>
-        <button type="button" class="ui-btn secondary pp-add" data-fradd="${x.key}">＋ Időpont</button>` : ""}</div>`; }).join("")}</div>`;
+        <button type="button" class="ui-btn secondary pp-add" data-fradd="${x.key}">＋ Időpont</button>` : ""}
+      ${x.own ? `<button type="button" class="ui-btn danger pp-add" data-ofdel="${x.key}">Ünnep eltávolítása</button>` : ""}</div>`; };
+  $("#sec").innerHTML = `<p class="pp-lead">Ha egy ünnepen másképp van mise, mint egyébként azon a napon, itt add meg. Amit nem állítasz be, azon a napon a heti miserend érvényes. A két csoportos sor minden ilyen napra vonatkozik; egy külön beállított ünnep erősebb náluk.</p>
+    <div class="pp-list">${own.map(card).join("")}${addOwn}${list.map(card).join("")}</div>`;
   const sec = $("#sec");
   sec.querySelectorAll("[data-fm]").forEach(b => b.addEventListener("click", () => { const k = b.dataset.fm, v = b.dataset.v; if ((d.feastMode[k] || "") === v) return;
     if (v) d.feastMode[k] = v; else delete d.feastMode[k];
     if (v === "custom" && !rows(k).length) rows(k).push({ uid: uid(), kind: "mass", start: "", end: "", note: "", celebrant: "", place: "" }); changed(); renderFeasts(); }));
   sec.querySelectorAll("[data-fr]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => { const r = rows(el.dataset.fr).find(r => r.uid === el.dataset.u); r[el.dataset.f] = el.value; changed(el.tagName === "SELECT" ? null : el); if (el.dataset.f === "kind") renderFeasts(); }));
   sec.querySelectorAll("[data-fradd]").forEach(b => b.addEventListener("click", () => { rows(b.dataset.fradd).push({ uid: uid(), kind: "mass", start: "", end: "", note: "", celebrant: "", place: "" }); changed(); renderFeasts(); }));
-  sec.querySelectorAll("[data-frdel]").forEach(b => b.addEventListener("click", () => { const k = b.dataset.frdel; d.feastRows[k] = rows(k).filter(r => r.uid !== b.dataset.u); if (!d.feastRows[k].length) delete d.feastMode[k]; changed(); renderFeasts(); }));
+  sec.querySelectorAll("[data-frdel]").forEach(b => b.addEventListener("click", () => { const k = b.dataset.frdel; d.feastRows[k] = rows(k).filter(r => r.uid !== b.dataset.u); if (!d.feastRows[k].length && !C.isOwnKey(k)) delete d.feastMode[k]; changed(); renderFeasts(); }));
+  // Own feasts: name (typed in place), day (re-drawn), removal with its times; adding one (Sunday order to start with).
+  const ownOf = k => d.own.find(f => f.key === k);
+  sec.querySelectorAll("[data-of]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
+    const o = ownOf(el.dataset.of), [m, dd] = o.md.split("-").map(Number);
+    if (el.dataset.f === "name") { o.name = el.value; $("#fh-" + o.key).textContent = el.value.trim() || "Saját ünnep"; changed(el); return; }
+    o.md = el.dataset.f === "m" ? mdFrom(+el.value, dd) : mdFrom(m, +el.value); changed(); renderFeasts();
+  }));
+  sec.querySelectorAll("[data-ofdel]").forEach(b => b.addEventListener("click", () => { const k = b.dataset.ofdel; d.own = d.own.filter(f => f.key !== k); delete d.feastMode[k]; delete d.feastRows[k]; changed(); renderFeasts(); }));
+  sec.querySelector('[data-ofnew][data-f="m"]').addEventListener("change", e => { const s = sec.querySelector('[data-ofnew][data-f="d"]'); s.innerHTML = dayOptions(+e.target.value, +s.value); });
+  $("#of-name").addEventListener("input", e => e.target.closest(".ui-field").classList.remove("err"));
+  $("#of-add").addEventListener("click", () => {
+    const name = $("#of-name").value.trim(); if (!name) { $("#of-name").closest(".ui-field").classList.add("err"); $("#of-name").focus(); return; }
+    if (d.own.length >= C.OWN_FEASTS_MAX) return;
+    const k = C.newOwnKey(d.own);
+    d.own.push({ key: k, name, md: mdFrom(+sec.querySelector('[data-ofnew][data-f="m"]').value, +sec.querySelector('[data-ofnew][data-f="d"]').value) });
+    d.feastMode[k] = "sunday"; changed(); renderFeasts();
+  });
 }
 
 /* ---------- Events ---------- */
@@ -357,10 +393,12 @@ function renderData() {
 
 /* ---------- What the faithful will see: the next 7 days ---------- */
 function dayList(date, items) {
-  const d = P.d, feasts = C.feastsOn(date), dow = date.getDay();
+  // The church's own feast on this day comes first (as on the map, app.js dayInfo).
+  const d = P.d, mine = C.ownFeastsOn(d.own, date), feasts = [...mine.map(f => f.key), ...C.feastsOn(date)], dow = date.getDay();
   const custom = feasts.filter(k => d.feastMode[k] === "custom" && (d.feastRows[k] || []).length);
-  const own = custom.filter(k => !C.isGroup(k)), use = own.length ? own : custom;
-  const fname = feasts.length ? C.FEAST_BY_KEY[feasts[0]]?.name : "";
+  const own = custom.filter(k => !C.isGroup(k)), ofMine = own.filter(k => mine.some(f => f.key === k));
+  const use = ofMine.length ? ofMine : mine.some(f => d.feastMode[f.key] === "sunday") ? [] : own.length ? own : custom;
+  const fname = mine.length ? feastName(mine[0].key) : feasts.length ? C.FEAST_BY_KEY[feasts[0]]?.name : "";
   if (use.length) return { feast: fname, rows: use.flatMap(k => d.feastRows[k]).filter(r => TIME_RE.test(r.start)) };
   const sunday = feasts.some(k => d.feastMode[k] === "sunday");
   const holiday = C.isHoliday(date), advent = C.inAdvent(date);
@@ -397,15 +435,20 @@ function payload() {
     services.push({ kind: r.kind, days: [], start: r.start, end: r.kind === "mass" ? "" : r.end, note: r.note.trim(), period: "all", feast: k, celebrant: r.celebrant.trim(), place: r.place || "" });
   return { id: c.id, name: c.name, city: c.city, address: d.address.trim(), rite: c.rite, lat: c.lat, lon: c.lon, website: d.website.trim(), phone: d.phone.trim(), notes: c.notes || "",
     open_only_services: d.open_only_services, published: c.published, feast_sunday: Object.entries(d.feastMode).filter(([, m]) => m === "sunday").map(([k]) => k),
+    own_feasts: d.own.map(f => ({ key: f.key, name: f.name.trim(), md: f.md })),
     importance_manual: c.importance_manual ?? "", schedule_note: d.schedule_note.trim(), location_approx: c.location_approx, schedule_locked: true,
     hours: d.hours.filter(h => h.days.length && TIME_RE.test(h.opens) && TIME_RE.test(h.closes)).map(h => ({ days: h.days, opens: h.opens, closes: h.closes })),
     services, events: d.events.filter(e => e.date && e.title.trim()).map(e => ({ date: e.date, start: e.start, title: e.title.trim(), note: e.note.trim() })) };
 }
 function problems() {
   const d = P.d;
-  for (const [k, m] of Object.entries(d.feastMode)) if (m === "custom") for (const r of d.feastRows[k] || []) {
-    if (!TIME_RE.test(r.start)) return [`${C.FEAST_BY_KEY[k].name}: add meg az időpontot, vagy töröld a sort.`, "feasts"];
-    if (r.kind !== "mass" && r.end && r.end <= r.start) return [`${C.FEAST_BY_KEY[k].name}: a vége legyen később, mint a kezdés.`, "feasts"];
+  for (const f of d.own) if (!f.name.trim()) return ["Saját ünnep: add meg a nevét.", "feasts"];
+  for (const [k, m] of Object.entries(d.feastMode)) if (m === "custom") {
+    if (C.isOwnKey(k) && !(d.feastRows[k] || []).length) return [`${feastName(k)}: adj meg legalább egy időpontot, vagy válaszd a vasárnapi rendet.`, "feasts"];
+    for (const r of d.feastRows[k] || []) {
+      if (!TIME_RE.test(r.start)) return [`${feastName(k)}: add meg az időpontot, vagy töröld a sort.`, "feasts"];
+      if (r.kind !== "mass" && r.end && r.end <= r.start) return [`${feastName(k)}: a vége legyen később, mint a kezdés.`, "feasts"];
+    }
   }
   for (const e of d.events) if ((e.date || e.title.trim()) && (!e.date || !e.title.trim())) return ["Eseménynél add meg a dátumot és a megnevezést is.", "events"];
   for (const h of d.hours) if (!h.days.length || !TIME_RE.test(h.opens) || !TIME_RE.test(h.closes) || h.closes <= h.opens) return ["Nyitvatartás: jelöld ki a napokat, és adj meg nyitást és zárást.", "data"];
