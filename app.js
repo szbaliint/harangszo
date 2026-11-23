@@ -186,7 +186,7 @@ function hoursText(c, dow) {
 // tab: "most" (home: the nearest church with a Mass to come), "map", "saved". sel: the open church page.
 // pick: the church tapped on the phone map (shown in its bottom panel). search: the search panel is open.
 const S = { q: "", dayOffset: 0, origin: "Budapest", f: { open: false, mass: false, conf: false, ev: false, rorate: false, tag: "" },
-  sel: null, pick: null, loading: true, error: "", tab: "most", search: false, moreOpen: false, weekOpen: false };
+  sel: null, pick: null, loading: true, error: "", tab: "most", search: false, near: false, nearKind: "", moreOpen: false, weekOpen: false };
 try { const saved = JSON.parse(localStorage.getItem("harangszo") || "{}"); if (saved.origin && ORIGINS[saved.origin]) S.origin = saved.origin; } catch (e) { }
 const now = () => new Date();
 const selDate = () => { const d = now(); d.setDate(d.getDate() + S.dayOffset); return d; };
@@ -425,6 +425,7 @@ function back() { S.sel = null; S.weekOpen = false; withTransition(render, "back
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape" || $("#suggest").open || $("#install").open) return; // the sheets close themselves
   if (S.search) { e.preventDefault(); closeSearch(); return; }
+  if (S.near) { e.preventDefault(); closeNear(); return; }
   if (S.sel) back();
 });
 
@@ -514,9 +515,74 @@ $("#q").addEventListener("input", e => {
 });
 $("#q").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
 
+/* ---------- Közel most: nearby churches with a Mass or confession still to come today ---------- */
+// One tap from Most. Asks for the visitor's position the first time (falls back to the chosen town, and says so),
+// then lists the churches nearest first that still have a Mass or confession today: their next Mass times, and their
+// confession times with "most tart" (red: it applies now) while one is going on.
+const nearEl = $("#near"); let nearOpener = null;
+const NEAR_LIST = 25, NEAR_TIMES = 4;
+function openNear(opener) {
+  if (S.near) return;
+  S.near = true; nearOpener = opener || document.activeElement;
+  nearEl.inert = false; nearEl.dataset.open = "true";
+  renderNear();
+  $("#near-done").focus({ preventScroll: true });
+  if (S.origin !== "Saját helyzetem" && navigator.geolocation) locateMe({ quiet: true });
+}
+function closeNear(restore = true) {
+  if (!S.near) return;
+  S.near = false; nearEl.dataset.open = "false"; nearEl.inert = true;
+  if (restore && nearOpener && nearOpener.isConnected) nearOpener.focus({ preventScroll: true });
+}
+$("#near-done").addEventListener("click", () => closeNear());
+function nearRows() {
+  const ctx = dayContext(now()), m = nowMin(), out = [];
+  const want = S.nearKind === "mass" ? MASSK : S.nearKind === "conf" ? ["conf"] : [...MASSK, "conf"];
+  const rows = [];
+  for (const c of CHURCHES) { const dist = distOf(c); if (dist <= NEAR_KM) rows.push({ c, dist }); }
+  rows.sort((a, b) => a.dist - b.dist);
+  for (const r of rows) {
+    const items = upcomingOf(dayInfoCached(r.c, ctx), want);
+    if (!items.length) continue;
+    const mass = items.filter(i => MASSK.includes(i.k)), conf = items.filter(i => i.k === "conf");
+    out.push({ ...r, mass, conf, nowConf: conf.some(i => mins(i.t) <= m) });
+    if (out.length >= NEAR_LIST) break;
+  }
+  return out;
+}
+function nearLineHTML(word, items, m) {
+  if (!items.length) return "";
+  const shown = items.slice(0, NEAR_TIMES).map(i => {
+    const span = i.end ? `${showT(i.t)}–${showT(i.end)}` : showT(i.t), on = i.k === "conf" && mins(i.t) <= m;
+    return `<span class="n-t">${esc(span)}</span>${on ? ` <em class="now">most tart</em>` : ""}`;
+  }).join(`<span class="n-sep"> · </span>`);
+  return `<span class="n-line"><span class="n-k">${word}</span><span class="n-ts">${shown}${items.length > NEAR_TIMES ? `<span class="n-sep"> · </span><span class="n-more">+${items.length - NEAR_TIMES}</span>` : ""}</span></span>`;
+}
+function renderNear() {
+  if (!S.near) return;
+  const mine = S.origin === "Saját helyzetem", t = now(), m = nowMin();
+  $("#near-filters").innerHTML = `<div class="ui-seg s-kind" role="group" aria-label="Alkalom">${[["", "Mind"], ["mass", "Mise"], ["conf", "Gyónás"]]
+    .map(([k, l]) => `<button type="button" data-nk="${k}" aria-pressed="${S.nearKind === k}">${l}</button>`).join("")}</div>`
+    + `<p class="summary n-from">Ma, ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} · ${mine ? "a helyzetedtől" : `távolság: ${esc(S.origin)}`}`
+    + `${!mine && navigator.geolocation ? ` · <button class="link" type="button" id="near-locate">Saját helyzetem</button>` : ""}</p>`;
+  if (S.loading || S.error) { $("#near-results").innerHTML = stateHTML(); return; }
+  const rows = nearRows();
+  $("#near-results").innerHTML = `<ul class="rows pad n-rows">${rows.map(r => `<li><button class="row n-row" type="button" data-id="${r.c.id}">`
+    + `<span class="r-n"><span class="r-name">${esc(r.c.name)}</span><small>${esc([r.c.addr, distText(r.dist)].filter(Boolean).join(" · "))}</small>`
+    + `${S.nearKind !== "conf" ? nearLineHTML(r.c.rite === "gk" ? "Liturgia" : "Mise", r.mass, m) : ""}${S.nearKind !== "mass" ? nearLineHTML("Gyónás", r.conf, m) : ""}</span>`
+    + `</button></li>`).join("") || `<li class="ui-empty">${S.nearKind === "conf" ? "Ma már nincs ismert gyóntatás" : S.nearKind === "mass" ? "Ma már nincs ismert szentmise" : "Ma már nincs ismert szentmise vagy gyóntatás"} ${NEAR_KM} km-en belül. A templomok heti rendjét a Keresésben találod.</li>`}</ul>`;
+}
+$("#near-filters").addEventListener("click", e => {
+  if (e.target.closest("#near-locate")) return locateMe({ quiet: true });
+  const b = e.target.closest("button[data-nk]"); if (!b) return;
+  S.nearKind = b.dataset.nk; if (S.nearKind) Track.ev("filter", S.nearKind); renderNear();
+});
+$("#near-results").addEventListener("click", e => { const b = e.target.closest(".row[data-id]"); if (b) { closeNear(false); select(+b.dataset.id); } });
+
 /* ---------- Most: the nearest church with a Mass still to come ---------- */
 function renderMost() {
-  const today = now(), searchBtn = `<button class="pill" id="m-search" type="button" aria-haspopup="dialog">Keresés</button><span class="sp"></span>`;
+  const today = now(), searchBtn = `<button class="pill" id="m-search" type="button" aria-haspopup="dialog">Keresés</button>`
+    + `<button class="pill" id="m-near" type="button" aria-haspopup="dialog">Közel most</button><span class="sp"></span>`;
   if (S.loading || S.error) {
     panel.innerHTML = `<div class="most">${plainTop(searchBtn)}<div class="m-body pad"><p class="dayline">${esc(dayLine(today))}</p>${stateHTML()}</div></div>`;
     return;
@@ -546,6 +612,7 @@ panel.addEventListener("click", e => {
   const sv = e.target.closest("[data-save]");
   if (sv) { const id = +sv.dataset.save, on = Saved.toggle(id); if (on) Track.once("save", id); panel.querySelectorAll(`[data-save="${id}"]`).forEach(b => setSaveBtn(b, on)); return; }
   if (e.target.closest("#m-search,[data-open-search]")) return openSearch(e.target.closest("button"));
+  if (e.target.closest("#m-near")) return openNear(e.target.closest("button"));
   const wk = e.target.closest("#m-week"); if (wk) return select(+wk.dataset.open, { week: true });
   if (e.target.closest("#m-locate")) return locateMe();
   const a = e.target.closest("a#m-dir,a#m-web"); if (a) { Track.once(a.id === "m-dir" ? "dir" : "web", +panel.querySelector(".most").dataset.id); return; }
@@ -582,12 +649,15 @@ function renderMapCard() {
     + (after ? `<button class="mc-row" type="button" data-id="${after.r.c.id}"><span><b>${esc(showT(after.i.t))}</b>${esc(after.r.c.name)}${after.r.c.addr ? " · " + esc(after.r.c.addr) : ""}</span><span class="r-d">${esc(kmText(after.r.dist))}</span></button>` : "");
 }
 $("#mapcard").addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (b) select(+b.dataset.id); });
-function locateMe() {
+// quiet: from the Közel most panel, which stays open (no toast over it, the map is not moved under it).
+function locateMe({ quiet = false } = {}) {
   if (!navigator.geolocation) return;
-  toast("Helymeghatározás…");
+  if (!quiet) toast("Helymeghatározás…");
   navigator.geolocation.getCurrentPosition(p => {
     ORIGINS["Saját helyzetem"] = [p.coords.latitude, p.coords.longitude]; S.origin = "Saját helyzetem"; Track.once("locate");
-    MapView.focus(p.coords.latitude, p.coords.longitude, 13); MapView.me?.(p.coords.latitude, p.coords.longitude); toast(""); render();
+    MapView.me?.(p.coords.latitude, p.coords.longitude);
+    if (!quiet) { MapView.focus(p.coords.latitude, p.coords.longitude, 13); toast(""); }
+    render();
   }, () => toast("A helyzeted nem érhető el. Engedélyezd a böngészőben, vagy válassz kiindulópontot a keresésben."), { timeout: 10000, maximumAge: 300000 });
 }
 $("#locate-btn").addEventListener("click", () => locateMe());
@@ -1140,7 +1210,7 @@ function render() {
   const key = S.sel ? "c" + S.sel : S.tab, top = col.scrollTop;
   const rows = S.loading || S.error ? [] : filtered();
   if (S.sel) renderDetail(); else if (S.tab === "saved") renderSaved(); else if (S.tab === "map") renderMapList(rows); else renderMost();
-  renderMapCard(); renderSearch();
+  renderMapCard(); renderSearch(); renderNear();
   $("#map-search-text").textContent = S.q.trim() || "Templom vagy település";
   drawMarkers(rows);
   if (key !== lastKey) { if (lastKey) scrollMem[lastKey] = top; col.scrollTop = S.sel ? 0 : scrollMem[key] || 0; lastKey = key; }

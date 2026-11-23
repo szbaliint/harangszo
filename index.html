@@ -67,6 +67,15 @@ body{margin:0}
     </div>
   </section>
 
+  <!-- Közel most: the nearest churches with a Mass or confession still to come today, nearest first -->
+  <section class="search near" id="near" role="dialog" aria-modal="true" aria-labelledby="near-h" data-open="false" inert>
+    <div class="s-head"><h2 class="n-title" id="near-h">Közel most</h2><button class="s-done" id="near-done" type="button">Kész</button></div>
+    <div class="s-scroll" id="near-scroll">
+      <div class="s-filters" id="near-filters"></div>
+      <div class="s-results" id="near-results" aria-live="polite"></div>
+    </div>
+  </section>
+
   <div class="offnote" id="offnote" role="status" hidden>Nincs internet · a lista működik</div>
 </div>
 <dialog class="ui-sheet" id="suggest" aria-labelledby="suggest-h">

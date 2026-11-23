@@ -230,6 +230,17 @@ ul.rows.pad{padding-left:20px;padding-right:20px}
 .s-opt{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;border-top:1px solid var(--line);font-size:var(--fs-2);cursor:pointer}
 .s-opt select{max-width:60%;min-height:40px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--ink);font-size:var(--fs-2)}
 .s-results{padding-top:16px}
+/* Közel most: the same full-height panel; each row is a church with its Mass and confession times still to come today. */
+.n-title{flex:1;min-width:0;margin:0;padding-left:4px;font:500 var(--fs-4)/1.2 var(--f-display);letter-spacing:-.01em;color:var(--ink)}
+.n-from{margin-top:10px}
+.n-rows{margin-top:0}
+.row.n-row{grid-template-columns:minmax(0,1fr);padding:12px 0}
+.n-line{display:grid;grid-template-columns:62px minmax(0,1fr);gap:0 10px;margin-top:6px;font-size:var(--fs-2);line-height:1.35}
+.n-k{color:var(--ink-3)}
+.n-ts{min-width:0;color:var(--ink-2)}
+.n-t{font-weight:600;color:var(--ink);white-space:nowrap}
+.n-ts .now{font-style:normal;font-weight:600;color:var(--red);white-space:nowrap}
+.n-sep,.n-more{color:var(--ink-3)}
 
 /* ===== Church page ===== */
 .detail{min-width:0}

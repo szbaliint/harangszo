@@ -18,7 +18,9 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   red, name, address · distance, Útvonal / Heti rend / Honlap, then "Utána a közelben" rows. **Térkép**: grey map,
   black time pins (the next one red), search field and a bottom panel; zoomed out, churches merge into numbered
   circles (grid clustering in `updateMarkers`). **Mentett**: saved churches (localStorage). "Keresés" opens a
-  full-height search panel with filters (it counts as tab "list"). The church page: photo header, 7-day strip, week.
+  full-height search panel with filters (it counts as tab "list"). "Közel most" (beside it on Most) opens the same kind of
+  panel: the visitor's position (asked on first tap; else the chosen town, said so), then the churches nearest first that
+  still have a Mass or confession today, their next times, "most tart" in red for a confession going on now. The church page: photo header, 7-day strip, week.
   Google Maps when `GOOGLE_MAPS_KEY` is set (it is, live), otherwise Leaflet + CARTO tiles.
 - Church photos (migration 013): `churches.photo_url/photo_credit/photo_source ('commons'|'parish')/photo_page`, in
   `public_data`. Commons photos come from `scripts/import-photos.mjs` (workflow "Import church photos from Wikimedia
