@@ -9,7 +9,7 @@ import { mockSupabase } from "./helpers/supabase-mock.mjs";
 const { defaultBrowserType: _, ...IPHONE } = devices["iPhone 13"];
 const DATA = [
   { id: 201, name: "Mátyás-templom", city: "Budapest", address: "Szentháromság tér 2.", rite: "rk", lat: 47.502, lon: 19.0344, imp: 90,
-    services: [{ kind: "mass", days: [6], start: "18:00" }, { kind: "mass", days: [6], start: "08:00" }] },
+    services: [{ kind: "mass", days: [6], start: "18:00" }, { kind: "mass", days: [6], start: "18:00", note: "németül" }, { kind: "mass", days: [6], start: "08:00" }] },
   { id: 202, name: "Szent Anna-templom", city: "Budapest", address: "Batthyány tér 7.", rite: "rk", lat: 47.5065, lon: 19.0385, imp: 80,
     services: [{ kind: "mass", days: [6], start: "18:30" }, { kind: "confession", days: [6], start: "17:00", end: "17:45" }] },
   { id: 203, name: "Kapucinus templom", city: "Budapest", address: "Fő utca 32.", rite: "rk", lat: 47.5045, lon: 19.0390, imp: 70,

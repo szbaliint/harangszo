@@ -551,6 +551,8 @@ function nearRows() {
   return out;
 }
 function nearLineHTML(word, items, m) {
+  // The same time twice (two rules at one time, e.g. Mass in two languages) is shown once.
+  const seen = new Set(); items = items.filter(i => { const k = i.t + "-" + (i.end || ""); return !seen.has(k) && seen.add(k); });
   if (!items.length) return "";
   const shown = items.slice(0, NEAR_TIMES).map(i => {
     const span = i.end ? `${showT(i.t)}–${showT(i.end)}` : showT(i.t), on = i.k === "conf" && mins(i.t) <= m;
