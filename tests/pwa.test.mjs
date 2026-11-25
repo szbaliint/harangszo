@@ -64,6 +64,12 @@ test("manifest and icons", async () => {
       const { w, h } = pngSize(await r.body());
       assert.equal(`${w}x${h}`, icon.sizes, icon.src);
     }
+    // The icons: a white bell on the board's navy (icons/bell.svg → icons/render.mjs).
+    const corner = await page.evaluate(async src => { const img = new Image(); img.src = src; await img.decode();
+      const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"); g.drawImage(img, 0, 0, 64, 64);
+      return [[...g.getImageData(1, 1, 1, 1).data].slice(0, 3), [...g.getImageData(32, 30, 1, 1).data].slice(0, 3)]; }, new URL("icons/icon-512.png", href).href);
+    assert.deepEqual(corner, [[19, 35, 63], [255, 255, 255]], "navy ground, white bell");
+    assert.match(readFileSync(path.join(ROOT, "icons/bell.svg"), "utf8"), /<rect width="512" height="512" fill="#13233f"\/>/);
     assert.equal(await page.$eval('meta[name="theme-color"]', m => m.content), "#13233f");
     assert.equal(await page.$eval('meta[name="theme-color"][media]', m => m.content), "#13233f");
     const apple = await page.$eval('link[rel="apple-touch-icon"]', l => l.href);
