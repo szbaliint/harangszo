@@ -105,7 +105,8 @@ test("folds closed", async () => {
     assert.equal(await page.locator("#f-week table").isVisible(), false);
     await page.click("#f-week summary");
     assert.equal(await page.locator("#f-week").getAttribute("open"), "");
-    assert.ok(await page.locator("#f-week .week table").isVisible(), "the week table shows");
+    // The fold glides open (::details-content); the table shows as it does.
+    await page.locator("#f-week .week table").waitFor({ state: "visible", timeout: 2000 });
     // The minute timer re-renders the detail: the open fold stays open.
     await page.evaluate(() => render());
     assert.equal(await page.locator("#f-week").getAttribute("open"), "");

@@ -93,7 +93,7 @@ for (const view of Object.keys(VIEWS)) {
       await openSearch(page);
       assert.ok(await page.locator("#s-filters #day").isVisible(), "the day is always at hand");
       await page.click("#s-more summary");
-      assert.ok(await page.locator("#s-filters #origin").isVisible());
+      await page.locator("#s-filters #origin").waitFor({ state: "visible", timeout: 2000 }); // the fold glides open
       assert.equal(await page.locator('#s-filters .ui-toggle[data-f="open"]').count(), 1, "Most nyitva today");
       await page.locator('#s-filters .ui-toggle[data-f="ev"]').check();
       assert.equal(await page.locator("#s-more summary .count").textContent(), "1");

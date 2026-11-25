@@ -438,6 +438,14 @@ const app = $("#app"), col = $("#col"), panel = $("#panel"), isDesktop = () => w
 const motionOk = () => !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // The spring of styles.css (--spring), for the animations made in script.
 const spring = () => getComputedStyle(document.documentElement).getPropertyValue("--spring").trim() || "cubic-bezier(.2,.8,.2,1)";
+const EASE = "cubic-bezier(.2,.8,.2,1)"; // --ease
+// Something new arrives in place: it fades in while moving `from` (a transform) to where it is; under reduced motion a
+// 150ms fade only.
+function arrive(el, from, ms) {
+  if (!el?.animate) return;
+  if (motionOk()) el.animate([{ opacity: 0, transform: from }, { opacity: 1, transform: "none" }], { duration: ms, easing: EASE, id: "arrive" });
+  else el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "linear", id: "arrive" });
+}
 const TAB_NAME = { most: "Indulások", map: "Térkép", list: "Keresés", saved: "Mentett" };
 function setView() {
   const view = S.sel ? "church" : S.tab;
@@ -599,7 +607,8 @@ function renderMost() {
   const { pass, rows, any } = departures();
   const sig = pass ? pass.key + "|" + hasPhoto(pass.c) + "|" + S.origin : "";
   if (!pass) { passBox.innerHTML = ""; delete passBox.dataset.sig; }
-  else if (passBox.dataset.sig !== sig) { passBox.innerHTML = passHTML(pass, m); passBox.dataset.sig = sig; fillPhotos(passBox); }
+  // A new pass (another Mass, place or filter; not the minute's status update) comes up into its place.
+  else if (passBox.dataset.sig !== sig) { passBox.innerHTML = passHTML(pass, m); passBox.dataset.sig = sig; fillPhotos(passBox); if (!fresh) arrive(passBox.firstElementChild, "translateY(8px)", 220); }
   else setText($("#i-st"), passStatus(pass, m));
   $("#i-cols").hidden = !rows.length;
   syncRows(ul, rows, m, !fresh);
@@ -971,11 +980,14 @@ function renderDetail() {
   $("#go-suggest").addEventListener("click", () => openSuggest(c));
   panel.querySelector(".d-days")?.addEventListener("click", e => {
     const b = e.target.closest("button[data-off]"); if (!b) return;
+    const was = S.dayOffset;
     setDayOffset(+b.dataset.off);
     panel.querySelectorAll(".d-days button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
     const d2 = dayInfoCached(c, dayContext(selDate()));
     $("#d-next").outerHTML = nextHTML(c, d2);
     $("#d-daybox").outerHTML = dayBoxHTML(c, d2);
+    // The day's times come in from the side the tapped day lies on (the strip's highlight itself moves at once).
+    if (S.dayOffset !== was) arrive($("#d-daybox"), `translateX(${S.dayOffset > was ? 12 : -12}px)`, 200);
     drawMarkers(filtered());
   });
   for (const id of openFolds) document.getElementById(id)?.setAttribute("open", "");

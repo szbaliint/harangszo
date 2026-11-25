@@ -192,6 +192,7 @@ test("Mise and Rorate have no end field; tags only for Mass", async () => {
   try {
     await page.getByRole("button", { name: "Időpont hozzáadása: Hétfő" }).click();
     await sheet(page).locator(".se-more summary").click();
+    await sheet(page).getByRole("button", { name: "orgonás" }).waitFor({ state: "visible", timeout: 2000 }); // the fold glides open
     assert.equal(await sheet(page).locator(".se-endf").isVisible(), false);
     assert.equal(await sheet(page).getByRole("button", { name: "orgonás" }).isVisible(), true);
     await sheet(page).getByRole("button", { name: "Szentségimádás" }).click();

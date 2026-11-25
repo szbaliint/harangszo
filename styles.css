@@ -542,6 +542,12 @@ a.ui-row,button.ui-row{width:100%;border-left:0;border-right:0;border-bottom:0;b
   transition:transform .3s var(--spring)}
 .ui-fold>summary:not(:has(.count))::after{margin-left:auto}
 .ui-fold[open]>summary::after{transform:translateY(3px) rotate(-135deg)}
+/* Opening and closing glide where the browser can animate to "auto" (::details-content, interpolate-size); elsewhere
+   the fold simply opens. Nothing glides under reduced motion. */
+:root{interpolate-size:allow-keywords}
+.ui-fold::details-content{block-size:0;overflow:clip;overflow-clip-margin:4px;transition:block-size 250ms var(--ease),content-visibility 250ms allow-discrete}
+.ui-fold[open]::details-content{block-size:auto}
+@media (prefers-reduced-motion:reduce){.ui-fold::details-content{transition:none}}
 .ui-fold>summary~*{margin:0}
 .ui-fold>summary~:not(.ui-row){padding:0 0 16px}
 .ui-fold>.ui-row{border-top:1px solid var(--line)}
