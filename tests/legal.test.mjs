@@ -24,7 +24,7 @@ test("the legal page has the three sections and fits a phone", async () => {
       "Wikimedia Commons", "upload.wikimedia.org", "commons.wikimedia.org", "Supabase Storage", "Fotó: a plébánia"]) assert.ok(text.toLowerCase().includes(s.toLowerCase()), s);
     assert.ok(!text.includes("Google Fonts"), "no page loads Google Fonts any more");
     assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
-    assert.deepEqual(await typeProblems(p, { interim: true }), [], "Overpass everywhere");
+    assert.deepEqual(await typeProblems(p), [], "Overpass everywhere");
     assert.deepEqual(errors, []);
   } finally { await c.close(); }
 });
