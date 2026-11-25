@@ -8,26 +8,46 @@ related_targets: ["app.js","styles.css"]
 # Surface brief: public map app (index.html)
 
 Mode: Operate (phone-first, installable). Audience, job and constraints: see PRODUCT.md.
-Chosen 2026-11-14 after five rounds; the owner rejected themed, atmospheric and generic-app directions as "AI slop" and chose the real-material, church-first direction.
+Replaced 2026-11-25 ("a fully new design, started from zero": layout and flow may change; the old church-first look
+was too cold, not beautiful enough, not app-like, hard to use; benchmark Airbnb / Citymapper). Chosen from a dealt hand:
+the departure-board world won over the roll (Mária Terézia-sárga), the liturgical-colour pick and a photo-shelf wall.
 
 ## Direction contract
 
-THESIS: The app opens on a real church, not on a map or a list. The nearest church with an upcoming Mass fills the top of the screen as an actual photograph; under it, plain typeset facts answer "when, where, how far". It refuses the category default (full-screen pin map plus bottom sheet) and every invented ornament: no gradients, glow, textures or themed objects.
+THESIS: Nearby Masses and confessions are departures. Home is a live board ranked by start time with the walk built in,
+so the answer to "where should I go now" is the top row, not a search. It refuses both the map-plus-sheet default and
+the previous church-first white page.
 
-OWN-WORLD: White ground, near-black ink (#111), two greys (#555, #8a8a8a), hairline rules (#e6e6e6), one accent red (#b4232a) that only ever means "the next one / what applies now". Real photographs (Wikimedia Commons, credited on the image) and real OpenStreetMap streets are the only imagery. Type is set like a printed parish bulletin, self-hosted (no request leaves the site): church names and headings in Newsreader, a text serif at 500 with optical sizing; data, labels, controls and times in Source Sans 3 at 400 and 600 only, light (300) for the big time; times 600 with tabular figures and the kind after them in grey regular; no bold anywhere else; status words as plain grey text joined with " · ", never pills; sizes from one scale (13/15/17/22/64). Controls are plain native ones: a black primary button, outlined secondary buttons, a hairline tab bar with line icons.
+OWN-WORLD: Navy board (#13233f, panel #1d3257) over white rows; one alert amber (#ffb703) that only marks "leave now"
+and anything that changed, held until seen; red (#e5483a) only for "most tart" (going on now); greys for status at rest.
+Overpass (self-hosted, highway-signage grotesk) for everything, tabular figures, 800 for times and headings, small
+uppercase column labels. The pass: the chosen Mass as a segmented card with labelled fields (IDŐ, TEMPLOM, SÉTA,
+ÁLLAPOT) and the church's real photo; rounded 18px cards, 12px segmented controls, pill status chips. Standard native
+controls: segmented control, tab bar, search field, buttons.
 
-STORY: The visitor sees which church, its next time and how far it is before reading anything, trusts it because the picture and the facts are real (with the source and "vasárnapra érvényes"-type notes shown), and goes: Útvonal, or the next church below.
+STORY: The visitor opens the app and sees, ranked, what starts next near them and whether to leave now; taps a row for
+the church's pass (photo, next times, week, Útvonal); planners switch day or search; nothing needs a map first.
 
-FIRST VIEWPORT: Top 42%: the church's photograph edge to edge, with "Keresés" and ♡ as small white pills over it and the photo credit in its corner. Below on white: the day line (date · liturgical week), the time at 64px light with the kind in red and its validity note beside it, the church name 22px bold, address · distance · walking minutes, a row of three buttons (Útvonal primary, Heti rend, Honlap), then "Utána a közelben" as hairline rows (time | church, street | distance). Bottom tab bar: Most · Térkép · Mentett. A church without a photo opens with the same layout minus the photo, never a placeholder image.
+FIRST VIEWPORT: Navy header: day · time · place line, "Indulások" 28px, segmented Mind / Mise / Gyónás. Below, the amber
+pass for the Mass to leave for now (time 34px, church, kind · distance · walk, Útvonal). Then the board: column labels
+IDŐ / TEMPLOM / SÉTA / ÁLLAPOT and rows (time 18px 800 | church + kind | walk minutes | status chip: "most tart" red,
+"indulj 17:54" amber, "42 perc" grey). Tab bar: Indulások · Térkép · Keresés · Mentett. Signature move: rows rerank in
+place as time passes (FLIP, critically damped), a changed row flashes amber and holds it.
 
-FORM: Grounded direction "The church first" from the fifth hand (drawn from real material only, outside the dealt list after four rerolls). seed:46f4e01d45dbb702
+FORM: Challenger "boarding pass and gate board" (vernacular ephemera), chosen over the roll's assigned direction (my
+list #3) and my pick. seed:1069256aac57cc89
+Raises kept for church identity: the real church photo on every pass; the liturgical day line (date · Évközi 34. hét)
+and next Sunday's feast in the header; each time paired with its proof (source, validity note).
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 
 ## Related surfaces
 
-The same world extends to the map tab (real tiles, toned grey, black time pins, red for the next), the list, the church page (photo header, then the 7-day strip and the week), the parish portal, the admin and jogi.html: white, ink, hairlines, one red, Newsreader names over Source Sans 3 data.
+The same world reaches the map (grey tiles, navy time pins, amber for "leave now"), search, the church page (the pass,
+then the 7-day strip and the week as a timetable), the parish portal and the admin (navy rail/header, white work area,
+unsaved changes held in amber until saved), and jogi.html.
 
-## Open decisions
+## Motion
 
-- Photo coverage: which churches get a photo and how (Wikidata/Commons via OpenStreetMap tags), stored with author and licence.
+Apple fluid rules: press feedback on pointer-down; sheets and the church page enter and leave along the same path with
+critically damped springs; board rows rerank by FLIP from their current position; reduced motion = cross-fades only.

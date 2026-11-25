@@ -77,10 +77,10 @@ function fromDb(c) {
     feastSunday: c.feast_sunday || [], imp: c.imp ?? 30,
     // The church's own feasts (its búcsú…): [{key, name, md}], a fixed date every year.
     ownFeasts: Array.isArray(c.own_feasts) ? c.own_feasts : [],
-    note: c.schedule_note || "", parishUpdated: c.parish_updated || null, source: c.schedule_source || null, sourceUrl: c.schedule_source_url || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
+    note: c.schedule_note || "", parishUpdated: c.parish_updated || null, source: c.schedule_source || null, sourceUrl: httpsUrl(c.schedule_source_url) || null, updated: c.schedule_updated || null, approx: !!c.location_approx,
     ev: (c.events || []).map(e => ({ date: e.date, t: e.start || "", title: e.title, n: e.note })),
     // Times for given dates from the parish's own weekly schedule; on those dates they replace the regular rules.
-    dated: (c.dated || []).map(d => ({ date: d.date, k: KIND[d.kind] || "mass", d: [], t: d.start, u: d.end || null, n: d.note, g: d.tags || [], url: d.url || null,
+    dated: (c.dated || []).map(d => ({ date: d.date, k: KIND[d.kind] || "mass", d: [], t: d.start, u: d.end || null, n: d.note, g: d.tags || [], url: httpsUrl(d.url) || null,
       cel: d.celebrant || "", pl: d.place || "", pid: d.place_id || null })) };
 }
 function setChurches(list) {
@@ -686,7 +686,8 @@ const rangeText = v => v.split(",").map(r => r.split("/").map(x => { const [m, d
 function weekTable(c, ctx) {
   const today = now().getDay();
   const reg = c.svc.filter(s => isRegular(s) && s.k !== "rorate" && seasonOk(s, ctx));
-  const svcLabel = s => s.k === "prayer" ? `${showT(s.t)} ${s.n || "ájtatosság"}` : showT(s.t);
+  // The label goes into HTML as is: a prayer's name is the parish's own text, so it is escaped here.
+  const svcLabel = s => s.k === "prayer" ? `${esc(showT(s.t))} ${esc(s.n || "ájtatosság")}` : esc(showT(s.t));
   const withHours = c.onlyServices || c.hours.length > 0;
   const item = (s, dow, label) => {
     const extra = [s.w ? weeksText(s.w, dow) : "", everyText(s, dow), s.skip ? "ünnepnapokon nincs" : "", s.k === "prayer" ? "" : s.n, whoWhere(s)].filter(Boolean).join(" · ");
