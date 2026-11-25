@@ -24,7 +24,7 @@ test("the legal page has the three sections and fits a phone", async () => {
       "Wikimedia Commons", "upload.wikimedia.org", "commons.wikimedia.org", "Supabase Storage", "Fotó: a plébánia"]) assert.ok(text.toLowerCase().includes(s.toLowerCase()), s);
     assert.ok(!text.includes("Google Fonts"), "no page loads Google Fonts any more");
     assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
-    assert.deepEqual(await typeProblems(p), [], "headings in Newsreader, text in Source Sans 3");
+    assert.deepEqual(await typeProblems(p, { interim: true }), [], "Overpass everywhere");
     assert.deepEqual(errors, []);
   } finally { await c.close(); }
 });
@@ -56,9 +56,9 @@ test("links: map menu, suggestion form and parish sign-up point to the legal pag
   try {
     await mockSupabase(p, { rpc: { public_data: () => [{ id: 101, name: "Szent István-bazilika", city: "Budapest", address: "Szent István tér 1.", rite: "rk", lat: 47.5, lon: 19.05, imp: 90, services: [{ kind: "mass", days: [0, 1, 2, 3, 4, 5, 6], start: "18:00" }] }], track: () => null } });
     await p.goto(server.url + "/index.html");
-    await p.locator("#m-name").waitFor({ timeout: 15000 });
+    await p.locator(".pass").waitFor({ timeout: 15000 });
     assert.equal(await p.locator('#about a[href="jogi.html"]').count(), 1);
-    await p.locator("#m-week").click();
+    await p.locator(".pass-open").click();
     await p.locator("#go-suggest").click();
     assert.equal(await p.locator('#suggest a[href="jogi.html#adatkezeles"]').count(), 1);
     const q = await browser.newContext({ ...IPHONE }); const pp = await q.newPage();

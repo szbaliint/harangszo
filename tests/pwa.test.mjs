@@ -38,7 +38,7 @@ async function open({ view = IPHONE, init, url = "/index.html?sw=1", data = CHUR
   return { context, page, errors, calls, close: () => context.close() };
 }
 const controlled = page => page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
-const resultNames = page => page.$$eval("#s-results .row .r-name", els => els.map(e => e.textContent));
+const resultNames = page => page.$$eval("#s-results .brow .b-name", els => els.map(e => e.textContent));
 const pngSize = buf => ({ w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) });
 
 test("manifest and icons", async () => {
@@ -53,8 +53,8 @@ test("manifest and icons", async () => {
     assert.equal(m.display, "standalone");
     assert.equal(m.start_url, "./");
     assert.equal(m.scope, "./");
-    assert.equal(m.background_color, "#ffffff");
-    assert.equal(m.theme_color, "#ffffff");
+    assert.equal(m.background_color, "#13233f", "the board's navy behind the white bell");
+    assert.equal(m.theme_color, "#13233f");
     assert.equal(m.icons.length, 4);
     assert.equal(m.icons.filter(i => i.purpose === "maskable").length, 1, "one maskable icon");
     for (const icon of m.icons) {
@@ -64,8 +64,8 @@ test("manifest and icons", async () => {
       const { w, h } = pngSize(await r.body());
       assert.equal(`${w}x${h}`, icon.sizes, icon.src);
     }
-    assert.equal(await page.$eval('meta[name="theme-color"]', m => m.content), "#ffffff");
-    assert.equal(await page.$eval('meta[name="theme-color"][media]', m => m.content), "#0e0e0e");
+    assert.equal(await page.$eval('meta[name="theme-color"]', m => m.content), "#13233f");
+    assert.equal(await page.$eval('meta[name="theme-color"][media]', m => m.content), "#13233f");
     const apple = await page.$eval('link[rel="apple-touch-icon"]', l => l.href);
     assert.equal((await page.request.get(apple)).status(), 200);
   } finally { await close(); }
@@ -79,7 +79,7 @@ test("service worker controls the map", async () => {
     await controlled(page);
     assert.equal(await page.evaluate(() => navigator.serviceWorker.controller.scriptURL), server.url + "/sw.js");
     // Supabase is left to the network: the page's own mock still answers it under the worker.
-    await page.waitForSelector("#m-name");
+    await page.waitForSelector(".pass");
     assert.ok(calls.filter(c => c.path === "/rest/v1/rpc/public_data").length >= 2, "public_data fetched on both loads");
     assert.deepEqual(errors, []);
   } finally { await close(); }
@@ -100,11 +100,11 @@ test("offline: the map comes from the worker, the list from the data cache", asy
     await context.setOffline(true);
     const res = await page.reload();
     assert.ok(res.fromServiceWorker(), "index.html served by the service worker");
-    await page.waitForSelector("#m-name");
+    await page.waitForSelector(".pass");
     assert.ok(await page.locator("#offnote").isVisible(), "offline note shown");
     assert.equal(await page.locator("#offnote").textContent(), "Nincs internet · a lista működik");
-    await page.click("#m-search");
-    await page.waitForFunction(() => document.querySelectorAll("#s-results .row").length === 2);
+    await page.click('.tab[data-tab="list"]');
+    await page.waitForFunction(() => document.querySelectorAll("#s-results .brow").length === 2);
     assert.deepEqual((await resultNames(page)).sort(), CHURCHES.map(c => c.name).sort());
     // The scope root works offline too.
     const root = await page.goto(server.url + "/?sw=1");
@@ -124,7 +124,7 @@ test("offline: admin and the parish portal are never served from the cache", asy
       return out;
     });
     assert.ok(cached.includes("/app.js"), "the shell is precached");
-    for (const f of ["source-sans-3-latin", "source-sans-3-latin-ext", "newsreader-latin", "newsreader-latin-ext"])
+    for (const f of ["overpass-latin", "overpass-latin-ext"])
       assert.ok(cached.includes(`/fonts/${f}.woff2`), `${f} is precached`);
     for (const k of cached) assert.doesNotMatch(k, /admin|plebania|schedule-editor/, `cached: ${k}`);
     // Online, the portal's shared files come from the network, not from the map's cache.
@@ -153,7 +153,7 @@ test("no data yet", async () => {
     assert.equal(await page.locator("#panel .ui-empty").textContent(),
       "Nincs internetkapcsolat, és még nincs elmentett templomlista ezen az eszközön. Csatlakozz az internethez, és frissítsd az oldalt.");
     assert.doesNotMatch(await page.locator("#panel").textContent(), /betöltése/, "no loading text left");
-    assert.equal(await page.locator("#m-name, #panel .row").count(), 0, "Most shows no church");
+    assert.equal(await page.locator(".pass, #panel .brow").count(), 0, "Indulások shows no church");
     assert.match(await page.locator("#mapcard").textContent(), /internet/, "the map's panel says the same");
     assert.deepEqual(errors, []);
   } finally { await close(); }

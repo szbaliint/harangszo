@@ -1,4 +1,4 @@
-// "The church first" tokens, WCAG AA contrast, the self-hosted fonts, and the test harness itself.
+// "Indulások" tokens, WCAG AA contrast, the self-hosted Overpass, and the test harness itself.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -36,20 +36,27 @@ const lum = c => {
 };
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-test("church-first tokens", () => {
-  assert.deepEqual([light["--bg"], light["--ink"], light["--ink-2"], light["--line"], light["--red"]], ["#ffffff", "#111111", "#555555", "#e6e6e6", "#b4232a"]);
-  assert.equal(light["--accent"], light["--ink"], "controls are ink, not a colour");
-  for (const [name, t] of [["media query", darkMedia], ["[data-theme=dark]", darkAttr]])
-    assert.deepEqual([t["--bg"], t["--ink"], t["--ink-2"], t["--ink-3"], t["--line"], t["--red"]], ["#0e0e0e", "#f1f1f1", "#a3a3a3", "#7d7d7d", "#262626", "#ff5a5f"], `dark (${name})`);
-  assert.equal(light["--f-display"], '"newsreader", georgia, serif');
-  assert.equal(light["--f-body"], '"source sans 3", system-ui, sans-serif');
-  assert.deepEqual(["--fs-1", "--fs-2", "--fs-3", "--fs-4", "--fs-mid", "--fs-big"].map(k => light[k]), ["13px", "15px", "17px", "22px", "40px", "64px"]);
-  assert.equal(light["--r"], "10px");
+test("Indulások tokens: navy board, white rows, one amber, one red", () => {
+  assert.deepEqual([light["--bg"], light["--ink"], light["--ink-2"], light["--line"], light["--board"], light["--board-2"], light["--amber"], light["--now"]],
+    ["#ffffff", "#14213d", "#5d6779", "#e6e9ef", "#13233f", "#1d3257", "#ffb703", "#d33a2c"]);
+  assert.equal(light["--accent"], light["--ink"], "portal and admin controls are navy ink, not a colour");
+  assert.equal(light["--red"], light["--now"], "red is only \"most tart\" (and errors)");
+  for (const [name, t] of [["media query", darkMedia], ["[data-theme=dark]", darkAttr]]) {
+    assert.deepEqual([t["--bg"], t["--ink"], t["--ink-2"], t["--ink-3"], t["--line"], t["--board"]], ["#0b1322", "#e9eef7", "#a3aec2", "#8d99af", "#1f2c45", "#13233f"], `dark (${name})`);
+    assert.deepEqual([t["--amber"], t["--on-amber"], t["--now"]], [light["--amber"], light["--on-amber"], light["--now"]], `dark keeps amber and red (${name})`);
+  }
+  assert.equal(light["--f-display"], '"overpass", system-ui, sans-serif');
+  assert.equal(light["--f-body"], '"overpass", system-ui, sans-serif');
+  assert.deepEqual(["--fs-0", "--fs-1", "--fs-2", "--fs-3", "--fs-4", "--fs-title", "--fs-pass"].map(k => light[k]), ["12px", "13px", "15px", "17px", "22px", "28px", "34px"]);
+  assert.deepEqual([light["--r"], light["--r-card"]], ["12px", "18px"]);
+  assert.match(css, /--spring:linear\(0, /, "a sampled critically damped spring");
   assert.ok(!("--f-mono" in light), "--f-mono is removed");
 });
 
 test("contrast AA", () => {
-  const pairs = [["--ink", "--bg"], ["--ink-2", "--surface"], ["--ink-3", "--surface"], ["--ink-3", "--bg"], ["--red", "--bg"],
+  const pairs = [["--ink", "--bg"], ["--ink-2", "--surface"], ["--ink-3", "--surface"], ["--ink-3", "--bg"], ["--ink-2", "--chip"], ["--ink-2", "--sunken"], ["--red", "--bg"],
+    ["--on-board", "--board"], ["--on-board-2", "--board"], ["--on-board-3", "--board-2"], ["--on-amber", "--amber"], ["--amber-ink", "--amber"], ["--amber-2", "--amber"], ["--amber-3", "--amber"],
+    ["--on-now", "--now"], ["--on-primary", "--primary"], ["--ink", "--flash"], ["--on-pin", "--pin"], ["--ink", "--seg-on"], ["--ink", "--field"], ["--ink-2", "--field"],
     ["--accent", "--accent-soft"], ["--penance", "--penance-soft"], ["--gold", "--gold-soft"], ["--open", "--open-soft"], ["--on-accent", "--accent"]];
   for (const [mode, t] of Object.entries(MODES))
     for (const [fg, bg] of pairs) {
@@ -75,27 +82,30 @@ after(async () => { await browser?.close(); await server?.stop(); });
 // Self-hosted type: every @font-face file is in fonts/ with its licence, deployed, small, and the only place fonts come from.
 const FACES = [...css.matchAll(/@font-face\{([^}]*)\}/g)].map(m => ({
   family: /font-family:"([^"]+)"/.exec(m[1])[1], file: /url\(([^)]+)\)/.exec(m[1])[1], display: /font-display:(\w+)/.exec(m[1])?.[1], range: /unicode-range:/.test(m[1]) }));
-test("fonts: Newsreader and Source Sans 3, latin + latin-ext, self-hosted with their licences", () => {
-  assert.deepEqual([...new Set(FACES.map(f => f.family))].sort(), ["Newsreader", "Source Sans 3"]);
-  assert.deepEqual(FACES.map(f => f.file).sort(), ["fonts/newsreader-latin-ext.woff2", "fonts/newsreader-latin.woff2", "fonts/source-sans-3-latin-ext.woff2", "fonts/source-sans-3-latin.woff2"]);
+test("fonts: Overpass, latin + latin-ext, self-hosted with its licence; the old faces are gone", () => {
+  assert.deepEqual([...new Set(FACES.map(f => f.family))], ["Overpass"]);
+  assert.deepEqual(FACES.map(f => f.file).sort(), ["fonts/overpass-latin-ext.woff2", "fonts/overpass-latin.woff2"]);
   for (const f of FACES) {
     assert.equal(f.display, "swap", f.file); assert.ok(f.range, `${f.file}: unicode-range`);
     const head = fs.readFileSync(path.join(ROOT, f.file)).subarray(0, 4).toString("latin1");
     assert.equal(head, "wOF2", `${f.file} is a woff2 file`);
   }
   const total = FACES.reduce((n, f) => n + fs.statSync(path.join(ROOT, f.file)).size, 0);
-  assert.ok(total < 250 * 1024, `fonts total ${Math.round(total / 1024)} KB`);
-  for (const lic of ["fonts/OFL-Newsreader.txt", "fonts/OFL-SourceSans3.txt"]) assert.match(fs.readFileSync(path.join(ROOT, lic), "utf8"), /SIL Open Font License, Version 1\.1/);
+  assert.ok(total < 150 * 1024, `fonts total ${Math.round(total / 1024)} KB`);
+  assert.match(fs.readFileSync(path.join(ROOT, "fonts/OFL-Overpass.txt"), "utf8"), /The Overpass Project Authors[\s\S]*SIL Open Font License, Version 1\.1/);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "fonts")).sort(), ["OFL-Overpass.txt", "overpass-latin-ext.woff2", "overpass-latin.woff2"], "nothing else in fonts/");
   const yml = fs.readFileSync(path.join(ROOT, ".github/workflows/pages.yml"), "utf8");
   assert.match(yml, /^\s*cp -r [^\n]*\bfonts\b[^\n]*_site\/?\s*$/m, "pages.yml deploys fonts/");
   const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
   for (const f of FACES) assert.ok(sw.includes(`"${f.file}"`), `sw.js keeps ${f.file} for the map`);
+  assert.match(sw, /const FONT_CACHE = "harangszo-fonts-2";/, "a new font cache for the new files");
   const index = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
-  for (const f of ["fonts/source-sans-3-latin.woff2", "fonts/newsreader-latin.woff2"])
-    assert.match(index, new RegExp(`<link rel="preload" href="${f}" as="font" type="font/woff2" crossorigin>`), `index.html preloads ${f}`);
+  assert.match(index, /<link rel="preload" href="fonts\/overpass-latin\.woff2" as="font" type="font\/woff2" crossorigin>/, "index.html preloads Overpass");
+  for (const f of ["index.html", "styles.css", "app.js", "sw.js", "plebania.html", "admin.html", "jogi.html"])
+    assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), "utf8"), /newsreader-|source-sans-3-/, `${f} loads no old font file`);
 });
 
-test("pages use the self-hosted fonts and nothing from Google Fonts", async () => {
+test("pages use the self-hosted Overpass and nothing from Google Fonts; its middle dot has a width", async () => {
   for (const file of ["index.html", "plebania.html", "admin.html", "jogi.html"]) {
     const page = await browser.newPage();
     const external = [];
@@ -105,9 +115,15 @@ test("pages use the self-hosted fonts and nothing from Google Fonts", async () =
       await page.goto(`${server.url}/${file}`, { waitUntil: "load" });
       await page.evaluate(() => document.fonts.ready);
       const family = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-      assert.match(family, /^"Source Sans 3", system-ui, sans-serif$/, `${file}: body font is ${family}`);
-      assert.ok(await page.evaluate(() => document.fonts.check('400 15px "Source Sans 3"')), `${file}: Source Sans 3 loaded`);
+      assert.match(family, /^"?Overpass"?, system-ui, sans-serif$/, `${file}: body font is ${family}`);
+      assert.ok(await page.evaluate(() => document.fonts.check('800 15px "Overpass"')), `${file}: Overpass loaded`);
       assert.deepEqual(external, [], `${file}: no Google Fonts requests`);
+      if (file === "index.html") {
+        // " · " joins every meta line: the dot must take its own width (upstream classes it as a mark; ours is patched).
+        const w = await page.evaluate(async () => { await document.fonts.load('600 40px "Overpass"', "·"); const s = document.createElement("span");
+          s.style.cssText = 'font:600 40px "Overpass";white-space:pre'; s.textContent = "·"; document.body.append(s); const r = s.getBoundingClientRect().width; s.remove(); return r; });
+        assert.ok(w > 5, `the middle dot is ${w}px wide`);
+      }
     } finally { await page.close(); }
   }
 });

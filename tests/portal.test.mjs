@@ -52,7 +52,7 @@ test("opens the church: header, four tabs, a card per day with the fixture's tim
     assert.equal(await page.locator(".se-day").count(), 7);
     assert.deepEqual(await day(page, "Vasárnap").locator(".se-tile:not(.se-add) b").allTextContents(), ["08:00", "10:00", "18:00"]);
     assert.deepEqual(await day(page, "Hétfő").locator(".se-tile:not(.se-add) b").allTextContents(), ["07:00", "18:00"]);
-    assert.deepEqual(await typeProblems(page), [], "portal week board");
+    assert.deepEqual(await typeProblems(page, { interim: true }), [], "portal week board");
     assert.equal(await page.locator("#savebar.on").count(), 0, "no save bar before a change");
     assert.deepEqual(errors, []);
   } finally { await close(); }

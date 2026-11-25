@@ -36,7 +36,7 @@ test("board: a row per day, Sunday first, times and a \"+ időpont\" per day", a
   } finally { await page.close(); }
 });
 
-test("board: a timetable, no boxes; day names regular grey; times 600; 44px tap areas that do not overlap", async () => {
+test("board: a timetable, no boxes; day names grey 600; times 800; 44px tap areas that do not overlap", async () => {
   const page = await open("?crowded=1");
   try {
     const r = await page.evaluate(() => {
@@ -50,9 +50,9 @@ test("board: a timetable, no boxes; day names regular grey; times 600; 44px tap 
         timeWeight: getComputedStyle(t.querySelector("b")).fontWeight, minArea: Math.min(...areas.map(a => a.bottom - a.top)), overlaps };
     });
     assert.equal(r.cols, 2, "day name in a left column");
-    assert.equal(r.dayWeight, "400"); assert.equal(r.dayColor, r.ink2);
+    assert.equal(r.dayWeight, "600"); assert.equal(r.dayColor, r.ink2);
     assert.equal(r.border, "none"); assert.equal(r.bg, "rgba(0, 0, 0, 0)");
-    assert.equal(r.timeWeight, "600");
+    assert.equal(r.timeWeight, "800");
     assert.ok(r.minArea >= 44 - 0.5, `tap area ${r.minArea}px`);
     assert.equal(r.overlaps, 0, "tap areas overlap");
     // Keyboard focus: the sunken background and the ink focus ring.

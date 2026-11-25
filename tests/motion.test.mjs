@@ -1,6 +1,6 @@
-// Motion: a church page slides in from the right and leaves along the same path (280ms, spring-like ease); tabs
-// cross-fade (150ms); the search panel slides up and back down; under reduced motion everything is a 150ms
-// cross-fade with no movement (demo mode).
+// Motion: a church page comes in from the right and leaves along the same path (350ms on a critically damped spring);
+// tabs cross-fade (150ms); a press answers on pointer-down; under reduced motion everything is a 150ms cross-fade with
+// no movement (demo mode). The board's FLIP rerank is in indulasok.test.mjs.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium, devices } from "./helpers/playwright.mjs";
@@ -22,13 +22,13 @@ async function open(view, reducedMotion = "no-preference") {
   await page.route(/commons\.wikimedia\.org/, r => r.abort());
   await page.clock.setFixedTime(NOW);
   await page.goto(`${server.url}/index.html`);
-  await page.waitForSelector("#m-name");
+  await page.waitForSelector(".pass");
   return { page, errors, close: () => context.close() };
 }
 // Animations on the column: its view-transition pseudo-elements, or the fallback keyframes on #col itself.
 const colAnims = page => page.evaluate(() => document.getAnimations()
   .filter(a => a.playState !== "finished" && (/\(col\)/.test(a.effect?.pseudoElement || "") || a.effect?.target?.id === "col"))
-  .map(a => ({ name: a.animationName || a.id, pseudo: a.effect.pseudoElement || "", duration: a.effect.getTiming().duration, easing: a.effect.getTiming().easing,
+  .map(a => ({ name: a.animationName || a.id, pseudo: a.effect.pseudoElement || "", duration: a.effect.getTiming().duration, easing: a.effect.getKeyframes()[0]?.easing || a.effect.getTiming().easing,
     props: [...new Set(a.effect.getKeyframes().flatMap(k => Object.keys(k).filter(p => !["offset", "easing", "composite", "computedOffset"].includes(p))))] })));
 const waitColAnim = page => page.waitForFunction(() => document.getAnimations()
   .some(a => a.playState !== "finished" && (/\(col\)/.test(a.effect?.pseudoElement || "") || a.effect?.target?.id === "col")), null, { timeout: 500, polling: "raf" });
@@ -39,12 +39,12 @@ for (const view of Object.keys(VIEWS)) {
     const { page, errors, close } = await open(view);
     try {
       await settle(page);
-      await page.locator("#panel .most .row").first().click();
+      await page.locator("#i-rows .brow").first().click();
       await waitColAnim(page);
       const open_ = await colAnims(page);
       console.log(`  open (${view}):`, JSON.stringify(open_));
       assert.ok(open_.length > 0, "no animation on the church page");
-      for (const a of open_) { assert.equal(a.duration, 280); assert.ok(a.props.includes("transform"), "it moves"); }
+      for (const a of open_) { assert.equal(a.duration, 350); assert.ok(a.props.includes("transform"), "it moves"); assert.match(a.easing, /^linear\(0/, "on the spring"); }
       await page.waitForFunction(() => document.querySelector("#panel .detail") && !document.getAnimations().some(a => a.playState === "running"
         && (/\(col\)/.test(a.effect?.pseudoElement || "") || a.effect?.target?.id === "col")), null, { timeout: 3000, polling: "raf" });
       await settle(page);
@@ -52,7 +52,7 @@ for (const view of Object.keys(VIEWS)) {
       await waitColAnim(page);
       const back = await colAnims(page);
       console.log(`  back (${view}):`, JSON.stringify(back));
-      assert.ok(back.length > 0 && back.every(a => a.duration === 280 && a.props.includes("transform")), "back is not a 280ms slide");
+      assert.ok(back.length > 0 && back.every(a => a.duration === 350 && a.props.includes("transform")), "back is not a 350ms slide");
       assert.ok(back.some(a => a.pseudo.includes("old")), "the church page itself leaves");
       assert.deepEqual(errors, []);
     } finally { await close(); }
@@ -75,7 +75,7 @@ for (const view of Object.keys(VIEWS)) {
     const { page, errors, close } = await open(view, "reduce");
     try {
       await settle(page);
-      await page.locator("#panel .most .row").first().click();
+      await page.locator("#i-rows .brow").first().click();
       await waitColAnim(page);
       const anims = await colAnims(page);
       assert.ok(anims.length > 0, "a cross-fade");
@@ -83,27 +83,33 @@ for (const view of Object.keys(VIEWS)) {
       await settle(page);
       assert.ok(await page.locator("#panel .detail").isVisible());
       assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector("#col")).opacity), "1");
-      // The search panel fades instead of sliding.
+      // A press does not shrink anything.
       await page.click("#back"); await settle(page);
-      await page.click("#m-search");
-      const s = await page.evaluate(() => { const cs = getComputedStyle(document.querySelector("#search")); return { t: cs.transform, prop: cs.transitionProperty }; });
-      assert.equal(s.t, "none"); assert.match(s.prop, /opacity/); assert.doesNotMatch(s.prop, /transform/);
+      assert.equal(await page.locator(".pass").evaluate(e => getComputedStyle(e).transitionDuration), "0s");
       assert.deepEqual(errors, []);
     } finally { await close(); }
   });
 }
 
-test("the search panel slides up and back down the same way (iPhone 13)", async () => {
+test("press feedback answers on pointer-down: the pass and a board row (iPhone 13)", async () => {
   const { page, errors, close } = await open("iPhone 13");
   try {
-    const cs = () => page.evaluate(() => { const s = getComputedStyle(document.querySelector("#search")); return { prop: s.transitionProperty, dur: s.transitionDuration, ease: s.transitionTimingFunction }; });
-    const closed = await cs();
-    await page.click("#m-search");
-    const opened = await cs();
-    for (const t of [closed, opened]) { assert.match(t.prop, /^transform/); assert.match(t.dur, /^0\.28s/); assert.match(t.ease, /cubic-bezier\(0\.2, 0\.8, 0\.2, 1\)/); }
-    await page.waitForFunction(() => getComputedStyle(document.querySelector("#search")).transform === "none" || getComputedStyle(document.querySelector("#search")).transform === "matrix(1, 0, 0, 1, 0, 0)");
-    await page.click("#search-done");
-    await page.waitForFunction(() => document.querySelector("#search").getBoundingClientRect().top >= innerHeight - 1, null, { timeout: 2000 });
+    await settle(page);
+    const pressed = async (sel, read) => {
+      const box = await page.locator(sel).first().boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 20));
+      await page.mouse.down();
+      await page.waitForTimeout(120);
+      const v = await page.evaluate(read);
+      await page.mouse.up();
+      return v;
+    };
+    const pass = await pressed(".pass-open", () => getComputedStyle(document.querySelector(".pass")).transform);
+    assert.match(pass, /^matrix\(0\.98/, `the pass gives under the finger (${pass})`);
+    await settle(page);
+    await page.locator('.tab[data-tab="most"]').click(); await settle(page);
+    const row = await pressed("#i-rows .brow", () => getComputedStyle(document.querySelector("#i-rows li")).backgroundColor);
+    assert.notEqual(row, "rgba(0, 0, 0, 0)", "the row darkens at once");
     assert.deepEqual(errors, []);
   } finally { await close(); }
 });

@@ -111,7 +111,7 @@ test("rail: badges and count; list: tags; three columns at 1440", async () => {
       return { size: getComputedStyle(m).fontSize, border: s.borderTopStyle, red: s.color,
         name: getComputedStyle(b.querySelector(".nm")).fontFamily.split(",")[0], weight: getComputedStyle(b.querySelector(".nm")).fontWeight };
     });
-    assert.deepEqual(look, { size: "13px", border: "none", red: "rgb(180, 35, 42)", name: "Newsreader", weight: "500" });
+    assert.deepEqual(look, { size: "13px", border: "none", red: "rgb(211, 58, 44)", name: "Overpass", weight: "500" });
     const [r, l, m] = await Promise.all(["#rail", "#listcol", "#main"].map(s => page.locator(s).boundingBox()));
     assert.ok(Math.abs(r.width - 200) < 1 && Math.abs(l.width - 330) < 1, `rail ${r.width}, list ${l.width}`);
     assert.ok(r.x < l.x && l.x < m.x && Math.abs(r.y - l.y) < 1 && Math.abs(l.y - m.y) < 1, "side by side");
@@ -151,7 +151,7 @@ test("clicking a church shows its header, tabs, the week board and the side boxe
     assert.equal(await item(page, "Szent Anna").getAttribute("aria-current"), "true");
     // The open church's row: sunken, a 2px ink bar at the left, the name not underlined.
     const sel = await item(page, "Szent Anna").evaluate(b => { const s = getComputedStyle(b); return { shadow: s.boxShadow, line: getComputedStyle(b.querySelector(".nm")).textDecorationLine }; });
-    assert.match(sel.shadow, /^rgb\(17, 17, 17\) 2px 0px 0px 0px inset$/);
+    assert.match(sel.shadow, /^rgb\(20, 33, 61\) 2px 0px 0px 0px inset$/);
     assert.equal(sel.line, "none");
     assert.deepEqual((await page.locator(".ad-tabs .ad-tab").allTextContents()).map(s => s.trim()), ["Miserend", "Ünnepek", "Események", "Adatok", "Szerkesztők", "Előzmények"]);
     assert.equal(await page.locator(".se-day").count(), 7);
@@ -166,7 +166,7 @@ test("clicking a church shows its header, tabs, the week board and the side boxe
     // Side boxes sit to the right of the board.
     const board = await page.locator("#board").boundingBox(), side = await page.locator(".ad-side").boundingBox();
     assert.ok(side.x > board.x + board.width - 1 && Math.abs(side.width - 290) < 1, "side column beside the board");
-    assert.deepEqual(await typeProblems(page), [], "admin church page");
+    assert.deepEqual(await typeProblems(page, { interim: true }), [], "admin church page");
     assert.equal(await page.locator("#savebar.on").count(), 0);
     assert.deepEqual(errors, []);
   } finally { await close(); }

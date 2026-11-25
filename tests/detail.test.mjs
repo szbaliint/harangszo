@@ -1,4 +1,4 @@
-// Church page: photo or plain bar, the next time first, the facts, actions, 7-day strip, that day's times, folded sections (demo mode, data.js).
+// Church page: the pass as header (photo, name, labelled fields), actions, 7-day strip, that day's times, folded sections, the honesty line (demo mode, data.js).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium, devices } from "./helpers/playwright.mjs";
@@ -36,13 +36,13 @@ async function open(view = "iPhone 13", { now = NOW, rename } = {}) {
   await page.route(/commons\.wikimedia\.org/, r => r.abort());
   await page.clock.setFixedTime(now);
   await page.goto(`${server.url}/index.html`);
-  await page.waitForSelector("#m-day");
+  await page.waitForSelector(".pass, .board-empty");
   return { page, errors, close: () => context.close() };
 }
-// From Most: Keresés, then the church's row in the results.
+// From Indulások: the Keresés tab, then the church's row in the results.
 async function openChurch(page, id) {
-  await page.click("#m-search");
-  await page.click(`#s-results .row[data-id="${id}"]`);
+  await page.click('.tab[data-tab="list"]');
+  await page.click(`#s-results .brow[data-id="${id}"]`);
   await page.waitForSelector(`.detail[data-id="${id}"]`);
   await page.waitForFunction(() => !/\bvt-/.test(document.documentElement.className));
 }
@@ -57,20 +57,21 @@ for (const view of Object.keys(VIEWS)) {
     const { page, errors, close } = await open(view);
     try {
       await openChurch(page, 1);
-      const sels = [".d-bar", "#d-dayline", "#d-next", "h2.d-name", ".d-where", ".d-tags", ".d-actions", ".d-days", "#d-day", "#f-week", "#f-feasts"];
+      const sels = [".d-top", "h2.d-name", ".d-where", ".d-tags", "#d-next", ".d-actions", ".d-days", "#d-dayline", "#d-day", "#f-week", "#f-feasts", "#d-honest"];
       const idx = await order(page, sels);
       sels.forEach((s, i) => assert.ok(idx[i] >= 0, `${s} is missing`));
       assert.deepEqual([...idx].sort((a, b) => a - b), idx, `out of order: ${sels.map((s, i) => s + "@" + idx[i]).join(" ")}`);
-      assert.equal(await page.locator(".d-bar #save-church").count(), 1, "♡ in the top bar");
-      assert.equal(await page.locator(".d-bar #share").getAttribute("aria-label"), "Megosztás");
-      assert.equal(await page.locator(".d-bar #back").getAttribute("aria-label"), "Vissza");
+      assert.equal((await page.locator(".d-top #back").textContent()).trim(), "Vissza");
       assert.equal(await page.locator("#d-dayline").textContent(), "Hétfő, november 9. · Évközi 32. hét");
-      assert.equal(await page.locator("#d-next .big").textContent(), "08:00");
-      assert.equal(await page.locator("#d-next em.now").textContent(), "Szentmise");
-      assert.equal(await page.locator("#d-next .when-side span").textContent(), "1 óra 30 perc múlva");
+      // The pass's labelled fields: time, kind, distance, walk.
+      assert.deepEqual(await page.$$eval("#d-next .d-fields > div", ds => ds.map(d => [d.querySelector("small").textContent, d.querySelector("b").textContent])),
+        [["Idő", "08:00"], ["Alkalom", "szentmise"], ["Táv", "1,1 km"], ["Séta", "13 perc"]]);
+      assert.equal(await page.locator("#d-next .d-note").textContent(), "1 óra 30 perc múlva");
+      assert.equal(await page.locator("#d-next .chip").count(), 0, "nothing goes on, nothing to leave for yet: no chip");
       assert.equal(await page.locator(".detail .ph").count(), 0, "no photo for this church: no image at all");
-      assert.deepEqual(await page.$$eval(".d-actions .d-act", els => els.map(e => e.textContent.trim())), ["Útvonal", "Javítás"], "no phone or web: those tiles collapse");
+      assert.deepEqual(await page.$$eval(".d-actions .d-act", els => els.map(e => e.textContent.trim())), ["Útvonal", "Mentés", "Megosztás", "Javítás"], "no phone or web: those tiles collapse");
       assert.equal(await page.locator(".d-days button").count(), 7);
+      assert.match(await page.locator("#d-honest").textContent(), /Fontos alkalom előtt kérdezd meg a plébániát\./);
       assert.deepEqual(errors, []);
     } finally { await close(); }
   });
@@ -80,11 +81,11 @@ test("order with every section", async () => {
   const { page, errors, close } = await open();
   try {
     await openChurch(page, 9001);
-    const sels = ["#d-next", "h2.d-name", ".d-where", ".d-tags", ".d-approx", ".d-actions", ".d-days", "#d-day", "#f-week", "#f-events", "#f-note"];
+    const sels = ["h2.d-name", ".d-where", ".d-tags", "#d-next", ".d-approx", ".d-actions", ".d-days", "#d-day", "#f-week", "#f-events", "#f-note", "#d-honest"];
     const idx = await order(page, sels);
     sels.forEach((s, i) => assert.ok(idx[i] >= 0, `${s} is missing`));
     assert.deepEqual([...idx].sort((a, b) => a - b), idx);
-    assert.deepEqual(await page.$$eval(".d-actions .d-act", els => els.map(e => e.textContent.trim())), ["Útvonal", "Hívás", "Honlap", "Javítás"]);
+    assert.deepEqual(await page.$$eval(".d-actions .d-act", els => els.map(e => e.textContent.trim())), ["Útvonal", "Hívás", "Honlap", "Mentés", "Megosztás", "Javítás"]);
     assert.equal(await page.locator(".d-act", { hasText: "Hívás" }).getAttribute("href"), "tel:+3612013456");
     assert.equal(await page.locator(".d-act", { hasText: "Honlap" }).getAttribute("href"), "https://szentanna.example.hu");
     assert.equal(await page.locator("#f-week .count").textContent(), "3");
@@ -124,8 +125,9 @@ test("day strip", async () => {
     assert.equal(await page.locator(".d-days button").nth(0).getAttribute("aria-pressed"), "false");
     assert.equal(await page.locator("#d-day").getAttribute("aria-label"), "Holnap");
     assert.match(await page.locator("#d-dayline").textContent(), /^Kedd, november 10\./);
-    assert.equal(await page.locator("#d-next em.now").count(), 0, "red only for today's next time");
+    assert.equal(await page.locator("#d-next .chip").count(), 0, "no status for another day");
     assert.doesNotMatch(await page.locator("#d-next").textContent(), /múlva/, "no countdown for another day");
+    assert.match(await page.locator("#d-next .d-note").textContent(), /Holnap$/);
     assert.equal(await page.evaluate(() => S.dayOffset), 1, "same day as the search filter");
     // Monday and Tuesday share their times at the basilica; Sunday does not.
     await page.locator(".d-days button").nth(6).click();
@@ -187,12 +189,12 @@ test("long name", async () => {
     const r = await page.evaluate(() => {
       const box = s => document.querySelector(s).getBoundingClientRect();
       const h = document.querySelector("h2.d-name");
-      return { sw: h.scrollWidth, cw: h.clientWidth, name: box("h2.d-name"), acts: box(".d-actions"), bar: box(".d-bar"), panel: box("#panel"), text: h.textContent };
+      return { sw: h.scrollWidth, cw: h.clientWidth, name: box("h2.d-name"), acts: box(".d-actions"), bar: box(".d-top #back"), panel: box("#panel"), text: h.textContent };
     });
     assert.equal(r.text, LONG);
     assert.ok(r.sw <= r.cw, `name overflows: ${r.sw} > ${r.cw}`);
     assert.ok(r.name.bottom <= r.acts.top, "name does not overlap the actions");
-    assert.ok(r.name.top >= r.bar.bottom, "name does not run under the top bar");
+    assert.ok(r.name.top >= r.bar.bottom, "name does not run under the back button");
     assert.ok(r.name.right <= r.panel.right, "name stays inside the panel");
     assert.deepEqual(errors, []);
   } finally { await close(); }
@@ -202,7 +204,7 @@ test("no schedule", async () => {
   const { page, errors, close } = await open();
   try {
     await openChurch(page, 9002);
-    assert.equal(await page.locator(".detail .when").count(), 0, "no big time");
+    assert.deepEqual(await page.$$eval("#d-next .d-fields small", s => s.map(e => e.textContent)), ["Táv", "Séta"], "no time, only the distance and the walk");
     assert.equal(await page.locator(".detail .ui-fold").count(), 0, "no folds");
     assert.equal(await page.locator(".detail .d-days").count(), 0, "no empty day strip");
     assert.match(await page.locator(".detail .ui-empty").textContent(), /^\s*Ehhez a templomhoz még nincs feltöltött időpont/);
@@ -215,7 +217,7 @@ test("nothing more today", async () => {
   const { page, errors, close } = await open("iPhone 13", { now: new Date("2026-11-09T21:00:00+01:00") });
   try {
     await openChurch(page, 1);
-    assert.equal(await page.locator(".detail .when").count(), 0);
+    assert.equal(await page.locator('#d-next .d-fields small', { hasText: "Idő" }).count(), 0);
     assert.equal(await page.locator(".detail .d-nomore").textContent(), "Ma már nincs több alkalom");
     assert.deepEqual(errors, []);
   } finally { await close(); }

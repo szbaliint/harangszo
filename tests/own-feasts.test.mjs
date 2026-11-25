@@ -241,21 +241,21 @@ async function openMap(now = FEAST_DAY, data = mapData()) {
   await mockSupabase(page, { rpc: { public_data: () => data, track: () => null } });
   await page.clock.setFixedTime(now);
   await page.goto(server.url + "/index.html");
-  await page.locator("#m-name").waitFor({ timeout: 15000 });
+  await page.locator(".pass").waitFor({ timeout: 15000 });
   return { page, errors, close: () => context.close() };
 }
 
 test("map: on its day the own feast's times replace the regular ones, with its name", async () => {
   const { page, errors, close } = await openMap();
   try {
-    // Most: the búcsú's 09:00, not the weekday 18:00; then the Sunday-order church's 10:30 and the 11:00.
-    assert.equal(await page.locator("#m-name").textContent(), "Szent Anna-templom");
-    assert.equal(await page.locator("#m-when .big").textContent(), "09:00");
-    assert.match(await page.locator("#m-when .when-side span").textContent(), /^Búcsúi szentmise/);
-    const rows = await page.$$eval(".most .rows .row", els => els.map(e => [e.querySelector(".r-t").textContent, e.querySelector(".r-name").textContent]));
+    // Indulások: the búcsú's 09:00 on the pass, not the weekday 18:00; then the Sunday-order church's 10:30 and the 11:00.
+    assert.equal(await page.locator("#i-name").textContent(), "Szent Anna-templom");
+    assert.equal(await page.locator("#i-time").textContent(), "09:00");
+    assert.equal(await page.locator("#i-note").textContent(), "Búcsúi szentmise");
+    const rows = await page.$$eval("#i-rows .brow", els => els.map(e => [e.querySelector(".b-t").textContent, e.querySelector(".b-name").textContent]));
     assert.deepEqual(rows, [["10:30", "Joakim-kápolna"], ["11:00", "Szent Anna-templom"]]);
     // The church page: the feast line and that day's times.
-    await page.click("#m-week");
+    await page.click(".pass-open");
     await page.locator('.detail[data-id="301"]').waitFor();
     assert.equal(await page.locator(".d-feast").textContent(), "Ünnepi miserend · Szent Anna búcsú");
     assert.deepEqual(await page.$$eval("#d-day .d-row .d-t", els => els.map(e => e.textContent)), ["09:00", "11:00"]);
@@ -271,7 +271,7 @@ test("map: on its day the own feast's times replace the regular ones, with its n
 test("map: an own feast in the Sunday order shows the Sunday times, named", async () => {
   const { page, errors, close } = await openMap();
   try {
-    await page.click('.most .rows .row[data-id="302"]');
+    await page.click('#i-rows .brow[data-id="302"]');
     await page.locator('.detail[data-id="302"]').waitFor();
     assert.equal(await page.locator(".d-feast").textContent(), "Ünnepi miserend · Templombúcsú (vasárnapi rend szerint)");
     assert.deepEqual(await page.$$eval("#d-day .d-row .d-t", els => els.map(e => e.textContent)), ["10:30"]);

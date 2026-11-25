@@ -1,4 +1,4 @@
-// Task 8 (Review Focus 1): a very long church name wraps in every view — Most, a search result row, the church page
+// Task 8 (Review Focus 1): a very long church name wraps in every view — the pass, a search result row, the church page
 // header, parish portal header, admin list and admin header — at 360px and 1440px, without overflowing its box
 // or covering a button in the same header.
 import { test, before, after } from "node:test";
@@ -62,26 +62,26 @@ async function openMap(view) {
   });
   await page.route(/commons\.wikimedia\.org/, r => r.abort());
   await page.goto(`${server.url}/index.html`);
-  await page.waitForSelector("#m-name");
+  await page.waitForSelector(".pass");
   return { page, errors, close: () => ctx.close() };
 }
 
 for (const view of Object.keys(VIEWS)) {
-  test(`map: Most, a result row and the church page (${view})`, async () => {
+  test(`map: the pass, a result row and the church page (${view})`, async () => {
     const { page, errors, close } = await openMap(view);
     try {
-      // Most: the long name (the nearest church with a Mass to come) wraps, clear of the time and the buttons.
-      const m = await check(page, "#m-name", "#m-when, #m-when *, .most .acts, .most .acts > *, .most .top-plain button", "Most");
-      assert.ok(Math.round(m.h / m.lh) >= 2, "Most: the name wraps instead of cutting off");
-      await shot(page, `most-${view}`);
-      await page.click("#m-search");
-      await page.locator('#s-results .row[data-id="2"]').waitFor();
-      await check(page, '#s-results .row[data-id="2"] .r-name', '#s-results .row[data-id="2"] .r-d, #s-results .row[data-id="2"] .r-t', "result row");
+      // Indulások: the long name on the pass (the Mass to leave for now) wraps, clear of the time and Útvonal.
+      const m = await check(page, "#i-name", "#i-time, #i-st, .pass-go", "pass");
+      assert.ok(Math.round(m.h / m.lh) >= 2, "pass: the name wraps instead of cutting off");
+      await shot(page, `indulasok-${view}`);
+      await page.click('.tab[data-tab="list"]');
+      await page.locator('#s-results .brow[data-id="2"]').waitFor();
+      await check(page, '#s-results .brow[data-id="2"] .b-name', '#s-results .brow[data-id="2"] .b-w, #s-results .brow[data-id="2"] .b-t', "result row");
       await shot(page, `list-${view}`);
-      await page.click('#s-results .row[data-id="2"]');
+      await page.click('#s-results .brow[data-id="2"]');
       await page.waitForSelector('.detail[data-id="2"]');
       await page.waitForTimeout(400); // the page's slide-in
-      await check(page, "h2.d-name", ".d-bar button, .d-actions, .d-actions a, .d-actions button, #d-next, #d-next *", "detail");
+      await check(page, "h2.d-name", ".d-top button, .d-actions, .d-actions a, .d-actions button, #d-next, #d-next *", "detail");
       await shot(page, `detail-${view}`);
       assert.deepEqual(errors, []);
     } finally { await close(); }
