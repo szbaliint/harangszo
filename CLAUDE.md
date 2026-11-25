@@ -11,16 +11,30 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   explicit file list into `_site/` and fills `config.js` placeholders from repo secrets. **A new page or script must be
   added to that `cp` line**, or it 404s live.
 - **Backend: Supabase** (project `rlvcwytbengldqgemliu`). Postgres + RLS + RPCs; the browser uses only the publishable key.
-- `index.html` + `app.js` – the public app, "church first" (brief: `.impeccable/surfaces/index-html.md`). Tab bar
-  **Most · Térkép · Mentett** (desktop: a 420px white column left with the tabs as a segmented row, the map right).
-  **Most** (home) opens on the nearest church with a Mass still to come: its photo edge to edge (credit in the
-  corner; no photo = same layout without it, never a placeholder), the day line, the time at 64px with the kind in
-  red, name, address · distance, Útvonal / Heti rend / Honlap, then "Utána a közelben" rows. **Térkép**: grey map,
-  black time pins (the next one red), search field and a bottom panel; zoomed out, churches merge into numbered
-  circles (grid clustering in `updateMarkers`). **Mentett**: saved churches (localStorage). "Keresés" opens a
-  full-height search panel with filters (it counts as tab "list"). "Közel most" (beside it on Most) opens the same kind of
-  panel: the visitor's position (asked on first tap; else the chosen town, said so), then the churches nearest first that
-  still have a Mass or confession today, their next times, "most tart" in red for a confession going on now. The church page: photo header, 7-day strip, week.
+- `index.html` + `app.js` – the public app, **"Indulások"**: nearby Masses and confessions as departures (brief:
+  `.impeccable/surfaces/index-html.md`; approved sketch `.impeccable/mocks/decision/n-board.html`). Tab bar
+  **Indulások · Térkép · Keresés · Mentett** (`data-tab` most/map/list/saved, the keys `track()` knows; desktop: a 420px
+  column left with the tabs in its navy top bar, the map right). **Indulások** (home): navy header (title, "Szerda,
+  nov. 25. · 17:48 · a helyzeted|<town>", the church-year line `litLine`: liturgical week + next Sunday's name
+  `sundayName`, segmented Mind / Mise / Gyónás `S.nk`); the amber **pass** = `departures().pass`, the earliest Mass or
+  confession still reachable on foot (start − walk ≥ now; walk at 5 km/h, only up to 30 min), else the nearest one to
+  come, else one going on; its photo with the credit, "Indulj 17:58"/"Következő"/"Most tart", Útvonal. Then the
+  **board**: the nearest 40 churches within 25 km, today's items still to come or going on, ranked by start time (a
+  time twice at one church = one row): time | church + kind ("gyónás 18:15-ig") | walk ("7 p", km beyond 30 min) |
+  status chip (`statusOf`: "most tart" red only while it goes on; "indulj HH:MM" amber only from the visitor's own
+  position and within 15 min; grey "N perc" / "HH:MM-kor" / "1 óra 12 p"). Rows are kept by key and rerank by FLIP
+  (`syncRows`, 350ms on `--spring`) each minute; a row whose status changed flashes amber and holds it until the next
+  tap or key. The position is asked only from "Saját helyzetem" (header pill, map control), never on load; otherwise
+  the chosen town, said in the header and the "Kiindulópont" select. **Térkép**: grey map, navy time pins (amber
+  for the pass's church, only from the visitor's own position), a search field (opens Keresés), the mini pass
+  (`#mapcard`, amber when it shows the pass); zoomed out, churches merge into numbered circles (grid clustering in
+  `updateMarkers`). **Keresés**: field, day, Mind/Mise/Gyónás, "További szűrők" (origin, Mass type, open now, events,
+  Rorate), results as board rows. **Mentett**: saved churches (localStorage) as board rows. The **church page**: navy
+  band with Vissza, the pass card (photo + credit, name, address, labelled fields Idő · Alkalom · Táv · Séta, status
+  and notes), Útvonal + Hívás / Honlap / Mentés / Megosztás / Javítás, the 7-day strip and that day's times, folds
+  (week timetable, dated week, feasts incl. own feasts and Rorate, events, the parish's note), the source/honesty line.
+  Motion: the church page enters from the right and leaves the same way (view transitions), tabs cross-fade, press
+  feedback on pointer-down; reduced motion = 150ms cross-fades only.
   Google Maps when `GOOGLE_MAPS_KEY` is set (it is, live), otherwise Leaflet + CARTO tiles.
 - Church photos (migration 013): `churches.photo_url/photo_credit/photo_source ('commons'|'parish')/photo_page`, in
   `public_data`. Commons photos come from `scripts/import-photos.mjs` (workflow "Import church photos from Wikimedia
@@ -39,24 +53,29 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   7-day preview. Saves through `save_church` (the photo is saved at once, outside the save bar).
 - `jogi.html` – impresszum, privacy notice, terms (operator name/contact are still `[PLACEHOLDER]`s).
 - PWA (map only): `manifest.webmanifest`, `sw.js` (precaches the map's shell; `__BUILD__` is stamped with the commit
-  by pages.yml, so each deploy offers "Frissítés"), `icons/` (a white church bell on ink; PNGs rendered from
+  by pages.yml, so each deploy offers "Frissítés"; navy theme colour), `icons/` (a white church bell on ink; PNGs rendered from
   `bell.svg` by `icons/render.mjs`).
 - `analytics.js` (`window.Track`) – anonymous usage counters from the map (no cookies or ids; off with Do Not Track,
   in automated browsers unless `?track=1`, and on a device where an admin opened admin.html). Admin shows them under
-  "Statisztika". A new event name or key must also be allowed in the `track()` SQL function (014 added tab "most").
+  "Statisztika". A new event name or key must also be allowed in the `track()` SQL function (014 added tab "most";
+  Indulások is "most", Keresés is "list").
 - `schedule-editor.js` (`window.ScheduleEditor`) – the week board (a timetable: day name in a grey left column, times
   as quiet text buttons "07:00 mise", "+ időpont") + question-style time editor shared by the parish portal and admin
   (`admin: true` adds the raw "Haladó" fields).
-- `styles.css` – the one design system for every page: white ground, ink `#111`, greys `#555`/`#767676`, hairlines
-  `#e6e6e6`, one red `#b4232a` that only means "the next one / applies now" (and errors), sizes 13/15/17/22 (+40/64 for
-  big times), radius 10 for buttons and fields, 0 for rows; light and dark tokens; the `ui-` components, the week board
-  (`se-`) and the photo block (`cp-`). Pages keep only their layout in their own `<style>`. Type, like a printed parish
-  bulletin: church names and headings in **Newsreader** 500 (`--f-display`), everything else in **Source Sans 3**
-  (`--f-body`) at 400/600 only (300 for the big times); times 600 tabular with the kind grey after them; no 700, no
-  monospace. Status words are a plain grey `ui-meta` line joined with " · " (problems first, red), never pills. Both
-  fonts are **self-hosted** in `fonts/` (woff2, latin + latin-ext, OFL licences beside them; no Google Fonts request);
-  `index.html` preloads the two latin files and `sw.js` keeps all four in its own font cache (bump `FONT_CACHE` when a
-  file changes). Product brief: `PRODUCT.md`; surface brief: `.impeccable/surfaces/index-html.md`.
+- `styles.css` – the one design system for every page: a navy board (`--board` #13233f, `--board-2` #1d3257) over
+  white rows, ink `#14213d`, greys `#5d6779`/`#6b7488`, hairlines `#e6e9ef`; ONE amber `#ffb703` (`--amber`, dark text
+  on it) that only marks "leave now" and a changed row; red `--now` `#d33a2c` (#e5483a darkened for AA) only for "most
+  tart" and errors; dark mode = a navy-black board with the same amber and red. Cards 18px, segmented controls and
+  fields 12px, buttons and status chips are pills; one soft shadow (`--lift`) for floating things. The `ui-`
+  components, the week board (`se-`) and the photo block (`cp-`) are shared with the portal, admin and jogi.html (their
+  own layouts are restyled in a later pass; they already get the tokens and Overpass). Type: **Overpass** for
+  everything, tabular figures, 800 for times, names and headings, 700 labels/controls, 600 meta, 400 text (portal,
+  admin and jogi still use 300/500 until their pass); small uppercase column labels. Overpass is **self-hosted** in
+  `fonts/` (variable woff2, latin + latin-ext, `OFL-Overpass.txt`; no Google Fonts request; its "·" was re-classed from
+  mark to base glyph with fontTools so " · " keeps its width); `index.html` preloads the latin file and `sw.js` keeps
+  both in its own font cache (bump `FONT_CACHE`, now `harangszo-fonts-2`, when a file changes). Product brief:
+  `PRODUCT.md`; surface brief: `.impeccable/surfaces/index-html.md`. `tests/shots.mjs <dir>` saves review
+  screenshots (fixed clock, the fake Supabase, `tests/fixtures/board-churches.json`).
   `replica/` holds clean-room notes from an earlier layout study (never copy the reference app's assets, brand or copy).
 
 ## Data model (see `supabase/schema.sql`, the full current state)
