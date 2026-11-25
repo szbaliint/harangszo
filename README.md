@@ -76,6 +76,7 @@ Run the migrations you haven't run yet, in order, in the SQL Editor. Each is saf
 | `supabase/migrations/013_photos.sql` | church photos: Wikimedia Commons photos from the photo import, or the parish's own upload (`church-photos` storage bucket, `set_church_photo()`); `public_data()` returns `photo_url`, `photo_credit` and `photo_page` |
 | `supabase/migrations/014_track_most.sql` | statistics: `track()` also counts the map's new home tab, "Most" (Most · Térkép · Mentett) |
 | `supabase/migrations/015_own_feasts.sql` | a church's own feasts (`churches.own_feasts`: its búcsú, its patron saint, a fixed date every year), saved by `save_church()`, returned by `public_data()`, kept by `merge_churches()` |
+| `supabase/migrations/016_https_links.sql` | only `https://` links in `dated_services.source_url` and `churches.schedule_source_url` (security review) |
 
 After 003, run the **Import churches from OpenStreetMap** workflow once: it fills in the importance scores of churches already in the database (and adds any new ones).
 

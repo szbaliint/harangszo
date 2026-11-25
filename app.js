@@ -765,7 +765,7 @@ const rangeText = v => v.split(",").map(r => r.split("/").map(x => { const [m, d
 function weekTable(c, ctx) {
   const today = now().getDay();
   const reg = c.svc.filter(s => isRegular(s) && s.k !== "rorate" && seasonOk(s, ctx));
-  // Every string from the database is escaped here (the prayer's own name too).
+  // The label goes into HTML as is: a prayer's name is the parish's own text, so it is escaped here.
   const svcLabel = s => s.k === "prayer" ? `${esc(showT(s.t))} ${esc(s.n || "ájtatosság")}` : esc(showT(s.t));
   const withHours = c.onlyServices || c.hours.length > 0;
   const item = (s, dow, label) => {

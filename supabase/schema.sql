@@ -47,7 +47,7 @@ create table if not exists public.churches (
   importance_manual smallint,                       -- optional override from the admin panel
   schedule_note   text,                             -- public note shown with the schedule
   schedule_source text,                             -- e.g. 'szfvar' when times came from an import
-  schedule_source_url text,
+  schedule_source_url text constraint churches_schedule_source_url_check check (schedule_source_url is null or (schedule_source_url ~ '^https://[^\s]+$' and char_length(schedule_source_url) <= 1000)),  -- 016
   schedule_updated date,                            -- the source's own "updated" date
   source_ref      text,                             -- the source's key for this church (stable across runs)
   location_approx boolean not null default false,   -- placed at the settlement centre; to check
@@ -283,7 +283,7 @@ create table if not exists public.dated_services (
   place       text,
   place_church_id bigint references public.churches(id) on delete set null,
   source      text not null default 'manual',
-  source_url  text,
+  source_url  text constraint dated_services_source_url_check check (source_url is null or (source_url ~ '^https://[^\s]+$' and char_length(source_url) <= 1000)),  -- 016
   constraint dated_services_place_check check ((place is null or char_length(place) between 1 and 120) and (place_church_id is null or place_church_id <> church_id))
 );
 create index if not exists dated_services_church_date_idx on public.dated_services (church_id, date);

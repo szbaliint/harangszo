@@ -70,7 +70,7 @@ async function main() {
     ...days.map(d => `- **${d}**: ${rows.filter(r => r.date === d).map(r => r.kind === "confession" ? `gyónás ${r.start}–${r.end}` : r.kind === "mass" ? r.start + (r.celebrant ? ` (${r.celebrant})` : "") : `${r.start} ${r.note || (r.kind === "adoration" ? "szentségimádás" : "")}`).join(", ")}`)];
   if (!DRY) {
     const church = await findChurch();
-    const n = await api("rpc/import_dated_services", { method: "POST", body: JSON.stringify({ p: { church_id: church.id, source: SOURCE, source_url: pdfUrl, from: days[0], to: days[days.length - 1],
+    const n = await api("rpc/import_dated_services", { method: "POST", body: JSON.stringify({ p: { church_id: church.id, source: SOURCE, source_url: /^https:\/\//.test(pdfUrl) ? pdfUrl : null,   // only https links are stored (migration 016) from: days[0], to: days[days.length - 1],
       rows: rows.map(r => ({ date: r.date, kind: r.kind, start: r.start, end: r.end, note: r.note, celebrant: r.celebrant || "" })) } }) });
     lines.splice(2, 0, `Templom: ${church.name} (#${church.id}), ${n} időpont mentve.`, "");
   }
