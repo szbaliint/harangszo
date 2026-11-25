@@ -23,7 +23,8 @@
 <script src="../../schedule-editor.js"></script>
 <script>
   // Mounts the editor with the fixture church's regular services, mapped to Rule the way admin.js reads them.
-  // ?admin=1 → admin mode, ?crowded=1 → 8 Sunday times, ?theme=dark. window.last = the last onChange value.
+  // ?admin=1 → admin mode, ?crowded=1 → 8 Sunday times, ?theme=dark. window.last = the last onChange value;
+  // window.editor = the mounted editor (setBaseline).
   const q = new URLSearchParams(location.search);
   const hm = t => t ? String(t).slice(0, 5) : "";
   const toRule = s => ({ kind: s.kind, days: s.days, start: hm(s.start_time), end: hm(s.end_time), note: s.note || "", period: s.period || "all", valid: s.valid || "",
@@ -37,7 +38,7 @@
   let ed = null;
   window.mountEditor = (rules, opts = {}) => {
     ed?.destroy();
-    ed = ScheduleEditor.mount(document.getElementById("board"), { rules, admin: !!opts.admin, nearby: opts.nearby || NEARBY,
+    ed = window.editor = ScheduleEditor.mount(document.getElementById("board"), { rules, baseline: opts.baseline, admin: !!opts.admin, nearby: opts.nearby || NEARBY,
       onChange: r => { window.last = r; window.changes++; } });
     return true;
   };

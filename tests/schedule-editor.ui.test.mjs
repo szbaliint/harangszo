@@ -36,7 +36,7 @@ test("board: a row per day, Sunday first, times and a \"+ időpont\" per day", a
   } finally { await page.close(); }
 });
 
-test("board: a timetable, no boxes; day names grey 600; times 800; 44px tap areas that do not overlap", async () => {
+test("board: a timetable, no boxes; column labels; day names grey 700; times 800; 44px tap areas that do not overlap", async () => {
   const page = await open("?crowded=1");
   try {
     const r = await page.evaluate(() => {
@@ -50,7 +50,9 @@ test("board: a timetable, no boxes; day names grey 600; times 800; 44px tap area
         timeWeight: getComputedStyle(t.querySelector("b")).fontWeight, minArea: Math.min(...areas.map(a => a.bottom - a.top)), overlaps };
     });
     assert.equal(r.cols, 2, "day name in a left column");
-    assert.equal(r.dayWeight, "600"); assert.equal(r.dayColor, r.ink2);
+    assert.equal(r.dayWeight, "700"); assert.equal(r.dayColor, r.ink2);
+    assert.deepEqual(await page.locator(".se-cols span").allTextContents(), ["Nap", "Időpontok"], "column labels");
+    assert.equal(await page.locator(".se-cols").evaluate(e => getComputedStyle(e).textTransform), "uppercase");
     assert.equal(r.border, "none"); assert.equal(r.bg, "rgba(0, 0, 0, 0)");
     assert.equal(r.timeWeight, "800");
     assert.ok(r.minArea >= 44 - 0.5, `tap area ${r.minArea}px`);
@@ -336,5 +338,58 @@ test("laptop width: a wider day column, time and text on one line", async () => 
     });
     assert.match(r.cols, /^110px /);
     assert.ok(r.sameLine, "time and text on one line");
+  } finally { await page.close(); }
+});
+
+// The editors' signature move: what differs from the rules as last saved is held in amber until setBaseline().
+test("unsaved: a new time is amber on a pale amber day row; setBaseline lets it go", async () => {
+  const page = await open();
+  try {
+    assert.equal(await page.locator(".se-board .chg").count(), 0, "nothing is amber before a change");
+    await page.getByRole("button", { name: "Időpont hozzáadása: Kedd" }).click();
+    await sheet(page).locator(".se-start").fill("19:30");
+    await sheet(page).getByRole("button", { name: "Hozzáadás" }).click();
+    await sheet(page).waitFor({ state: "hidden" });
+    const kedd = page.locator(".se-day", { has: page.getByText("Kedd", { exact: true }) });
+    const tile = kedd.locator(".se-tile", { hasText: "19:30" });
+    assert.ok(await kedd.evaluate(e => e.classList.contains("chg")), "the day's row is marked");
+    assert.ok(await tile.evaluate(e => e.classList.contains("chg")), "the new time is marked");
+    assert.equal(await page.locator(".se-tile.chg").count(), 1, "only the new time");
+    assert.equal(await page.locator(".se-day.chg").count(), 1, "only its day");
+    const look = await tile.evaluate(t => {
+      const probe = v => { const i = document.createElement("i"); i.style.color = `var(${v})`; document.body.append(i); const c = getComputedStyle(i).color; i.remove(); return c; };
+      return { bg: getComputedStyle(t).backgroundColor, amber: probe("--amber"), text: getComputedStyle(t.querySelector("b")).color, onAmber: probe("--on-amber"),
+        row: getComputedStyle(t.closest(".se-day")).backgroundColor, flash: probe("--flash"), described: document.getElementById(t.getAttribute("aria-describedby"))?.textContent };
+    });
+    assert.equal(look.bg, look.amber); assert.equal(look.text, look.onAmber); assert.equal(look.row, look.flash);
+    assert.equal(look.described, "nem mentett változás", "screen readers hear it too");
+    // Editing an existing time marks that one; removing a time marks its day.
+    await page.locator(".se-day", { has: page.getByText("Péntek", { exact: true }) }).locator(".se-tile", { hasText: "17:00" }).click();
+    await sheet(page).locator('[data-act="del"]').click(); await sheet(page).locator('[data-act="del"]').click();
+    await sheet(page).waitFor({ state: "hidden" });
+    assert.ok(await page.locator(".se-day", { has: page.getByText("Péntek", { exact: true }) }).evaluate(e => e.classList.contains("chg")), "a removal marks the day");
+    // Saved: the marks fade out in place (the board is not redrawn).
+    const same = await tile.elementHandle();
+    await page.evaluate(() => window.editor.setBaseline(window.last));
+    assert.equal(await page.locator(".se-board .chg").count(), 0, "nothing amber after the save");
+    assert.ok(await same.evaluate(e => e.isConnected && e.classList.contains("chg-out")), "the same tile fades out");
+    assert.match(await same.evaluate(e => getComputedStyle(e).transitionDuration), /0\.6s/);
+    await page.waitForFunction(() => !document.querySelector(".chg-out"), null, { timeout: 3000 });
+    // A baseline given at mount: the board opens with the difference already marked.
+    await page.evaluate(() => window.mountEditor(window.last, { baseline: window.fixtureRules }));
+    assert.equal(await page.locator(".se-tile.chg").count(), 1, "19:30 against the original rules");
+    assert.deepEqual(page.errors, []);
+  } finally { await page.close(); }
+});
+
+test("unsaved: no fade under reduced motion", async () => {
+  const page = await browser.newPage({ viewport: { width: 360, height: 740 }, reducedMotion: "reduce" });
+  try {
+    await page.goto(`${server.url}/tests/fixtures/schedule-editor.html`);
+    await page.waitForSelector("body[data-ready]");
+    await page.evaluate(() => window.mountEditor(window.fixtureRules.slice(1), { baseline: window.fixtureRules }));
+    await page.evaluate(() => window.editor.setBaseline(window.fixtureRules.slice(1)));
+    const d = await page.evaluate(() => { const t = document.querySelector(".chg-out"); return t ? getComputedStyle(t).transitionDuration : "none"; });
+    assert.ok(d === "none" || /^0s/.test(d), `transition ${d}`);
   } finally { await page.close(); }
 });

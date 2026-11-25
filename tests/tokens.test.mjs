@@ -57,7 +57,9 @@ test("contrast AA", () => {
   const pairs = [["--ink", "--bg"], ["--ink-2", "--surface"], ["--ink-3", "--surface"], ["--ink-3", "--bg"], ["--ink-2", "--chip"], ["--ink-2", "--sunken"], ["--red", "--bg"],
     ["--on-board", "--board"], ["--on-board-2", "--board"], ["--on-board-3", "--board-2"], ["--on-amber", "--amber"], ["--amber-ink", "--amber"], ["--amber-2", "--amber"], ["--amber-3", "--amber"],
     ["--on-now", "--now"], ["--on-primary", "--primary"], ["--ink", "--flash"], ["--on-pin", "--pin"], ["--ink", "--seg-on"], ["--ink", "--field"], ["--ink-2", "--field"],
-    ["--accent", "--accent-soft"], ["--penance", "--penance-soft"], ["--gold", "--gold-soft"], ["--open", "--open-soft"], ["--on-accent", "--accent"]];
+    ["--accent", "--accent-soft"], ["--penance", "--penance-soft"], ["--gold", "--gold-soft"], ["--open", "--open-soft"], ["--on-accent", "--accent"],
+    // The portal's and admin's unsaved rows (pale amber) and the admin's open church (the navy row).
+    ["--ink-2", "--flash"], ["--on-board-2", "--board-2"]];
   for (const [mode, t] of Object.entries(MODES))
     for (const [fg, bg] of pairs) {
       const r = ratio(t[fg], t[bg]);

@@ -111,7 +111,13 @@ test("rail: badges and count; list: tags; three columns at 1440", async () => {
       return { size: getComputedStyle(m).fontSize, border: s.borderTopStyle, red: s.color,
         name: getComputedStyle(b.querySelector(".nm")).fontFamily.split(",")[0], weight: getComputedStyle(b.querySelector(".nm")).fontWeight };
     });
-    assert.deepEqual(look, { size: "13px", border: "none", red: "rgb(211, 58, 44)", name: "Overpass", weight: "500" });
+    assert.deepEqual(look, { size: "13px", border: "none", red: "rgb(211, 58, 44)", name: "Overpass", weight: "800" });
+    // A board: column labels over the rows, the count of times in tabular figures on the right (none = a dash).
+    assert.deepEqual(await page.locator(".ad-cols span").allTextContents(), ["Templom", "Időpont"]);
+    assert.equal((await item(page, "Szent Anna").locator(".n").textContent()).trim(), "7");
+    assert.equal((await item(page, "Ciszterci").locator(".n").textContent()).trim(), "–");
+    // The rail is the navy board.
+    assert.equal(await page.locator("#rail").evaluate(e => getComputedStyle(e).backgroundColor), "rgb(19, 35, 63)");
     const [r, l, m] = await Promise.all(["#rail", "#listcol", "#main"].map(s => page.locator(s).boundingBox()));
     assert.ok(Math.abs(r.width - 200) < 1 && Math.abs(l.width - 330) < 1, `rail ${r.width}, list ${l.width}`);
     assert.ok(r.x < l.x && l.x < m.x && Math.abs(r.y - l.y) < 1 && Math.abs(l.y - m.y) < 1, "side by side");
@@ -149,10 +155,11 @@ test("clicking a church shows its header, tabs, the week board and the side boxe
     assert.equal((await page.locator("h1.ad-name").textContent()).trim(), d.church.name);
     assert.match(await page.locator("#ch-meta").textContent(), /Szent Anna utca 1\. · #1043 · utoljára mentette: Szent Anna plébánia, tegnap 21:14/);
     assert.equal(await item(page, "Szent Anna").getAttribute("aria-current"), "true");
-    // The open church's row: sunken, a 2px ink bar at the left, the name not underlined.
-    const sel = await item(page, "Szent Anna").evaluate(b => { const s = getComputedStyle(b); return { shadow: s.boxShadow, line: getComputedStyle(b.querySelector(".nm")).textDecorationLine }; });
-    assert.match(sel.shadow, /^rgb\(20, 33, 61\) 2px 0px 0px 0px inset$/);
-    assert.equal(sel.line, "none");
+    // The open church's row: the navy row with white words (no side bar), the name not underlined.
+    await page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => { }))));
+    const sel = await item(page, "Szent Anna").evaluate(b => { const s = getComputedStyle(b), n = getComputedStyle(b.querySelector(".nm"));
+      return { bg: s.backgroundColor, shadow: s.boxShadow, color: n.color, line: n.textDecorationLine }; });
+    assert.deepEqual(sel, { bg: "rgb(29, 50, 87)", shadow: "none", color: "rgb(255, 255, 255)", line: "none" });
     assert.deepEqual((await page.locator(".ad-tabs .ad-tab").allTextContents()).map(s => s.trim()), ["Miserend", "Ünnepek", "Események", "Adatok", "Szerkesztők", "Előzmények"]);
     assert.equal(await page.locator(".se-day").count(), 7);
     assert.deepEqual(await day(page, "Vasárnap").locator(".se-tile:not(.se-add) b").allTextContents(), ["08:00", "10:00", "18:00"]);
@@ -166,7 +173,7 @@ test("clicking a church shows its header, tabs, the week board and the side boxe
     // Side boxes sit to the right of the board.
     const board = await page.locator("#board").boundingBox(), side = await page.locator(".ad-side").boundingBox();
     assert.ok(side.x > board.x + board.width - 1 && Math.abs(side.width - 290) < 1, "side column beside the board");
-    assert.deepEqual(await typeProblems(page, { interim: true }), [], "admin church page");
+    assert.deepEqual(await typeProblems(page), [], "admin church page");
     assert.equal(await page.locator("#savebar.on").count(), 0);
     assert.deepEqual(errors, []);
   } finally { await close(); }
@@ -396,7 +403,7 @@ test("390×844: the rail, the list and the church stack", async () => {
     const box = await page.locator(".ad-side").boundingBox(), board = await page.locator("#board").boundingBox();
     assert.ok(box.y >= board.y + board.height - 1, "side boxes under the board");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
-    await page.getByRole("button", { name: "‹ Lista" }).click();
+    await page.getByRole("button", { name: "Lista", exact: true }).click();
     assert.ok(await page.locator("#listcol").isVisible());
     assert.deepEqual(errors, []);
   } finally { await close(); }
@@ -470,3 +477,54 @@ test("Statisztika before the migration: says which file to run", async () => {
   } finally { await t.close(); }
 });
 
+
+// The editors' signature move: everything changed and not yet saved is held in amber, until the save fades it out.
+test("unsaved changes are amber: the time, its day, the admin box, the tabs and the bar; a save lets them go", async () => {
+  const { page, calls, errors, close } = await openAdmin();
+  try {
+    await openChurch(page, "Szent Anna");
+    assert.equal(await page.locator(".ad-church .chg").count(), 0, "nothing amber when opened");
+    await page.getByRole("button", { name: "Időpont hozzáadása: Kedd" }).click();
+    await sheet(page).locator(".se-start").fill("19:30");
+    await sheet(page).getByRole("button", { name: "Hozzáadás" }).click();
+    await sheet(page).waitFor({ state: "hidden" });
+    await page.locator("#f-imp").selectOption("75");
+    await page.locator("#savebar.on").waitFor();
+    await page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => { }))));
+    const amber = "rgb(255, 183, 3)";
+    assert.equal(await page.locator("#savebar").evaluate(b => getComputedStyle(b).backgroundColor), amber, "the bar is amber");
+    assert.equal((await page.locator("#savestate").textContent()).trim(), "2 nem mentett változás");
+    assert.equal(await day(page, "Kedd").locator(".se-tile.chg", { hasText: "19:30" }).count(), 1, "the new time");
+    assert.ok(await day(page, "Kedd").evaluate(e => e.classList.contains("chg")), "its day");
+    assert.ok(await page.locator("#side-admin").evaluate(e => e.classList.contains("chg")), "the admin-only box");
+    assert.equal(await page.locator(".ad-tab.chg").allTextContents().then(t => t.join()), "Miserend", "the tab with the changes");
+    assert.equal(await page.locator('.ad-tab[data-ctab="sched"]').getAttribute("aria-describedby"), "ad-chg");
+    // Another tab: a changed field marks its row; going back to the old value takes the mark (and the bar) away.
+    await page.locator(".ad-tab", { hasText: "Adatok" }).click();
+    await page.locator("#f-phone").fill("+36 36 999 999");
+    assert.ok(await page.locator('[data-chg="basic"]').evaluate(e => e.classList.contains("chg")), "Alapadatok is marked");
+    await page.locator("#f-phone").fill("+36 36 123 456");
+    assert.ok(!(await page.locator('[data-chg="basic"]').evaluate(e => e.classList.contains("chg"))), "undone, no mark");
+    await page.locator(".ad-tab", { hasText: "Miserend" }).click();
+    // Saved: no amber left, the bar goes.
+    await page.locator("#bar-save").click();
+    await until(() => calls.some(c => c.path === "/rest/v1/rpc/save_church"), "save_church");
+    await page.waitForFunction(() => !document.querySelector("#savebar").classList.contains("on"));
+    await page.waitForFunction(() => !document.querySelector(".ad-church .chg"));
+    assert.equal(await page.locator(".ad-tab.chg").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await close(); }
+});
+
+test("a failed save turns the bar red with the reason", async () => {
+  const { page, close } = await openAdmin({ rpc: { save_church: () => { throw new Error("permission denied"); } } });
+  try {
+    await openChurch(page, "Szent Anna");
+    await page.locator("#f-imp").selectOption("75");
+    await page.locator("#bar-save").click();
+    await page.locator("#saveerr:not([hidden])").waitFor();
+    await page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => { }))));
+    assert.equal(await page.locator("#savebar").evaluate(b => getComputedStyle(b).backgroundColor), "rgb(211, 58, 44)");
+    assert.ok(await page.locator("#side-admin").evaluate(e => e.classList.contains("chg")), "the change is still amber");
+  } finally { await close(); }
+});

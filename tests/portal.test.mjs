@@ -52,7 +52,7 @@ test("opens the church: header, four tabs, a card per day with the fixture's tim
     assert.equal(await page.locator(".se-day").count(), 7);
     assert.deepEqual(await day(page, "Vasárnap").locator(".se-tile:not(.se-add) b").allTextContents(), ["08:00", "10:00", "18:00"]);
     assert.deepEqual(await day(page, "Hétfő").locator(".se-tile:not(.se-add) b").allTextContents(), ["07:00", "18:00"]);
-    assert.deepEqual(await typeProblems(page, { interim: true }), [], "portal week board");
+    assert.deepEqual(await typeProblems(page), [], "portal week board");
     assert.equal(await page.locator("#savebar.on").count(), 0, "no save bar before a change");
     assert.deepEqual(errors, []);
   } finally { await close(); }
@@ -149,5 +149,62 @@ test("laptop: preview column beside the editor, no #mode switch", async () => {
     const board = await page.locator(".se-board").boundingBox(), pv = await page.locator("#preview").boundingBox();
     assert.ok(pv.x > board.x + board.width - 1, "preview is to the right of the board");
     assert.deepEqual(errors, []);
+  } finally { await close(); }
+});
+
+// The editors' signature move: changed and not yet saved = amber (the card, the time, the tab's dot, the bar).
+const settled = page => page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => { }))));
+test("unsaved changes are amber until saved: the time and its day, a card, the tabs, the bar", async () => {
+  const { page, errors, close } = await open();
+  try {
+    assert.equal(await page.locator("#main .chg, #top .chg").count(), 0, "nothing amber when opened");
+    await addTime(page, "Kedd", "19:30");
+    await page.locator("#savebar.on").waitFor(); await settled(page);
+    assert.equal(await page.locator("#savebar").evaluate(b => getComputedStyle(b).backgroundColor), "rgb(255, 183, 3)", "the bar is amber");
+    assert.equal(await day(page, "Kedd").locator(".se-tile.chg", { hasText: "19:30" }).count(), 1);
+    assert.ok(await day(page, "Kedd").evaluate(e => e.classList.contains("chg")));
+    assert.deepEqual(await page.locator(".pp-tabs .ui-tab.chg").allTextContents(), ["Heti rend"], "the section's tab has the dot");
+    assert.equal(await page.locator('.ui-tab[data-sec="week"]').getAttribute("aria-describedby"), "pp-chg");
+    assert.match(await page.locator("#preview").textContent(), /nem mentett változásokkal/, "the preview says it shows them");
+    // A card: the phone number; undoing every change takes the amber and the bar away.
+    await page.locator('.ui-tab[data-sec="data"]').click();
+    await page.locator('[data-k="phone"]').fill("+36 36 999 999");
+    assert.ok(await page.locator('[data-chg="contact"]').evaluate(e => e.classList.contains("chg")), "Elérhetőség is marked");
+    assert.deepEqual(await page.locator(".pp-tabs .ui-tab.chg").allTextContents(), ["Heti rend", "Adatok"]);
+    await page.locator('[data-k="phone"]').fill("+36 36 123 456");
+    assert.ok(!(await page.locator('[data-chg="contact"]').evaluate(e => e.classList.contains("chg"))), "undone");
+    await page.locator('.ui-tab[data-sec="week"]').click();
+    // Saved: the amber fades, the bar goes, the toast says so.
+    await page.locator("#save").click();
+    await page.locator("#toast.on").waitFor();
+    await page.waitForFunction(() => !document.querySelector("#main .chg, #top .chg") && !document.querySelector("#savebar").classList.contains("on"));
+    await page.locator(".se-day").first().waitFor();
+    assert.equal(await page.locator(".se-tile.chg").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await close(); }
+});
+
+test("undoing the only change hides the save bar", async () => {
+  const { page, close } = await open();
+  try {
+    await addTime(page, "Kedd", "19:30");
+    await page.locator("#savebar.on").waitFor();
+    await day(page, "Kedd").locator(".se-tile", { hasText: "19:30" }).click();
+    const sheet = page.locator("dialog.se-sheet");
+    await sheet.locator('[data-act="del"]').click(); await sheet.locator('[data-act="del"]').click();
+    await sheet.waitFor({ state: "hidden" });
+    await page.waitForFunction(() => !document.querySelector("#savebar").classList.contains("on"));
+    assert.equal(await page.locator("#main .chg, #top .chg").count(), 0);
+  } finally { await close(); }
+});
+
+test("the header is the navy board; the sections are a bottom tab bar with icons on a phone", async () => {
+  const { page, close } = await open();
+  try {
+    assert.equal(await page.locator("#top").evaluate(e => getComputedStyle(e).backgroundColor), "rgb(19, 35, 63)");
+    const bar = await page.locator(".pp-tabs").boundingBox(), vh = page.viewportSize().height;
+    assert.ok(Math.abs(bar.y + bar.height - vh) < 1, "fixed to the bottom");
+    assert.equal(await page.locator(".pp-tabs .ui-tab svg").count(), 4, "a line icon per section");
+    assert.equal(await page.locator(".pp-kicker").count(), 0, "no eyebrow over the name");
   } finally { await close(); }
 });

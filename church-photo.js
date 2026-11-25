@@ -10,6 +10,8 @@
 (function (w) {
   const BUCKET = "church-photos", MAX_EDGE = 1600, QUALITY = 0.85, MAX_BYTES = 5 * 1024 * 1024;
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  // Links and pictures from the database: https only (as app.js shows them on the map).
+  const httpsUrl = v => typeof v === "string" && /^https:\/\//.test(v) ? v : "";
 
   // The picked file as a JPEG blob, at most MAX_EDGE px on its long edge.
   async function toJpeg(file) {
@@ -59,13 +61,13 @@
     const say = (t, err = false) => { msg.textContent = t; msg.classList.toggle("err", err); };
 
     function render() {
-      const url = c.photo_url || "", commons = c.photo_source === "commons";
+      const url = httpsUrl(c.photo_url), page = httpsUrl(c.photo_page), commons = c.photo_source === "commons";
       if (!c.id) {
         view.innerHTML = `<p class="cp-none">Fotót a templom első mentése után tölthetsz fel.</p>`; acts.innerHTML = ""; return;
       }
       const credit = c.photo_credit || "";
       view.innerHTML = url ? `<figure class="cp-fig"><img src="${esc(url)}" alt="${esc("A templom fotója" + (c.name ? ": " + c.name : ""))}" decoding="async">
-          ${credit ? `<figcaption class="cp-credit">${c.photo_page ? `<a href="${esc(c.photo_page)}" target="_blank" rel="noopener">${esc(credit)}</a>` : esc(credit)}</figcaption>` : ""}</figure>
+          ${credit ? `<figcaption class="cp-credit">${page ? `<a href="${esc(page)}" target="_blank" rel="noopener">${esc(credit)}</a>` : esc(credit)}</figcaption>` : ""}</figure>
           ${commons ? `<p class="cp-note">Ez a fotó a Wikimedia Commonsról való, szabadon felhasználható képek közül.${admin ? "" : " Ha van jobb, saját fotóval lecserélheted."}</p>` : ""}`
         : `<p class="cp-none">Még nincs fotó a templomról.</p>`;
       const canRemove = url && (admin || !commons);

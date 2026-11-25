@@ -2,6 +2,8 @@
 /* Harangszó shared schedule editor: the week board (a timetable: one row per day, a text button per time) and the
    question-style time editor in a bottom sheet. Used by the parish portal and, with admin: true, by the admin page. It
    edits only the regular rules it is given and hands them back through onChange; saving stays in each page (save_church).
+   mount(el, { rules, baseline, admin, nearby, onChange }): baseline = the rules as last saved (default: rules); what
+   differs from it is held in amber until the page saves and calls setBaseline(rules).
    Rule = { kind, days[] (0 = Sunday), start, end, note, period, valid, weeks[], every, anchor, tags[], celebrant,
             place, place_church_id (number | ""), feast_skip } — the shape admin.js keeps in A.draft.services. */
 (function (root, factory) {
@@ -216,6 +218,15 @@
     return C.ymd(mondayOf(C.nextDate(todayDate(), x => x.getDay() === first)));
   }
 
+  /* ---------- Unsaved changes ---------- */
+  // Elements held in amber (.chg) whose change was saved: they fade back (.chg-out carries a 600ms transition in
+  // styles.css, none under reduced motion). Shared with the parish portal and the admin for their own rows.
+  function settle(nodes) {
+    const list = [...(nodes || [])].filter(n => n && n.classList && n.classList.contains("chg"));
+    for (const n of list) { n.classList.add("chg-out"); n.classList.remove("chg"); }
+    if (list.length) setTimeout(() => list.forEach(n => n.classList.remove("chg-out")), 700);
+  }
+
   /* ---------- Board + sheet ---------- */
   let mountN = 0;
   function mount(el, opts) {
@@ -224,6 +235,15 @@
     const admin = !!opts.admin, nearby = opts.nearby || [], onChange = typeof opts.onChange === "function" ? opts.onChange : () => { };
     let items = split(opts.rules || []), E = null;
     const ctx = { nearby };
+    // Unsaved changes: the rules as last saved (opts.baseline, else the rules given). A time that is not in them is
+    // held in amber, and so is a day whose times differ from them, until the page saves and calls setBaseline().
+    const keyOf = i => i.day + "|" + sig(i);
+    let base = new Set();
+    const setBase = rules => { base = new Set(split(rules || []).filter(i => i.day !== null).map(keyOf)); };
+    setBase(opts.baseline || opts.rules);
+    const dayKeys = (d, set) => [...set].filter(k => k.startsWith(d + "|")).sort().join("\n");
+    const tileChanged = i => !base.has(keyOf(i));
+    const dayChanged = d => dayKeys(d, new Set(items.filter(i => i.day === d).map(keyOf))) !== dayKeys(d, base);
 
     const dlg = doc.createElement("dialog");
     dlg.className = "ui-sheet se-sheet";
@@ -234,13 +254,25 @@
     function renderBoard() {
       const daysOf = new Map();
       for (const i of items) { const k = sig(i); if (!daysOf.has(k)) daysOf.set(k, []); if (i.day !== null) daysOf.get(k).push(i.day); }
-      el.innerHTML = `<div class="se-board">${BOARD_DAYS.map(d => {
+      el.innerHTML = `<div class="se-board"><div class="se-cols" aria-hidden="true"><span>Nap</span><span>Időpontok</span></div>${BOARD_DAYS.map(d => {
         const list = items.filter(i => i.day === d).sort(byTime);
-        return `<div class="se-day${d === 0 ? " sun" : ""}" role="group" aria-labelledby="${P}d${d}">
+        return `<div class="se-day${d === 0 ? " sun" : ""}${dayChanged(d) ? " chg" : ""}" data-day="${d}" role="group" aria-labelledby="${P}d${d}">
           <h3 class="se-dh"><span id="${P}d${d}">${DAY_NAME[d]}</span>${list.length ? ` <small class="sr">${list.length} alkalom</small>` : ""}</h3>
-          <div class="se-tiles">${list.map(i => `<button type="button" class="se-tile k-${esc(i.kind)}" data-uid="${i.uid}" title="${esc(describe({ ...i, days: daysOf.get(sig(i)) }, ctx))}"><b>${esc(i.start)}</b><span>${esc(tileText(i))}</span></button>`).join("")}<button type="button" class="se-tile se-add" data-add="${d}" aria-label="Időpont hozzáadása: ${DAY_NAME[d]}">+ időpont</button></div>
+          <div class="se-tiles">${list.map(i => `<button type="button" class="se-tile k-${esc(i.kind)}${tileChanged(i) ? " chg" : ""}" data-uid="${i.uid}"${tileChanged(i) ? ` aria-describedby="${P}chg"` : ""} title="${esc(describe({ ...i, days: daysOf.get(sig(i)) }, ctx))}"><b>${esc(i.start)}</b><span>${esc(tileText(i))}</span></button>`).join("")}<button type="button" class="se-tile se-add" data-add="${d}" aria-label="Időpont hozzáadása: ${DAY_NAME[d]}">+ időpont</button></div>
         </div>`;
-      }).join("")}</div>`;
+      }).join("")}<span class="sr" id="${P}chg" hidden>nem mentett változás</span></div>`;
+    }
+    // After a save: the new baseline; what is no longer a change lets go of its amber with a short fade (the page's
+    // .chg-out, none under reduced motion), in place, without redrawing the board.
+    function setBaseline(rules) {
+      setBase(rules);
+      const out = [];
+      el.querySelectorAll(".se-day[data-day]").forEach(row => { if (row.classList.contains("chg") && !dayChanged(+row.dataset.day)) out.push(row); });
+      el.querySelectorAll(".se-tile[data-uid]").forEach(t => {
+        const it = items.find(i => i.uid === t.dataset.uid);
+        if (t.classList.contains("chg") && it && !tileChanged(it)) { out.push(t); t.removeAttribute("aria-describedby"); }
+      });
+      settle(out);
     }
     const onBoardClick = e => {
       const t = e.target.closest?.("[data-uid],[data-add]");
@@ -565,6 +597,7 @@
     renderBoard();
     return {
       setRules(rules) { if (dlg.open) dlg.close(); items = split(rules || []); renderBoard(); },
+      setBaseline,
       destroy() {
         if (dlg.open) dlg.close();
         el.removeEventListener("click", onBoardClick);
@@ -574,5 +607,5 @@
     };
   }
 
-  return { split, join, describe, mount, normalize, sig, tileText, normTime };
+  return { split, join, describe, mount, normalize, sig, tileText, normTime, settle };
 });

@@ -6,7 +6,11 @@
    uppercase column labels. The pass: the chosen Mass as a card (18px radius) with the church's real photo; segmented
    controls 12px, status chips are pills. Depth: one soft shadow with an offset, for floating things only.
    Layout: phone = a column over the map with a tab bar (Térkép shows the map); desktop = a 420px column on the left
-   with the tabs in its navy top bar, the grey map to the right. */
+   with the tabs in its navy top bar, the grey map to the right.
+   The parish portal, the admin and jogi.html live in the same world: a navy header (portal, jogi) or rail (admin) over
+   a white work area, board-style lists, and the editors' signature move: whatever is changed and not yet saved is held
+   in amber (a pale amber row, an amber time on the week board, the amber save bar "N nem mentett változás") until it
+   is saved; then the amber fades out (.chg-out). */
 
 /* Self-hosted Overpass (fonts/, SIL Open Font License 1.1, The Overpass Project Authors; no request leaves the site):
    the variable font (weight 100–900), latin and latin-ext subsets as Google Fonts cuts them (Hungarian ő ű are in
@@ -500,7 +504,9 @@ form.suggest .muted{margin:0}
 .ui-toggle{appearance:none;-webkit-appearance:none;flex:none;position:relative;width:48px;height:30px;margin:0;border-radius:15px;background:var(--border);
   vertical-align:middle;cursor:pointer;transition:background-color .2s var(--ease)}
 .ui-toggle::before{content:"";position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:var(--rest);transition:transform var(--dur) var(--spring)}
-.ui-toggle:checked{background:var(--board)}
+/* On: the primary navy (light on the night board, with a dark knob, so it still reads in dark mode). */
+.ui-toggle:checked{background:var(--primary)}
+.ui-toggle:checked::before{background:var(--on-primary)}
 .ui-toggle:checked::before{transform:translateX(18px)}
 .ui-toggle:disabled{opacity:.45;cursor:default}
 
@@ -544,10 +550,12 @@ a.ui-row,button.ui-row{width:100%;border-left:0;border-right:0;border-bottom:0;b
 
 /* Tab row (portal sections, admin): a hairline row, the pressed tab underlined in navy */
 .ui-tabbar{display:flex;gap:0;border-bottom:1px solid var(--line);background:var(--bg)}
-.ui-tab{flex:1 1 0;min-width:0;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--ink-2);
-  font:600 var(--fs-2)/1.15 var(--f-body);text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
+.ui-tab{position:relative;flex:1 1 0;min-width:0;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--ink-2);
+  font:700 var(--fs-2)/1.15 var(--f-body);text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
   box-shadow:inset 0 -2px 0 transparent;transition:box-shadow .15s var(--ease),color .15s var(--ease)}
-.ui-tab[aria-pressed="true"]{color:var(--ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--ink)}
+.ui-tab[aria-pressed="true"]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+/* A section with unsaved changes: an amber dot after its name (the tab also names it for screen readers). */
+.ui-tab.chg::after{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 1.5px var(--bg)}
 
 /* Sheet: <dialog> — bottom sheet on phones, centred panel from 640px; header / .body (scrolls) / footer */
 dialog.ui-sheet{position:fixed;inset:0;margin:auto 0 0;width:100%;max-width:100%;max-height:calc(100dvh - 48px);padding:0;border:0;
@@ -575,16 +583,26 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
   .ui-sheet>.body{padding:6px 24px 22px}
   .ui-sheet>footer{padding:14px 24px 16px}}
 
-/* Save bar: navy, fixed bottom, hidden unless .on (unsaved changes) */
+/* Save bar: the editors' signature move. Unsaved changes are amber, like the rows they came from: an amber bar
+   "N nem mentett változás" with the navy Mentés of the pass; a failed save turns it red with the reason on top. Fixed
+   bottom, hidden unless .on; after a save it fades out with the rows' amber. */
 .ui-savebar{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:40;max-width:620px;margin:0 auto;
-  display:flex;align-items:center;gap:8px;padding:8px 8px 8px 16px;border-radius:var(--r-card);background:var(--board);color:#ffffff;box-shadow:var(--lift);
-  font:600 14px/1.3 var(--f-body);font-variant-numeric:tabular-nums;
+  display:flex;align-items:center;gap:8px;padding:8px 8px 8px 18px;border-radius:var(--r-card);background:var(--amber);color:var(--on-amber);box-shadow:var(--lift);
+  font:700 var(--fs-2)/1.3 var(--f-body);font-variant-numeric:tabular-nums;
   opacity:0;visibility:hidden;transform:translateY(16px);pointer-events:none;
-  transition:opacity .22s var(--ease),transform .22s var(--ease),visibility 0s linear .22s}
-.ui-savebar.on{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .22s var(--ease),transform .22s var(--ease),visibility 0s}
+  transition:opacity .22s var(--ease),transform .22s var(--ease),background-color .3s var(--ease),color .3s var(--ease),visibility 0s linear .22s}
+.ui-savebar.on{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .22s var(--ease),transform .22s var(--ease),background-color .3s var(--ease),color .3s var(--ease),visibility 0s}
 .ui-savebar>span{flex:1 1 0;min-width:0}
-.ui-savebar .ui-btn{flex:none;background:var(--amber);border-color:var(--amber);color:var(--on-amber)}
-.ui-savebar .ui-btn.quiet{background:transparent;border-color:transparent;color:#ffffff;font-weight:700;text-decoration:underline;padding:0 10px}
+.ui-savebar .ui-btn{flex:none;min-width:96px;background:#14213d;border-color:#14213d;color:#ffffff;font-weight:800}
+.ui-savebar .ui-btn:active:not(:disabled){background:#2b3e63;border-color:#2b3e63}
+.ui-savebar .ui-btn.quiet{min-width:0;background:transparent;border-color:transparent;color:inherit;font-weight:700;text-decoration:underline;padding:0 10px}
+.ui-savebar .ui-btn.quiet:active:not(:disabled){background:rgb(20 33 61 / .1);border-color:transparent}
+@media (hover:hover){.ui-savebar .ui-btn.quiet:hover:not(:disabled){background:rgb(20 33 61 / .1)}}
+.ui-savebar>p[role="alert"]{flex:1 0 100%;order:-1;margin:0 0 2px;padding:4px 0 0;color:inherit;font:700 var(--fs-2)/1.35 var(--f-body)}
+.ui-savebar:has(>p[role="alert"]:not([hidden])){flex-wrap:wrap;background:var(--now);color:var(--on-now)}
+.ui-savebar:has(>p[role="alert"]:not([hidden])) :focus-visible{outline-color:#ffffff}
+/* A change that was saved lets go of its amber (schedule-editor.js settle()); none of this moves. */
+.chg-out,.chg-out *{transition:background-color .6s var(--ease),color .6s var(--ease)!important}
 
 /* Toast: navy, shown with .on (the page hides it again) */
 .ui-toast{position:fixed;left:16px;right:16px;bottom:calc(90px + env(safe-area-inset-bottom));z-index:50;width:fit-content;max-width:calc(100% - 32px);margin:0 auto;
@@ -612,29 +630,38 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
 .ui-hero .in{display:block;margin-top:2px;font-size:var(--fs-1);color:var(--ink-2)}
 
 @media (prefers-reduced-motion:reduce){
-  [class*="ui-"],[class*="ui-"]::before,[class*="ui-"]::after,dialog.ui-sheet::backdrop{transition:none!important;animation:none!important}}
+  [class*="ui-"],[class*="ui-"]::before,[class*="ui-"]::after,dialog.ui-sheet::backdrop,.chg-out,.chg-out *{transition:none!important;animation:none!important}}
 
 /* Schedule editor (schedule-editor.js) */
-/* Week board: a timetable, not chips. A hairline row per day (Sunday first): the day's name in grey in a left column
-   (its count only for screen readers), then the times as borderless text buttons, "07:00 mise" with the time in 800
-   ink and the rest grey at the same size, and a quiet grey "+ időpont" at the end. A button takes a sunken rounded
-   background on hover, focus and press. Drawn 30px tall; the invisible ::before keeps the tap area 44px (the row is
-   44px; wrapped lines are 14px apart, so no two tap areas overlap). Kinds are told apart by their word, never by colour. */
-.se-board{container-type:inline-size;display:grid;min-width:0;border-top:1px solid var(--line)}
-.se-day{display:grid;grid-template-columns:84px minmax(0,1fr);align-items:baseline;column-gap:12px;padding:7px 0;border-bottom:1px solid var(--line);min-width:0}
-.se-dh{margin:0;min-width:0;font:600 var(--fs-2)/20px var(--f-body);color:var(--ink-2);overflow-wrap:anywhere}
+/* Week board: the departure board's timetable. Column labels NAP / IDŐPONTOK, then a hairline row per day (Sunday
+   first): the day's name in grey 700 in a left column (its count only for screen readers), the times as borderless
+   text buttons, "07:00 mise" with the time in 800 ink and the kind in grey 600 at the same size, and a quiet grey
+   "+ időpont" at the end. A button takes a sunken rounded background on hover, focus and press. Drawn 30px tall; the
+   invisible ::before keeps the tap area 44px (the row is 44px; wrapped lines are 14px apart, so no two tap areas
+   overlap). Kinds are told apart by their word, never by colour. Unsaved: the day's row pale amber, the changed time
+   amber (schedule-editor.js baseline). Rows bleed 10px past the text so the amber never sits on it. */
+.se-board{container-type:inline-size;display:grid;min-width:0}
+.se-cols,.se-day{display:grid;grid-template-columns:84px minmax(0,1fr);column-gap:12px;min-width:0;margin:0 -10px;padding-left:10px;padding-right:10px}
+.se-cols{padding-bottom:6px;border-bottom:1px solid var(--line);font:700 11px/1.2 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.se-day{align-items:baseline;padding-top:7px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+.se-day.chg{background:var(--flash)}
+.se-dh{margin:0;min-width:0;font:700 var(--fs-2)/20px var(--f-body);color:var(--ink-2);overflow-wrap:anywhere}
 .se-tiles{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px 10px;min-width:0}
 .se-tile{position:relative;display:inline-flex;align-items:baseline;gap:6px;min-width:0;max-width:calc(100% + 8px);margin:0 0 0 -8px;padding:5px 8px;border:0;border-radius:8px;
-  background:none;color:var(--ink-2);font:400 var(--fs-2)/20px var(--f-body);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  background:none;color:var(--ink-2);font:600 var(--fs-2)/20px var(--f-body);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;
   transition:background-color .15s var(--ease)}
 .se-tile::before{content:"";position:absolute;inset:-7px 0}
 .se-tile b{flex:none;font-weight:800;color:var(--ink)}
 .se-tile span{min-width:0;max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .se-tile:focus-visible,.se-tile:active{background:var(--sunken)}
-.se-tile.se-add{font-size:var(--fs-1);font-weight:600;white-space:nowrap}
+.se-tile.se-add{font-size:var(--fs-1);font-weight:700;white-space:nowrap}
 @media (hover:hover){.se-tile:hover{background:var(--sunken)}.se-tile.se-add:hover{color:var(--ink)}}
+.se-day.chg .se-tile:is(:hover,:focus-visible,:active):not(.chg){background:rgb(20 33 61 / .07)}
+.se-tile.chg,.se-tile.chg:is(:hover,:focus-visible,:active){background:var(--amber);color:var(--on-amber)}
+.se-tile.chg b{color:var(--on-amber)}
+.se-tile.chg:focus-visible{outline-color:var(--ink)}
 /* Wider boards (laptop, admin): a roomier day column, as in a printed timetable. */
-@container (min-width:520px){.se-day{grid-template-columns:110px minmax(0,1fr)}}
+@container (min-width:520px){.se-cols,.se-day{grid-template-columns:110px minmax(0,1fr)}}
 /* Phone-narrow board: one time per line, a list of 44px lines (each line is its own tap area, none overlap). */
 @container (max-width:519.98px){
   .se-tiles{flex-direction:column;align-items:flex-start;gap:0}
@@ -678,15 +705,18 @@ dialog.ui-sheet[open]::backdrop{opacity:1}
 @media (prefers-reduced-motion:reduce){
   .se-tile,.se-start,.se-endf{transition:none!important}}
 
-/* Church photo (church-photo.js, portal and admin): the photo as the map shows it, its credit in the corner */
+/* Church photo (church-photo.js, portal and admin): the photo as the pass shows it (18px card, the credit in its
+   corner on a navy veil); no photo = a plain line, never a placeholder picture. */
 .cp{display:grid;gap:12px;min-width:0}
 .cp-view{display:grid;gap:8px;min-width:0}
-.cp-fig{position:relative;margin:0;max-width:560px;aspect-ratio:3/2;overflow:hidden;border-radius:var(--r);background:var(--sunken)}
+.cp-fig{position:relative;margin:0;max-width:560px;aspect-ratio:3/2;overflow:hidden;border-radius:var(--r-card);background:var(--sunken)}
 .cp-fig img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 30%;display:block}
-.cp-credit{position:absolute;right:0;bottom:0;max-width:100%;padding:3px 8px;border-top-left-radius:8px;background:rgb(10 18 34 / .62);color:#fff;font-size:var(--fs-1);line-height:1.35;text-align:right}
+.cp-credit{position:absolute;right:0;bottom:0;max-width:100%;padding:3px 8px;border-top-left-radius:8px;background:rgb(10 18 34 / .62);color:#fff;font:600 11px/1.35 var(--f-body);text-align:right}
 .cp-credit a{color:inherit;text-decoration:none}
+.cp-credit a:hover{text-decoration:underline}
 .cp-none,.cp-note{margin:0;max-width:62ch;font-size:var(--fs-2);line-height:1.45;color:var(--ink-2)}
-.cp-note{font-size:var(--fs-1)}
+.cp-none{font-weight:600}
+.cp-note{font-size:var(--fs-1);font-weight:600}
 .cp-acts{display:flex;flex-wrap:wrap;gap:8px}
 .cp-acts:empty{display:none}
 .cp-msg{margin:0;font-size:var(--fs-2);color:var(--ink-2)}

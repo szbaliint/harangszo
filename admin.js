@@ -1,7 +1,9 @@
 "use strict";
-/* Harangszó admin panel: a rail of sections, the church list, and the open church, whose week is the shared
-   schedule editor (schedule-editor.js, admin: true). All permissions are enforced by the database (row level
-   security); this page only hides what the signed-in person cannot change anyway. */
+/* Harangszó admin panel: a navy rail of sections, the church list (a board: name, meta line, count of times), and the
+   open church, whose week is the shared schedule editor (schedule-editor.js, admin: true). All permissions are
+   enforced by the database (row level security); this page only hides what the signed-in person cannot change anyway.
+   Unsaved changes are held in amber (data-chg rows and boxes, the week board's changed times, a dot on the tab, the
+   amber save bar) until the save, then they fade (ScheduleEditor.settle). */
 
 const CFG = window.HARANGSZO_CONFIG || {};
 const SE = window.ScheduleEditor;
@@ -19,10 +21,16 @@ const TYPES = { conf: "Gyóntatási időpont", mass: "Mise időpont", hours: "Ny
 const MON = ["jan.", "febr.", "márc.", "ápr.", "máj.", "jún.", "júl.", "aug.", "szept.", "okt.", "nov.", "dec."];
 const hm = t => t ? String(t).slice(0, 5) : "";
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-const SEARCH_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`;
+const SEARCH_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`;
+const FILTER_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"/></svg>`;
+const BACK_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg>`;
+// Links from the database: https only (as app.js shows them on the map).
+const httpsUrl = v => typeof v === "string" && /^https:\/\//.test(v) ? v : "";
+// The sign-in and "not for you" screens: the board as a header band with the title.
+const band = title => `<header class="ad-band"><div><p class="ad-logo">Harangszó<small>Adminisztráció</small></p><h1 class="ad-ptitle">${title}</h1></div></header>`;
 
 if (!real(CFG.supabaseUrl) || !real(CFG.supabaseAnonKey) || !window.supabase) {
-  main.innerHTML = `<div class="ad-narrow"><h1 class="ad-ptitle">Még nincs beállítva</h1><p>Az adatbázis (Supabase) adatai hiányoznak a <code>config.js</code> fájlból. Add meg a <code>SUPABASE_URL</code> és <code>SUPABASE_PUBLISHABLE_KEY</code> titkokat a GitHub-tárolóban, majd futtasd újra a közzétételt. Lépések: README.</p></div>`;
+  main.innerHTML = `${band("Még nincs beállítva")}<div class="ad-narrow wide"><p>Az adatbázis (Supabase) adatai hiányoznak a <code>config.js</code> fájlból. Add meg a <code>SUPABASE_URL</code> és <code>SUPABASE_PUBLISHABLE_KEY</code> titkokat a GitHub-tárolóban, majd futtasd újra a közzétételt. Lépések: README.</p></div>`;
   throw new Error("not configured");
 }
 const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
@@ -58,8 +66,7 @@ function toast(text) {
 function showShell(on) { rail.hidden = !on; listCol.hidden = !on; if (!on) { app.dataset.page = "login"; syncBar(); } }
 function renderLogin(msg = "") {
   unmountEditor(); showShell(false); $("#who").innerHTML = "";
-  main.innerHTML = `<form class="ad-narrow" id="login">
-    <h1 class="ad-ptitle">Belépés</h1>
+  main.innerHTML = `${band("Belépés")}<form class="ad-narrow" id="login" aria-label="Belépés">
     <label class="ui-field" for="em"><span>E-mail</span><input id="em" type="email" autocomplete="username" required></label>
     <label class="ui-field" for="pw"><span>Jelszó</span><input id="pw" type="password" autocomplete="current-password" required></label>
     <button class="ui-btn primary" type="submit">Belépés</button>
@@ -76,11 +83,11 @@ async function afterLogin(user) {
   A.user = user;
   const { data: staff } = await sb.from("staff").select("role,display_name").eq("user_id", user.id).maybeSingle();
   A.staff = staff;
-  const who = `<span class="em">${esc(user.email || staff?.display_name || "")}${staff ? " · " + (staff.role === "admin" ? "admin" : "plébánia") : ""}</span><button class="ui-btn quiet" type="button" data-logout>Kijelentkezés</button>`;
+  const who = `<span class="em" title="${esc(user.email || "")}">${esc(user.email || staff?.display_name || "")}</span>${staff ? `<span class="role">${staff.role === "admin" ? "admin" : "plébánia"}</span>` : ""}<button class="bbtn" type="button" data-logout>Kijelentkezés</button>`;
   $("#who").innerHTML = who;
   if (!staff) {
     showShell(false);
-    main.innerHTML = `<div class="ad-narrow wide"><h1 class="ad-ptitle">Nincs szerkesztői jogod</h1>
+    main.innerHTML = `${band("Nincs szerkesztői jogod")}<div class="ad-narrow wide">
       <p>Be vagy jelentkezve, de a fiókod még nincs felvéve szerkesztőnek. Kérd meg az adminisztrátort, hogy vegyen fel.</p>
       <p class="ad-muted">Ha te vagy az első adminisztrátor, futtasd ezt a Supabase SQL Editorban:</p>
       <code class="snip">insert into public.staff (user_id, role, display_name)\nvalues ('${esc(user.id)}', 'admin', '${esc(user.email)}');</code>
@@ -89,7 +96,7 @@ async function afterLogin(user) {
   }
   if (staff.role === "parish") {
     showShell(false);
-    main.innerHTML = `<div class="ad-narrow"><h1 class="ad-ptitle">A plébániák felülete máshol van</h1>
+    main.innerHTML = `${band("A plébániák felülete máshol van")}<div class="ad-narrow">
       <p>A templomod miserendjét a plébániáknak készült, egyszerűbb oldalon szerkesztheted.</p>
       <a class="ui-btn primary" href="plebania.html">Tovább a plébániai felületre</a><p class="ad-me">${who}</p></div>`;
     return;
@@ -185,10 +192,11 @@ function itemHTML(c) {
     c.has_feast ? word("", "ünnepi rend") : "",
     c.schedule_source ? word("", (SOURCE_TAG[c.schedule_source] || c.schedule_source) + (c.schedule_locked ? " · zárolt" : ""), "Az időpontok importból származnak") : "",
     c.published ? "" : word("", "rejtett"),
-    A.f.sort === "imp" || A.f.imp ? word("", `★ ${c.importance}${c.importance_manual != null ? " (kézi)" : ""}`, "Fontosság") : "",
+    A.f.sort === "imp" || A.f.imp ? word("", `fontosság ${c.importance}${c.importance_manual != null ? " (kézi)" : ""}`) : "",
   ].join("");
-  return `<li><button type="button" class="ad-it" data-id="${c.id}" aria-current="${A.sel === c.id}"><span class="nm">${esc(c.name)}</span>
-    <span class="sub ui-meta">${problems}<span>${esc(c.city || "– település nincs megadva –")}</span>${rest}</span></button></li>`;
+  const n = +c.n_services || 0;
+  return `<li><button type="button" class="ad-it" data-id="${+c.id}" aria-current="${A.sel === c.id}"><span class="nm">${esc(c.name)}</span>
+    <span class="sub ui-meta">${problems}<span>${esc(c.city || "– település nincs megadva –")}</span>${rest}</span><span class="n${n ? "" : " none"}" aria-label="${n} időpont">${n || "–"}</span></button></li>`;
 }
 const renderItems = () => { $("#clist").innerHTML = A.list.map(itemHTML).join("") || `<li class="ad-empty">Nincs a szűrőknek megfelelő templom.</li>`; };
 let listToken = 0;
@@ -221,7 +229,7 @@ async function loadList(append = false) {
 function chipsHTML() {
   const n = activeFilterCount();
   return QUICK.map(([k, v, t]) => `<button type="button" class="ui-chip" data-qk="${k}" data-qv="${v}" aria-pressed="${A.f[k] === v}">${t}</button>`).join("") +
-    `<button type="button" class="ui-chip" id="open-filters" aria-haspopup="dialog">⋯ Szűrők${n ? ` <span class="ad-fbadge" aria-label="${n} aktív szűrő">${n}</span>` : ""}</button>`;
+    `<button type="button" class="ui-chip" id="open-filters" aria-haspopup="dialog">${FILTER_ICON}Szűrők${n ? ` <span class="ad-fbadge" aria-label="${n} aktív szűrő">${n}</span>` : ""}</button>`;
 }
 function filtersSheetHTML() {
   const n = activeFilterCount();
@@ -242,6 +250,7 @@ function ensureListCol() {
   listCol.innerHTML = `<label class="ad-search" for="cq">${SEARCH_ICON}<input id="cq" type="search" placeholder="Név, település, azonosító" aria-label="Keresés: név, település, azonosító" value="${esc(A.q)}" autocomplete="off"></label>
     <div class="ad-chips" id="chips" role="group" aria-label="Szűrők">${chipsHTML()}</div>
     <div class="ad-cnt"><span id="ccount" role="status"></span>${isAdmin ? `<button type="button" class="ui-btn quiet" id="new-church">＋ Új templom</button>` : ""}</div>
+    <div class="ad-cols" aria-hidden="true"><span>Templom</span><span>Időpont</span></div>
     <ul class="ad-clist" id="clist"><li class="ad-empty">Betöltés…</li></ul>
     <button type="button" class="ui-btn secondary" id="more" hidden></button>`;
   const sheet = document.createElement("dialog");
@@ -285,7 +294,7 @@ const svcKey = c => JSON.stringify([SE.join(SE.split(c.services)), c.feasts, c.o
 function newChurch() {
   if (A.dirty && !confirmDiscard()) return;
   A.sel = null; A.draft = blankChurch(); A.meta = noMeta(); A.nearby = [];
-  setDirty(false); A.svcSnapshot = svcKey(A.draft); A.lockTouched = false;
+  setDirty(false); A.svcSnapshot = svcKey(A.draft); A.lockTouched = false; snapBase(A.draft);
   A.ctab = "data";
   markSelected();
   if (A.page !== "churches") setTab("churches", { render: false });
@@ -323,7 +332,7 @@ async function openChurch(id) {
         celebrant: s.celebrant || "", place: s.place || "", place_church_id: s.place_church_id || "", feast_skip: !!s.feast_skip })),
     feasts,
     events: data.events.sort((a, b) => String(a.date).localeCompare(String(b.date))).map(e => ({ date: e.date, start: hm(e.start_time), title: e.title, note: e.note || "" })) };
-  setDirty(false); A.svcSnapshot = svcKey(A.draft); A.lockTouched = false;
+  setDirty(false); A.svcSnapshot = svcKey(A.draft); A.lockTouched = false; snapBase(A.draft);
   // Churches within ~5 km, for "held at another church" (plus any already chosen); and this church's
   // suggestions, editors, access requests and edit history.
   const near = async () => {
@@ -354,20 +363,62 @@ async function loadMeta(cid) {
 function confirmDiscard() { return window.confirm("Van mentetlen módosításod ennél a templomnál. Eldobod?"); }
 function renderMain() { A.page === "merge" ? renderMerge() : renderChurch(); }
 
+/* ---------- Unsaved changes: what differs from the church as last saved ---------- */
+// Rows, feasts and own feasts are edited in place, so each object is compared with its JSON at the last save (a new
+// object is a change); the plain fields by the group of the row that shows them.
+const GROUPS = { basic: ["name", "city", "address", "rite", "lat", "lon", "website", "phone", "notes"], note: ["schedule_note"],
+  admin: ["importance_manual", "schedule_locked", "location_approx"], pub: ["published"] };
+const groupSig = (c, g) => JSON.stringify(GROUPS[g].map(k => String(c[k] ?? "")));
+const hoursSig = c => JSON.stringify([!!c.open_only_services, c.hours.map(h => [[...h.days].sort(), h.opens, h.closes])]);
+const feastsSig = c => JSON.stringify([Object.keys(c.feasts).sort().map(k => [k, c.feasts[k]]), c.own_feasts]);
+const rulesSig = c => JSON.stringify(SE.join(SE.split(c.services)));
+function snapBase(c) {
+  const objs = new WeakMap();
+  for (const o of [...c.events, ...c.hours, ...c.own_feasts, ...Object.values(c.feasts)]) objs.set(o, JSON.stringify(o));
+  A.base = { objs, rules: JSON.parse(JSON.stringify(c.services)), svc: rulesSig(c), hours: hoursSig(c), feasts: feastsSig(c), events: JSON.stringify(c.events),
+    groups: Object.fromEntries(Object.keys(GROUPS).map(g => [g, groupSig(c, g)])) };
+}
+const objChanged = o => !!o && (!A.base.objs.has(o) || A.base.objs.get(o) !== JSON.stringify(o));
+function chgOf(key) {
+  const c = A.draft, [kind, id] = key.split(":");
+  if (kind === "f") return objChanged(c.feasts[id]) || objChanged(c.own_feasts.find(o => o.key === id));
+  if (kind === "e") return objChanged(c.events[+id]);
+  if (key === "hours") return hoursSig(c) !== A.base.hours;
+  return GROUPS[key] ? groupSig(c, key) !== A.base.groups[key] : false;
+}
+function tabsChanged() {
+  const c = A.draft;
+  return { sched: rulesSig(c) !== A.base.svc || chgOf("admin"), feasts: feastsSig(c) !== A.base.feasts, events: JSON.stringify(c.events) !== A.base.events,
+    data: chgOf("basic") || chgOf("hours") || chgOf("note") };
+}
+// Paints the amber on the open church: changed rows and boxes, the tabs that hold a change; when nothing differs any
+// more (a change undone), the save bar goes as well.
+function marks() {
+  if (!A.draft || !A.base || A.page !== "churches") return;
+  main.querySelectorAll("[data-chg]").forEach(el => el.classList.toggle("chg", chgOf(el.dataset.chg)));
+  const t = tabsChanged();
+  main.querySelectorAll("[data-ctab]").forEach(b => {
+    const on = !!t[b.dataset.ctab];
+    b.classList.toggle("chg", on);
+    if (on) b.setAttribute("aria-describedby", "ad-chg"); else b.removeAttribute("aria-describedby");
+  });
+  if (A.dirty && !Object.values(t).some(Boolean) && !chgOf("pub")) setDirty(false);
+}
+
 /* ---------- Unsaved changes: the save bar ---------- */
 function syncBar() {
   const err = !$("#saveerr").hidden;
   bar.classList.toggle("on", A.page === "churches" && !!A.draft && (A.dirty || err));
   $("#savestate").textContent = A.dirty ? `${A.changes} nem mentett változás` : "";
 }
-function setDirty(v) { A.dirty = v; if (!v) { A.changes = 0; showErr(""); } syncBar(); }
+function setDirty(v) { A.dirty = v; if (!v) { A.changes = 0; countedEl = null; showErr(""); } syncBar(); }
 function showErr(t) { const e = $("#saveerr"); e.textContent = t; e.hidden = !t; syncBar(); }
 // Each change counts once: a tap, a choice, or typing into one field until it loses focus.
 let countedEl = null;
 document.addEventListener("focusout", e => { if (e.target === countedEl) countedEl = null; });
 function changed(el) {
   if (!el || el !== countedEl) { A.changes++; countedEl = el || null; }
-  showErr(""); setDirty(true);
+  showErr(""); setDirty(true); marks();
 }
 window.addEventListener("beforeunload", e => { if (A.dirty) { e.preventDefault(); e.returnValue = ""; } });
 $("#bar-save").addEventListener("click", () => save());
@@ -385,15 +436,16 @@ function renderChurch() {
   const meta = headerMeta();
   main.innerHTML = `<article class="ad-church" aria-labelledby="ch-name">
     <header class="ad-ch">
-      <button type="button" class="ui-btn quiet ad-back" data-back>‹ Lista</button>
+      <button type="button" class="ui-btn quiet ad-back" data-back>${BACK_ICON}Lista</button>
       <div class="ad-cht"><h1 class="ad-name" id="ch-name">${c.id ? esc(c.name) : "Új templom"}</h1><p class="ad-meta" id="ch-meta"${meta ? "" : " hidden"}>${meta}</p></div>
       <div class="ad-acts">
-        <label class="ad-pub" for="f-pub"><span>Közzétéve</span><input type="checkbox" class="ui-toggle" id="f-pub" data-k="published" ${c.published ? "checked" : ""}></label>
+        <label class="ad-pub" for="f-pub" data-chg="pub"><span>Közzétéve</span><input type="checkbox" class="ui-toggle" id="f-pub" data-k="published" ${c.published ? "checked" : ""}></label>
         ${c.id ? `<a class="ui-btn secondary" href="index.html#t=${c.id}" target="_blank" rel="noopener">Megnyitás a térképen</a>` : ""}
         <button type="button" class="ui-btn primary" id="save">Mentés</button>
       </div>
     </header>
     <nav class="ad-tabs" aria-label="A templom részei">${tabs.map(([k, v]) => `<button type="button" class="ad-tab" data-ctab="${k}" aria-pressed="${A.ctab === k}">${v}</button>`).join("")}</nav>
+    <span class="sr" id="ad-chg" hidden>nem mentett változás van benne</span>
     <div class="ad-body" id="cbody"></div>
   </article>`;
   renderCTab();
@@ -402,6 +454,7 @@ function renderCTab() {
   unmountEditor();
   main.querySelectorAll("[data-ctab]").forEach(b => b.setAttribute("aria-pressed", b.dataset.ctab === A.ctab));
   ({ sched: renderSched, feasts: renderFeasts, events: renderEvents, data: renderData, editors: renderEditors, history: renderHistory })[A.ctab]($("#cbody"));
+  marks();
 }
 function unmountEditor() { if (A.se) { A.se.destroy(); A.se = null; } }
 
@@ -412,7 +465,7 @@ function renderSched(box) {
     <section aria-label="Heti rend"><p class="ad-lead">Koppints egy időpontra a módosításhoz, a „+ időpont” gombbal újat adsz a naphoz. A szabály nyers mezői (érvényesség, a hónap hetei, kéthetente, ünnepnapokon elmarad) az időpont „Haladó” részében vannak.</p><div id="board"></div></section>
     <aside class="ad-side" aria-label="Javaslatok, admin mezők, szerkesztők">${c.id ? suggBoxHTML() : ""}${adminBoxHTML()}${c.id ? editorsBoxHTML() : ""}</aside>
   </div>`;
-  A.se = SE.mount($("#board"), { rules: c.services, admin: true, nearby: A.nearby, onChange: rules => { A.draft.services = rules; changed(); } });
+  A.se = SE.mount($("#board"), { rules: c.services, baseline: A.base?.rules, admin: true, nearby: A.nearby, onChange: rules => { A.draft.services = rules; changed(); } });
 }
 function suggBoxHTML() {
   const s = A.meta?.sugg || [];
@@ -426,14 +479,14 @@ function adminBoxHTML() {
   const c = A.draft, kv = (k, v) => `<div class="ad-kv"><span>${k}</span><span>${v}</span></div>`;
   const src = c.schedule_source, ref = c.source_ref;
   const osm = c.osm_type && c.osm_id ? `<a href="https://www.openstreetmap.org/${esc(c.osm_type)}/${esc(c.osm_id)}" target="_blank" rel="noopener">${esc(c.osm_type)}/${esc(c.osm_id)}</a>` : "";
-  return `<section class="ad-box" id="side-admin"><h2>Csak admin</h2>
+  return `<section class="ad-box" id="side-admin" data-chg="admin"><h2>Csak admin</h2>
     <div class="ad-kv"><span>Fontosság</span><label class="ui-field" for="f-imp" title="A térkép kicsinyítve csak a legfontosabb templomokat mutatja; ezzel előrébb vagy hátrébb sorolhatod ezt a templomot."><span hidden>Kiemelés a térképen</span><select id="f-imp" data-k="importance_manual">
       <option value="" ${c.importance_manual == null || c.importance_manual === "" ? "selected" : ""}>Automatikus${c.importance_auto != null ? " (" + c.importance_auto + ")" : ""}</option>
       ${[[100, "Kiemelt – mindig látszik"], [75, "Fontos"], [50, "Átlagos"], [20, "Háttérben"]].map(([v, t]) => `<option value="${v}" ${String(c.importance_manual) === String(v) ? "selected" : ""}>${t}</option>`).join("")}
     </select></label></div>
     ${ref ? kv(src === "miserend" ? "miserend.hu" : `${esc(SOURCE_TAG[src] || src || "Forrás")} azonosító`, "#" + esc(ref)) : ""}
     ${osm ? kv("OSM", osm) : ""}
-    ${src ? kv("Időpontok forrása", (c.schedule_source_url ? `<a href="${esc(c.schedule_source_url)}" target="_blank" rel="noopener">${esc(SOURCE_NAMES[src] || src)}</a>` : esc(SOURCE_NAMES[src] || src)) + (c.schedule_updated ? `, ${esc(c.schedule_updated)}` : "")) : ""}
+    ${src ? kv("Időpontok forrása", (httpsUrl(c.schedule_source_url) ? `<a href="${esc(httpsUrl(c.schedule_source_url))}" target="_blank" rel="noopener">${esc(SOURCE_NAMES[src] || src)}</a>` : esc(SOURCE_NAMES[src] || src)) + (c.schedule_updated ? `, ${esc(c.schedule_updated)}` : "")) : ""}
     ${c.created_by ? kv("Létrehozta", esc(SOURCE_TAG[c.created_by] || c.created_by) + " import") : ""}
     ${c.match_confirmed ? kv("Párosítás", "megerősítve") : ""}
     <label class="ad-tg" for="f-lock"><span>Importálás zárolva<small>${src ? "Zárolva az import nem írja felül az időpontokat. Ha kézzel módosítod őket, mentéskor magától zárolódik." : "Kézzel ellenőrzött miserend – az import ne írja felül."}</small></span><input type="checkbox" class="ui-toggle" id="f-lock" data-k="schedule_locked" ${c.schedule_locked ? "checked" : ""}></label>
@@ -477,7 +530,7 @@ function renderFeasts(box) {
   const now = new Date();
   const cards = keys.map(k => {
     const f = c.feasts[k], o = c.own_feasts.find(x => x.key === k), fe = o || window.LitCal.FEAST_BY_KEY[k], next = o ? window.LitCal.nextOwnFeastDate(o.md, now) : window.LitCal.nextFeastDate(k, now);
-    return `<div class="ad-card" role="group" aria-labelledby="fh-${k}">
+    return `<div class="ad-card" data-chg="f:${esc(k)}" role="group" aria-labelledby="fh-${k}">
       <div class="ad-cardh"><div><h3 id="fh-${k}">${esc(fe.name.trim() || "Saját ünnep")}</h3><span class="ad-when">${next.getFullYear()}. ${next.toLocaleDateString("hu-HU", { month: "long", day: "numeric", weekday: "long" })}${o && o.md === "02-29" ? " · csak szökőévben" : ""}</span></div>
         <button type="button" class="ui-btn danger" data-delfeast="${k}">Ünnep eltávolítása</button></div>
       ${o ? ownFieldsHTML(o) : ""}
@@ -512,7 +565,7 @@ function renderEvents(box) {
   const c = A.draft;
   box.innerHTML = `<div class="ad-stack">
     <p class="ad-lead">Egyszeri alkalmak: búcsú, bérmálás, koncert, lelkigyakorlat. A térképen a templom oldalán, a közelgő események között látszanak.</p>
-    ${c.events.map((e, i) => `<div class="ad-card"><div class="ad-line">
+    ${c.events.map((e, i) => `<div class="ad-card" data-chg="e:${i}"><div class="ad-line">
       <label class="ui-field ad-d"><span>Dátum</span><input type="date" data-l="events" data-i="${i}" data-f="date" value="${esc(e.date)}"></label>
       ${timeField("Időpont", `data-l="events" data-i="${i}" data-f="start"`, e.start)}
       <label class="ui-field wide"><span>Cím</span><input data-l="events" data-i="${i}" data-f="title" value="${esc(e.title)}" placeholder="pl. Búcsúi szentmise"></label>
@@ -525,9 +578,10 @@ function renderEvents(box) {
 /* ---------- Adatok ---------- */
 function renderData(box) {
   const c = A.draft, isAdmin = A.staff.role === "admin";
-  const osm = c.lat && c.lon ? `https://www.openstreetmap.org/?mlat=${c.lat}&mlon=${c.lon}#map=18/${c.lat}/${c.lon}` : "";
+  const lat = parseFloat(String(c.lat).replace(",", ".")), lon = parseFloat(String(c.lon).replace(",", "."));
+  const osm = Number.isFinite(lat) && Number.isFinite(lon) && lat && lon ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}` : "";
   box.innerHTML = `<div class="ad-stack">
-    <div class="ad-card"><h3>Alapadatok</h3>
+    <div class="ad-card" data-chg="basic"><h3>Alapadatok</h3>
       <div class="ad-grid2">
         <label class="ui-field" for="f-name"><span>Név</span><input id="f-name" data-k="name" value="${esc(c.name)}" required></label>
         <label class="ui-field" for="f-city"><span>Település</span><input id="f-city" data-k="city" value="${esc(c.city)}"></label>
@@ -542,7 +596,7 @@ function renderData(box) {
       <label class="ui-field" for="f-notes"><span>Belső megjegyzés (nem nyilvános)</span><textarea id="f-notes" data-k="notes" rows="3">${esc(c.notes)}</textarea></label>
     </div>
     <section class="ad-card" aria-labelledby="ph-h"><div><h3 id="ph-h">Fotó</h3><span class="ad-when">A térképen a templom oldalának tetején látszik. A Wikimedia Commons fotókat a fotóimport hozza.</span></div><div id="photo"></div></section>
-    <div class="ad-card"><div><h3>Nyitvatartás</h3><span class="ad-when">Mikor lehet bemenni imádkozni</span></div>
+    <div class="ad-card" data-chg="hours"><div><h3>Nyitvatartás</h3><span class="ad-when">Mikor lehet bemenni imádkozni</span></div>
       <label class="ad-check" for="f-only"><input type="checkbox" class="ui-toggle" id="f-only" data-k="open_only_services" ${c.open_only_services ? "checked" : ""}><span>Csak a szertartások idején van nyitva</span></label>
       <div class="ad-rows">${c.hours.map((h, i) => `<div class="ad-hours" role="group" aria-label="Nyitvatartás, ${i + 1}. sor">
         <div class="ui-daypick" role="group" aria-label="Napok">${DAY_ORDER.map(d => `<button type="button" data-days="hours.${i}" data-d="${d}" aria-pressed="${h.days.includes(d)}" aria-label="${DAY_NAME[d]}">${DAY_SHORT[d]}</button>`).join("")}</div>
@@ -550,7 +604,7 @@ function renderData(box) {
           <button type="button" class="ui-btn danger" data-delrow="hours" data-i="${i}" aria-label="Nyitvatartási sor törlése">Törlés</button></div></div>`).join("")}</div>
       <button type="button" class="ui-btn secondary ad-add" data-addrow="hours">＋ Nyitvatartási sor</button>
     </div>
-    <div class="ad-card"><div><h3>Megjegyzés a miserendhez</h3><span class="ad-when">Nyilvános, a miserend alatt látszik. Webcímek kattinthatók lesznek.</span></div>
+    <div class="ad-card" data-chg="note"><div><h3>Megjegyzés a miserendhez</h3><span class="ad-when">Nyilvános, a miserend alatt látszik. Webcímek kattinthatók lesznek.</span></div>
       <label class="ui-field" for="f-snote"><span hidden>Megjegyzés a miserendhez</span><textarea id="f-snote" data-k="schedule_note" rows="4" placeholder="pl. Adventben a hétköznapi misék reggel 6-kor">${esc(c.schedule_note)}</textarea></label>
     </div>
     ${c.id && isAdmin ? `<div class="ad-card"><h3>Összevonás, törlés</h3>
@@ -736,6 +790,8 @@ async function save() {
   const wasNew = !c.id;
   if (wasNew) { c.id = data; A.sel = data; }
   if (A.draft === c) {
+    // Saved: the amber lets go (the rows, boxes and times fade, the bar leaves).
+    snapBase(c); A.se?.setBaseline(c.services); SE.settle(main.querySelectorAll(".chg"));
     setDirty(false); A.svcSnapshot = svcKey(c);
     const lock = $("#f-lock"); if (lock && autoLocked) lock.checked = true;
   }
@@ -871,7 +927,7 @@ function renderMerge() {
   unmountEditor();
   const c = A.draft?.id ? A.draft : null;
   main.innerHTML = `<div class="ad-page">
-    <button type="button" class="ui-btn quiet ad-back" data-back>‹ Lista</button>
+    <button type="button" class="ui-btn quiet ad-back" data-back>${BACK_ICON}Lista</button>
     <h1 class="ad-ptitle">Összevonás</h1>
     <p class="ad-lead">Ha ugyanaz a templom kétszer szerepel (egy import a térkép temploma mellé tette, vagy a térképen kétszer van), itt vonhatod össze. Válaszd ki a listából az egyiket, utána keresd meg a párját.</p>
     ${c ? `<section class="ad-merge" id="merge" aria-label="Összevonás: ${esc(c.name)}"></section>` : `<div class="ui-empty"><strong>Válassz templomot</strong><p>A listából válaszd ki az egyik bejegyzést.</p></div>`}
@@ -984,7 +1040,7 @@ async function renderStats() {
       ${tile("Telepítés", nf(t["install:"]), `alkalmazásként: ${pct(+t["mode:app"] || 0, (+t["mode:app"] || 0) + (+t["mode:browser"] || 0))}`)}
       ${tile("Plébániai mentés", nf(r.parish_saves_count), `${nf(cov.parish_managed)} templomot kezel plébánia`)}
     </div>
-    <div class="st-grid" style="margin-top:12px">
+    <div class="st-grid">
       <section class="st-box st-wide"><div class="st-head"><h2 id="st-ctitle"></h2>
           <div class="ui-seg ad-seg" id="st-m" role="group" aria-label="Mit mutasson a grafikon">${Object.entries(ST_MEASURES).map(([k, l]) => `<button type="button" data-m="${k}" aria-pressed="${A.statMeasure === k}">${l}</button>`).join("")}</div></div>
         <div class="st-chart" id="st-chart"></div>
@@ -992,7 +1048,7 @@ async function renderStats() {
           <tbody>${[...r.days].reverse().map(d => `<tr><td>${esc(d.day)}</td><td>${nf(d.visits)}</td><td>${nf(d.visitors)}</td><td>${nf(d.new)}</td><td>${nf(d.views)}</td></tr>`).join("")}</tbody></table></details>
       </section>
       <section class="st-box"><h2>Legnézettebb templomok</h2><p class="st-sub">Megnyitások; koppints a templom megnyitásához.</p>
-        ${stRows(r.churches.filter(x => x.view).slice(0, 15), x => church(x) + ((+x.dir || +x.call || +x.web || +x.save) ? ` <span class="st-acts">· ${[[x.dir, "útvonal"], [x.call, "hívás"], [x.web, "web"], [x.save, "♡"]].filter(y => +y[0]).map(y => nf(y[0]) + " " + y[1]).join(" · ")}</span>` : ""), x => +x.view, true)}</section>
+        ${stRows(r.churches.filter(x => x.view).slice(0, 15), x => church(x) + ((+x.dir || +x.call || +x.web || +x.save) ? ` <span class="st-acts">· ${[[x.dir, "útvonal"], [x.call, "hívás"], [x.web, "web"], [x.save, "mentés"]].filter(y => +y[0]).map(y => nf(y[0]) + " " + y[1]).join(" · ")}</span>` : ""), x => +x.view, true)}</section>
       <section class="st-box"><h2>Sokan nézik, de nincs időpontja</h2><p class="st-sub">Itt segít a legtöbbet egy feltöltött miserend. Összesen ${nf((cov.churches || 0) - (cov.with_times || 0))} templomnál nincs időpont (${pct((cov.churches || 0) - (cov.with_times || 0), cov.churches)}).</p>
         ${stRows(r.no_times.slice(0, 15), church, x => +x.view, true)}</section>
       <section class="st-box"><h2>Keresések</h2><p class="st-sub">Találatot adó keresőszavak (${nf(a.search)}).</p>
@@ -1009,7 +1065,7 @@ async function renderStats() {
         <h3>Hozzáférést kapott, de még nem mentett</h3>${r.parish_never.length ? `<div class="st-rows">${r.parish_never.map(x => `<button type="button" class="st-row" data-open="${x.id}"><span class="nm">${church(x)}</span><span class="st-acts">${esc(x.who || "")}</span></button>`).join("")}</div>` : `<p class="st-note">Mindenki mentett már.</p>`}
         <h3>Fél éve nem frissített, plébánia által kezelt</h3>${r.parish_stale.length ? `<div class="st-rows">${r.parish_stale.map(x => `<button type="button" class="st-row" data-open="${x.id}"><span class="nm">${church(x)}</span><span class="st-acts">${esc(when(x.at))}</span></button>`).join("")}</div>` : `<p class="st-note">Nincs ilyen.</p>`}</section>
     </div>
-    <p class="st-note" style="margin-top:12px">Névtelen számlálók: nincs süti, nincs látogatóazonosító, nincs IP-cím. A „látogató” azt jelenti, hogy egy eszköz aznap először nyitotta meg a térképet; ugyanaz az ember két eszközön kettőnek számít. Aki a böngészőjében letiltotta a követést, és az az eszköz, amelyen ez az admin oldal meg volt nyitva, nem számít bele.</p>`;
+    <p class="st-note st-foot">Névtelen számlálók: nincs süti, nincs látogatóazonosító, nincs IP-cím. A „látogató” azt jelenti, hogy egy eszköz aznap először nyitotta meg a térképet; ugyanaz az ember két eszközön kettőnek számít. Aki a böngészőjében letiltotta a követést, és az az eszköz, amelyen ez az admin oldal meg volt nyitva, nem számít bele.</p>`;
   const draw = () => {
     $("#st-ctitle").textContent = ST_MEASURES[A.statMeasure] + " naponta";
     $("#st-chart").innerHTML = statsChart(r.days, A.statMeasure);
