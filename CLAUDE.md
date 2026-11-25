@@ -34,7 +34,9 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   and notes), Útvonal + Hívás / Honlap / Mentés / Megosztás / Javítás, the 7-day strip and that day's times, folds
   (week timetable, dated week, feasts incl. own feasts and Rorate, events, the parish's note), the source/honesty line.
   Motion: the church page enters from the right and leaves the same way (view transitions), tabs cross-fade, press
-  feedback on pointer-down; reduced motion = 150ms cross-fades only.
+  feedback on pointer-down; a new pass (its `sig` changed, not the minute's update) comes up 8px into place (220ms,
+  `arrive()`); a tapped day's times slide in 12px from the side of travel (200ms); `.ui-fold` glides open and shut
+  where the browser has `::details-content` + `interpolate-size`; reduced motion = 150ms cross-fades only.
   Google Maps when `GOOGLE_MAPS_KEY` is set (it is, live), otherwise Leaflet + CARTO tiles.
 - Church photos (migration 013): `churches.photo_url/photo_credit/photo_source ('commons'|'parish')/photo_page`, in
   `public_data`. Commons photos come from `scripts/import-photos.mjs` (workflow "Import church photos from Wikimedia
@@ -45,32 +47,43 @@ Live: https://szbaliint.github.io/harangszo/ (map) · `plebania.html` (parishes)
   photos straight from upload.wikimedia.org (named in jogi.html's privacy notice).
 - `calendar.js` (`window.LitCal`) – shared by the site, admin, parish page and the Node imports: movable feasts,
   `FEASTS` (+ `FEAST_GROUPS` holyday/public), `PERIOD_INFO` seasons, `inPeriod`, `weekOk`, `everyOk`, `isHoliday`, tags.
-- `admin.html` + `admin.js` – the owner's all-powerful editor (laptop first: rail · church list · church): every
+- `admin.html` + `admin.js` – the owner's all-powerful editor (laptop first: navy rail · church list · church): every
   church, suggestions, merge, access requests ("Hozzáférések"), per-church editors, edit history, photo, Statisztika.
-  Parish accounts opening it are sent to `plebania.html`.
-- `plebania.html` + `plebania.js` – the parish portal (phone first, sections in a bottom tab bar): sign up → request
-  access to a church → admin approves → week board editor in plain words, feasts, events, details and photo, live
-  7-day preview. Saves through `save_church` (the photo is saved at once, outside the save bar).
-- `jogi.html` – impresszum, privacy notice, terms (operator name/contact are still `[PLACEHOLDER]`s).
+  The list is a board (TEMPLOM / IDŐPONT labels, name 800, one grey `ui-meta` line with problems first in red, the
+  count of times; the open church is the navy row); sign-in screens get a navy band (`band()`). Parish accounts
+  opening it are sent to `plebania.html`.
+- `plebania.html` + `plebania.js` – the parish portal (phone first): a navy header with the screen's title or the
+  church (name, state, on phones the Szerkesztés / Így látják a hívek switch) and the sections (a bottom tab bar with
+  line icons on phones, navy tabs in the header from 980px): sign up → request access to a church → admin approves →
+  week board editor in plain words, feasts, events, details and photo, live 7-day preview (a NAP / IDŐPONTOK board).
+  Saves through `save_church` (the photo is saved at once, outside the save bar).
+- **Unsaved changes are amber** (the editors' signature move, portal and admin): what differs from the church as last
+  saved (`P.base` / `A.base` snapshots; `data-chg` rows and boxes get `.chg` = pale amber `--flash`), the week board's
+  changed times (amber) and their day rows (`ScheduleEditor.mount({ baseline })`), an amber dot on the tab that holds
+  them, and the amber save bar "N nem mentett változás" (red with the reason when a save fails). Undoing every change
+  hides the bar. A save lets the amber fade (`ScheduleEditor.settle` → `.chg-out`, 600ms; none under reduced motion).
+- `jogi.html` – impresszum, privacy notice, terms (operator name/contact are still `[PLACEHOLDER]`s); a navy header
+  with Vissza, then hairline sections.
 - PWA (map only): `manifest.webmanifest`, `sw.js` (precaches the map's shell; `__BUILD__` is stamped with the commit
-  by pages.yml, so each deploy offers "Frissítés"; navy theme colour), `icons/` (a white church bell on ink; PNGs rendered from
-  `bell.svg` by `icons/render.mjs`).
+  by pages.yml, so each deploy offers "Frissítés"; navy theme colour, as every page's `theme-color`), `icons/` (a white
+  church bell on the board's navy `#13233f`; PNGs rendered from `bell.svg` by `icons/render.mjs`).
 - `analytics.js` (`window.Track`) – anonymous usage counters from the map (no cookies or ids; off with Do Not Track,
   in automated browsers unless `?track=1`, and on a device where an admin opened admin.html). Admin shows them under
   "Statisztika". A new event name or key must also be allowed in the `track()` SQL function (014 added tab "most";
   Indulások is "most", Keresés is "list").
-- `schedule-editor.js` (`window.ScheduleEditor`) – the week board (a timetable: day name in a grey left column, times
-  as quiet text buttons "07:00 mise", "+ időpont") + question-style time editor shared by the parish portal and admin
-  (`admin: true` adds the raw "Haladó" fields).
+- `schedule-editor.js` (`window.ScheduleEditor`) – the week board (a timetable: NAP / IDŐPONTOK labels, day name in a
+  grey left column, times as quiet text buttons "07:00 mise" with the time 800, "+ időpont"; one time per 44px line on
+  narrow boards) + question-style time editor shared by the parish portal and admin (`admin: true` adds the raw
+  "Haladó" fields); `baseline` / `setBaseline()` / `settle()` hold unsaved changes in amber.
 - `styles.css` – the one design system for every page: a navy board (`--board` #13233f, `--board-2` #1d3257) over
   white rows, ink `#14213d`, greys `#5d6779`/`#6b7488`, hairlines `#e6e9ef`; ONE amber `#ffb703` (`--amber`, dark text
   on it) that only marks "leave now" and a changed row; red `--now` `#d33a2c` (#e5483a darkened for AA) only for "most
   tart" and errors; dark mode = a navy-black board with the same amber and red. Cards 18px, segmented controls and
   fields 12px, buttons and status chips are pills; one soft shadow (`--lift`) for floating things. The `ui-`
-  components, the week board (`se-`) and the photo block (`cp-`) are shared with the portal, admin and jogi.html (their
-  own layouts are restyled in a later pass; they already get the tokens and Overpass). Type: **Overpass** for
-  everything, tabular figures, 800 for times, names and headings, 700 labels/controls, 600 meta, 400 text (portal,
-  admin and jogi still use 300/500 until their pass); small uppercase column labels. Overpass is **self-hosted** in
+  components (incl. the amber `ui-savebar`), the week board (`se-`) and the photo block (`cp-`) are shared with the
+  portal, admin and jogi.html, which keep only their layout in their own `<style>`. Type: **Overpass** for everything,
+  tabular figures, 800 for times, names and headings, 700 labels/controls, 600 meta, 400 text, on every page
+  (`tests/helpers/type-check.mjs`); small uppercase column labels; no eyebrow/kicker over a heading. Overpass is **self-hosted** in
   `fonts/` (variable woff2, latin + latin-ext, `OFL-Overpass.txt`; no Google Fonts request; its "·" was re-classed from
   mark to base glyph with fontTools so " · " keeps its width); `index.html` preloads the latin file and `sw.js` keeps
   both in its own font cache (bump `FONT_CACHE`, now `harangszo-fonts-2`, when a file changes). Product brief:
