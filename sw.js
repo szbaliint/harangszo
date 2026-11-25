@@ -9,11 +9,11 @@
    - Church data stays in the page's own localStorage cache. pages.yml stamps the build id below on deploy. */
 const BUILD = "__BUILD__";
 const CACHE = "harangszo-" + BUILD;
-const FONT_CACHE = "harangszo-fonts-1";
+const FONT_CACHE = "harangszo-fonts-2";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "analytics.js", "calendar.js", "data.js", "config.js", "manifest.webmanifest",
   "icons/bell.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon-180.png"];
-// Every face the map can use (latin-ext carries Hungarian ő ű), so it reads the same offline.
-const FONTS = ["fonts/source-sans-3-latin.woff2", "fonts/source-sans-3-latin-ext.woff2", "fonts/newsreader-latin.woff2", "fonts/newsreader-latin-ext.woff2"];
+// Every face the map can use (Overpass; latin-ext carries Hungarian ő ű), so it reads the same offline.
+const FONTS = ["fonts/overpass-latin.woff2", "fonts/overpass-latin-ext.woff2"];
 const NETWORK_ONLY = /(^|\/)(plebania\.[^/]*|admin\.[^/]*|schedule-editor\.js)$/;
 const SCOPE = new URL(self.registration.scope).pathname; // "/harangszo/" on GitHub Pages, "/" locally
 
